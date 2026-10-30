@@ -113,7 +113,7 @@ def test_fixed_on_second_attempt(setup: Any, events: list[Event]) -> None:
     assert "return a + b\n" in calc(ctx)
     assert result.usage.calls == 6
     llm.assert_exhausted()
-    assert kinds(events).count("repair_started") == 2
+    assert kinds(events).count("repair_attempt") == 2
     assert "repair_succeeded" in kinds(events)
     assert "escalation" not in kinds(events)
 

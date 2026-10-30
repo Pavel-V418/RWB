@@ -21,7 +21,7 @@ from pydantic import JsonValue
 
 from specforge.core.agent_api import AgentContext, agent_loop
 from specforge.core.contracts import AgentSpec, GateResult, StageResult, StageStatus, Usage
-from specforge.core.events import Event
+from specforge.core.events import Event, EventType
 from specforge.gates.runner import GateRunner
 from specforge.llm import ProfileName
 from specforge.repair.context import build_repair_context
@@ -117,7 +117,7 @@ class _Repair:
                 reason = "исчерпан бюджет токенов этапа"
                 break
             attempts = attempt
-            self._emit("repair_started", attempt=attempt, errors=self.current.total_errors)
+            self._emit(EventType.repair_attempt, attempt=attempt, errors=self.current.total_errors)
             snapshot = self._snapshot(f"repair-{attempt}")
             known = lookup_many(self.memory, self.current.diagnostics)
             if known:
@@ -302,4 +302,12 @@ class _Repair:
         )
 
     def _emit(self, kind: str, **data: JsonValue) -> None:
-        self.ctx.emit(Event(kind=kind, run_id=self.ctx.run_id, agent=self.spec.name, data=data))
+        self.ctx.emit(
+            Event(
+                kind=kind,
+                run_id=self.ctx.run_id,
+                stage=self.spec.stage,
+                agent=self.spec.name,
+                data=data,
+            )
+        )

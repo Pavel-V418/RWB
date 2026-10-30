@@ -97,7 +97,14 @@ class BudgetController:
     def ratio(self, tokens_used: int, elapsed_s: float) -> float:
         return max(tokens_used / self.limits.global_tokens, elapsed_s / self.limits.wall_clock_s)
 
-    def decide(self, spec: AgentSpec, *, tokens_used: int, elapsed_s: float) -> BudgetDecision:
+    def decide(
+        self,
+        spec: AgentSpec,
+        *,
+        tokens_used: int,
+        elapsed_s: float,
+        run_id: str | None = None,
+    ) -> BudgetDecision:
         ratio = self.ratio(tokens_used, elapsed_s)
         stage_limits = self.limits.stages.get(spec.name, StageLimits())
         stage_tokens = stage_limits.tokens or spec.token_budget
@@ -110,7 +117,7 @@ class BudgetController:
                 else f"время {elapsed_s:.0f}/{self.limits.wall_clock_s:.0f} с"
             )
             reason = f"глобальный бюджет исчерпан ({what})"
-            self._warn(spec, "exhausted", reason, ratio=ratio)
+            self._warn(spec, run_id, "exhausted", reason, ratio=ratio)
             return BudgetDecision(token_budget=0, max_repairs=0, exhausted=reason, ratio=ratio)
 
         decision = BudgetDecision(
@@ -119,6 +126,7 @@ class BudgetController:
         if remaining < stage_tokens:
             self._warn(
                 spec,
+                run_id,
                 "stage_tokens_clamped",
                 f"бюджет этапа урезан до остатка глобального: {stage_tokens} → {remaining}",
                 ratio=ratio,
@@ -128,6 +136,7 @@ class BudgetController:
             decision.thinking_off = True
             self._warn(
                 spec,
+                run_id,
                 "thinking_off",
                 f"израсходовано {ratio:.0%} бюджета — этап без thinking",
                 ratio=ratio,
@@ -136,6 +145,7 @@ class BudgetController:
             decision.max_repairs = 1
             self._warn(
                 spec,
+                run_id,
                 "single_repair",
                 f"израсходовано {ratio:.0%} бюджета — не больше одного ремонта",
                 ratio=ratio,
@@ -143,25 +153,31 @@ class BudgetController:
             )
         return decision
 
-    def after_stage(self, spec: AgentSpec, result: StageResult) -> None:
+    def after_stage(
+        self, spec: AgentSpec, result: StageResult, *, run_id: str | None = None
+    ) -> None:
         """Зафиксировать превышение лимита времени этапа."""
         limit = self.limits.stages.get(spec.name, StageLimits()).time_s
         if limit is not None and result.duration_s > limit:
             self._warn(
                 spec,
+                run_id,
                 "stage_time_exceeded",
                 f"этап шёл {result.duration_s:.0f} с при лимите {limit:.0f} с",
                 duration_s=result.duration_s,
                 limit_s=limit,
             )
 
-    def _warn(self, spec: AgentSpec, decision: str, message: str, **data: JsonValue) -> None:
+    def _warn(
+        self, spec: AgentSpec, run_id: str | None, decision: str, message: str, **data: JsonValue
+    ) -> None:
         if self._emit_fn is None:
             return
         self._emit_fn(
             Event(
                 kind="budget_warning",
-                run_id=self.run_id,
+                run_id=run_id or self.run_id,
+                stage=spec.stage,
                 agent=spec.name,
                 message=message,
                 data={"decision": decision, **data},
