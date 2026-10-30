@@ -14,13 +14,27 @@
 - **4.4 Невалидные tool call.** В истории `arguments="{}"`; сырой текст — в лог `llm.tool_call.invalid` и событие `tool_called`.
 - `docs/AGENT_SDK.md`, раздел «10. Изменения»: таблица «было/стало» и миграция для агентов команды.
 
+## Оркестратор (LangGraph)
+- `orchestrator/registry.py` — `Registry`: автозагрузка `agents/*/agent.py` (кроме `_*`), проверка depends_on,
+  циклов, пересечения outputs, групп; детерминированный план шагов; `specforge list-agents`.
+- `orchestrator/graph.py` — `build_graph`: profile → шаги (fan-out/fan-in по `parallel_group`) → finalize;
+  PostgresSaver (`SPECFORGE_PG_DSN`), `specforge run`, `specforge resume <run_id> [--from <этап>]`.
+- `orchestrator/nodes.py` — узлы: зависимости (degraded с артефактами — дальше, иначе skipped), enabled_if,
+  бюджет, кэш, `execute_stage(max_repairs=)`; `pipeline.json`.
+- `orchestrator/budget.py` — `BudgetController`: >70% — thinking off (`LLMClient.with_thinking`), >85% —
+  max_repairs=1, 100% — skipped; события `budget_warning`.
+- `orchestrator/cache.py` — кэш этапов в `runs/.cache/` по хэшу входов + spec + промптов + исходника агента.
+- `core/artifacts.py` — `RunWorkspace`, `artifacts/<stage>/manifest.json` с sha256.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
-- Не начаты: граф LangGraph (`orchestrator/graph.py`, `budget.py`, `publisher.py`), `telemetry/` (Langfuse, метрики,
-  отчёт), `rag/`, `api/server.py`, `tools/docs.py`, CLI `specforge run` / `specforge report`.
+- Не начаты: `orchestrator/publisher.py`, `telemetry/` (Langfuse, метрики, отчёт), `rag/`, `api/server.py`,
+  `tools/docs.py`, CLI `specforge report`.
 
 ## Не проверено вживую (только тесты на подделках)
+- PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.
+- Лимит времени этапа не прерывает этап — превышение фиксируется событием после него.
 - DockerSandbox — поддельный docker-клиент; Docker на машине разработки нет.
 - `infra/docker-compose.platform.yml` — проверен разбором YAML, `docker compose up` не запускался.
 - Память исправлений в Postgres (pg_trgm, SQL) — поддельное соединение.

@@ -567,3 +567,68 @@ meter.usage
 5. Если вы читали `state["events"]` — подпишитесь на `EventBus` (`bus.subscribe(fn)`).
 6. Проверьте тесты агента: в `FakeLLM` профиль виден как `llm.calls[i].profile`, лимит —
    `llm.calls[i].max_tokens`; ожидание — `Expect(profile="ANALYSIS")`.
+
+---
+
+## 11. Конвейер (`specforge run`)
+
+### Реестр
+
+Агенты конвейера — все `agents/<name>/agent.py` с переменной `AGENT`, кроме каталогов на `_`
+(образцы вроде `_example` запускаются только через `agent run`). `uv run specforge list-agents`
+показывает агентов, проверку реестра и план шагов. Реестр отвергает:
+
+- `depends_on` на несуществующего агента и циклы зависимостей;
+- пересечение `outputs` разных агентов (шаблоны сравниваются как `<stage>/<pattern>`, проверка
+  приближённая: совпадение, вложенность, общий префикс у шаблонов с `**`);
+- двух агентов этапа `profile`, `depends_on` у агента этапа `profile`;
+- агентов одной `parallel_group`, зависящих друг от друга или пишущих в один этап;
+- имена агентов `profile` / `finalize` и этап `input` или с символами, недопустимыми в имени каталога.
+
+### Граф и статусы
+
+`profile → шаги → finalize`. Шаг — один агент или вся `parallel_group` (параллельно, не больше
+`RunConfig.max_concurrency`). Порядок шагов детерминирован: топологический, при равенстве — по имени.
+
+- **profile.** Если есть агент со `stage="profile"`, он пишет `case_profile.json` (JSON `CaseProfile`)
+  в свой `output_dir`; иначе (или если файла нет / он неверный) — профиль из флагов CLI
+  (`--mobile --web --backend --geo --events --integrations --flag <имя>`).
+- **Зависимости.** Этап запускается, если каждая зависимость `passed` или `degraded` с непустыми
+  `artifacts`. Зависимость `failed`, `skipped` или `degraded` без артефактов → этап `skipped`
+  (`stopped_reason="dependency"`). Конвейер всегда доходит до `finalize`.
+- **`enabled_if`** ложен → `skipped` (`stopped_reason="enabled_if"`).
+
+### Артефакты
+
+```
+runs/<run_id>/artifacts/input/<ТЗ>        — вход конвейера
+runs/<run_id>/artifacts/<stage>/          — output_dir агентов этапа (/work в песочнице)
+runs/<run_id>/artifacts/<stage>/manifest.json — файлы этапа с sha256
+runs/<run_id>/pipeline.json               — итог (статусы, usage)
+```
+
+`input_dir` агента в конвейере — `runs/<run_id>/artifacts/`, поэтому `inputs` пишутся с этапом:
+`["analysis/*.json"]`, ТЗ — `["input/*.md"]`. Перед запуском этапа удаляются прежние файлы
+агента (под его `outputs`).
+
+### Бюджет
+
+Глобальный лимит токенов и времени (`SPECFORGE_TOKEN_BUDGET`, `SPECFORGE_WALL_CLOCK_S`,
+`--budget`, `--time-limit`) и лимит этапа (`token_budget`). Израсходовано > 70% — этап идёт
+с thinking off, > 85% — не больше одного ремонта, 100% — этап `skipped`
+(`stopped_reason="budget"`). Каждое решение — событие `budget_warning` (`data.decision`).
+
+### Кэш этапов
+
+Если хэш входных артефактов + `AgentSpec` + промптов + исходника `agent.py` совпал с прошлым
+`passed`-результатом, этап не запускается: выходы (файлы под `outputs`) копируются из
+`runs/.cache/`, событие `stage.cached`. Агенты без `outputs` не кэшируются. Отключить:
+`--no-cache` или `SPECFORGE_STAGE_CACHE=false`. Агент, зависящий от чего-то кроме входов
+(сеть, время), должен это учитывать: его кэш устареет незаметно.
+
+### Resume
+
+Чекпойнт пишется после каждого шага в Postgres (`SPECFORGE_PG_DSN`, LangGraph PostgresSaver).
+`specforge resume <run_id>` продолжает с места падения; `--from <агент|этап>` перезапускает
+этот шаг и все следующие (неизменившиеся этапы возьмутся из кэша). Без `SPECFORGE_PG_DSN`
+чекпойнты живут только в памяти процесса.
