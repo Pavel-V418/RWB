@@ -28,7 +28,7 @@ from specforge.core.contracts import (
 )
 from specforge.core.events import Event, EventType
 from specforge.gates.infra import INFRA_MAX_RETRIES
-from specforge.gates.runner import GateConfigError, GateRunner
+from specforge.gates.runner import GateConfigError, GateRunner, diagnostics_digest
 from specforge.llm import LLMClient, NullLLM
 from specforge.orchestrator.budget import BudgetController, active_seconds
 from specforge.orchestrator.cache import StageCache, stage_key
@@ -294,6 +294,8 @@ def _run_agent_and_gate(
             data={
                 "total_errors": gate.total_errors,
                 "failed_command_index": gate.failed_command_index,
+                "infra_error": gate.infra_error,
+                "diagnostics": diagnostics_digest(gate),
             },
         )
     )

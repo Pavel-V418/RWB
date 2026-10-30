@@ -1,7 +1,7 @@
 # Статус платформы SpecForge
 
 Срез на `0b80436`. pytest 286 passed / 2 skipped (симлинки на Windows, LLM_BASE_URL), ruff, mypy —
-зелёные. `main` опережает `origin/main` на 21 коммит — **не запушено**.
+зелёные. `main` запушен в `origin`; этап 13 — 292 passed.
 
 ## Сделано по этапам
 
@@ -21,11 +21,14 @@
 | 10 RAG | `0fca4cd`, `6b7c150` | FTS5 + векторы (remote / fastembed / FTS-only), RRF, `search_docs`, `ask_docs`, `infra/fetch_docs.sh` |
 | 11 эффективность | `b524278` | Стабильные префиксы, thinking по агентам (profiles.yaml), dedup_hits, селекторы входов, bench_concurrency, «до/после» |
 | 12 приёмка | `3fbd867`, `0b80436` | agents/acceptance (verdict.json), таймаут этапа, инфра-повторы, ожидание LLM; словарь доменной утечки |
+| 13 репетиция | — | `scripts/rehearse.py`: все ТЗ из examples/ → rehearsal.md (этап × ТЗ, топ-10 ошибок шлюзов с исправлениями по `config/rehearse_rules.yaml`); diagnostics в событиях gate_failed/repair_attempt |
 
 ## Начато и не доделано
 
 Незакоммиченных правок нет. Не сделано из промптов:
 - **Baseline (этап 11) и `bench/concurrency.md`** — не сняты: нет ТЗ `examples/case1.md`, vLLM, Docker и агентов.
+- **Репетиция (этап 13) вживую не запускалась** — `examples/` пуст; проверена на синтетических прогонах.
+  Ранние прогоны без поля `diagnostics` в событиях дают в топ только итоговые красные шлюзы.
 - **Данные кейса 1 не в репозитории.** `response.json` (Москва, 16 656 зон, перекачан — целый) и `spb.json` (6 867 зон)
   лежат в загрузках пользователя. ТЗ кейса 1 не получено. План: `examples/case1/` (ТЗ + `data/`).
 - **`specforge run` копирует в `artifacts/input/` только файл ТЗ** — каталог с данными кейса агентам не передаётся.
@@ -78,9 +81,8 @@
 
 ## Следующий шаг
 
-1. Запушить `main` в `origin` (ждёт подтверждения пользователя) — у участников на VM старая версия.
-2. Получить ТЗ кейса 1 → `examples/case1/` вместе с `data/`; добавить передачу каталога данных в `run`.
-3. На VM: `specforge doctor` → `infra/fetch_docs.sh` → `uv run python infra/bench_concurrency.py` →
-   `E2E_SAVE_BASELINE=1 scripts/e2e_case1.sh`.
-4. Сверить имена агентов с командой (`config/profiles.yaml`), шаблоны документации организаторов
+1. Получить ТЗ кейса 1 → `examples/case1/` вместе с `data/`; добавить передачу каталога данных в `run`.
+2. На VM: `specforge doctor` → `infra/fetch_docs.sh` → `uv run python infra/bench_concurrency.py` →
+   `E2E_SAVE_BASELINE=1 scripts/e2e_case1.sh` → `uv run python scripts/rehearse.py`.
+3. Сверить имена агентов с командой (`config/profiles.yaml`), шаблоны документации организаторов
    (`config/doc_templates.yaml`, `infra/docs-corpus/org-standards/`).

@@ -1,0 +1,106 @@
+# Правила исправлений для частых ошибок шлюзов (scripts/rehearse.py).
+#
+# Первое совпавшее правило задаёт рекомендацию. Поля match — регулярные выражения
+# (re.search, без учёта регистра) по полям нормализованной сигнатуры:
+#   tool    — имя инструмента парсера (tsc, msbuild, eslint, kotlinc, psql, spectral, junit, ...);
+#   code    — код ошибки (TS2307, CS0246, 42P01, ...), пустая строка — кода нет;
+#   pattern — нормализованное сообщение (имена → <name>, пути → <path>, числа → <n>).
+# level: platform — правка в платформе (where: парсер | промпт ремонтника | инструмент | профиль);
+#        agent    — правка в агенте команды; {agents} подставит агентов, где ошибка встречалась.
+# Если ни одно правило не подошло, rehearse.py решает по эвристикам (generic → парсер,
+# ремонт не чинит → промпт ремонтника, иначе — агент, где ошибка встречается чаще).
+
+rules:
+  - match: {tool: "^generic$"}
+    level: platform
+    where: парсер
+    fix: >-
+      Вывод разобран generic-парсером: нет кода, файла и строки, ремонт работает вслепую.
+      Добавить парсер в specforge/gates/parsers/ для этой команды шлюза или указать
+      gate_parsers в AgentSpec.
+
+  - match: {pattern: "context length|maximum context|max_tokens|too many tokens|truncated"}
+    level: platform
+    where: профиль
+    fix: >-
+      Ответ модели обрезан или контекст переполнен — поднять max_tokens профиля агента
+      в config/profiles.yaml, включить селектор входов, проверить компакцию.
+
+  - match: {pattern: "timed? ?out|timeout"}
+    level: platform
+    where: профиль
+    fix: >-
+      Команда шлюза упирается в таймаут — увеличить timeout команды в AgentSpec или
+      SPECFORGE_STAGE_TIMEOUT_S; если это сеть/registry — проверить gates/infra.py.
+
+  - match: {tool: "eslint"}
+    level: platform
+    where: инструмент
+    fix: >-
+      Стилевые ошибки не стоят токенов ремонта: детерминированный `eslint --fix`
+      (и `prettier --write`) первой командой шлюза или llm_free-шагом перед шлюзом.
+
+  - match: {tool: "msbuild", code: "^NU1\\d{3}$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Несуществующая или конфликтующая версия NuGet-пакета. Агенту — брать версии из
+      org-standards (search_docs), не придумывать; платформе — положить список закреплённых
+      версий в RAG-корпус.
+
+  - match: {tool: "msbuild", code: "^CS0(246|234)$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Тип или пространство имён не найдено: нет using или PackageReference. В промпт агента —
+      правило «каждый новый тип: using + пакет в .csproj», в конце шага — dotnet build.
+
+  - match: {tool: "msbuild|tsc|kotlinc", code: "^(CS1061|CS0117|TS2339|TS2551|TS2353)$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Обращение к несуществующему члену — расхождение с контрактом соседнего агента.
+      Агенту — читать docs/api (OpenAPI) и сгенерированные DTO, а не угадывать поля;
+      платформе — генерировать клиент/DTO из OpenAPI детерминированно.
+
+  - match: {tool: "tsc", code: "^TS2307$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Модуль не найден: пакет не добавлен в package.json или неверный путь импорта.
+      В промпт агента — «новая зависимость → package.json», пути — через алиасы tsconfig.
+
+  - match: {tool: "tsc", code: "^TS(7006|7031|2322|2345|2531|2532|18047|18048)$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Нарушения strict-режима TypeScript (any, null, несовпадение типов). В промпт агента —
+      пример strict-кода и запрет неявного any; ремонт такие ошибки чинит, но дорого.
+
+  - match: {tool: "kotlinc", pattern: "unresolved reference"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Неразрешённая ссылка Kotlin: нет импорта или зависимости в build.gradle.kts.
+      В промпт агента — «новая библиотека → libs.versions.toml + build.gradle.kts».
+
+  - match: {tool: "psql", code: "^(42P01|42703|42704|42883)$"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Нет таблицы, колонки, типа или функции: порядок миграций или не подключено расширение.
+      Агенту — CREATE EXTENSION и создание объектов до использования, миграции по номерам.
+
+  - match: {tool: "spectral|asyncapi"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Нарушение правил линтера спецификации API. В промпт агента — правила из .spectral.yaml
+      (operationId, описания, коды ответов) и эталонный фрагмент спецификации.
+
+  - match: {tool: "junit|dotnet-test|trx"}
+    level: agent
+    where: "{agents}"
+    fix: >-
+      Падают тесты. Разобрать примеры: если тест расходится с требованием — правка у
+      тест-инженера, если код — у кодера; в ремонт — передавать ожидаемое/фактическое значение.

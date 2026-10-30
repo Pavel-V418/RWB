@@ -19,6 +19,7 @@ from typing import TextIO
 from urllib.parse import unquote, urlparse
 
 import structlog
+from pydantic import JsonValue
 
 from specforge.core.contracts import AgentSpec, Diagnostic, GateResult
 from specforge.gates.infra import classify_failure
@@ -147,6 +148,27 @@ def prioritize(diagnostics: list[Diagnostic], limit: int) -> tuple[list[Diagnost
     )  # sorted устойчив: внутри группы — порядок вывода инструмента
     total_errors = sum(d.severity == "error" for d in ordered)
     return ordered[:limit], total_errors
+
+
+DIGEST_LIMIT = 10
+DIGEST_MESSAGE_CHARS = 300
+
+
+def diagnostics_digest(gate: GateResult, limit: int = DIGEST_LIMIT) -> list[JsonValue]:
+    """Компактные диагностики для событий (gate_failed, repair_attempt) — без code_window:
+    по ним репетиция (scripts/rehearse.py) считает частые ошибки по всем попыткам."""
+    return [
+        {
+            "tool": d.tool,
+            "code": d.code,
+            "file": d.file,
+            "line": d.line,
+            "severity": d.severity,
+            "category": d.category,
+            "message": d.message[:DIGEST_MESSAGE_CHARS],
+        }
+        for d in gate.diagnostics[:limit]
+    ]
 
 
 def normalize(diagnostic: Diagnostic, workspace: Path) -> Diagnostic:
