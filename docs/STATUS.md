@@ -43,6 +43,14 @@
   отчёт + verdict.json, один MR в main. Без GITLAB_* или при ошибке GitLab — `publish_warning` и пропуск прогона.
   Вживую с GitLab не проверялся (тесты на моке python-gitlab); этапы без записи в раскладке не публикуются.
 
+## Проверка стенда
+- `specforge doctor` (`specforge/doctor.py`): vLLM (модель, tool calling, json_schema, thinking on/off), Postgres
+  (+ pg_trgm, vector), Langfuse, GitLab, Docker; агенты (spec, prompt_dir, sandbox_image запускается, программы
+  gate_commands в образе); граф — недостижимые этапы для профилей «всё включено / без mobile / без geo».
+  Не настроенные Postgres / Langfuse / GitLab — SKIP. На машине разработки вживую: vLLM, Langfuse, Docker — FAIL
+  (не запущены), реестр пуст.
+- `scripts/e2e_case1.sh`: doctor → run examples/case1.md --autopilot → report. `examples/case1.md` ещё нет в репозитории.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).

@@ -6,6 +6,7 @@ specforge run <ТЗ.md|.txt|.pdf|.docx> [...] — весь конвейер (д�
 specforge resume <run_id> [--from <этап>]   — продолжить запуск / подтвердить остановку
 specforge status <run_id>                   — дерево этапов со статусами
 specforge report <run_id>                   — отчёт с графиками в runs/<run_id>/report/
+specforge doctor                            — проверка стенда: LLM, БД, Docker, агенты, граф
 """
 
 import io
@@ -28,6 +29,7 @@ from rich.tree import Tree
 from specforge.core.agent_api import AgentContext
 from specforge.core.contracts import CaseProfile, StageStatus
 from specforge.core.events import Event, EventBus, EventType
+from specforge.doctor import register_cli as register_doctor
 from specforge.llm import LLMClient, LLMError, NullLLM
 from specforge.orchestrator.graph import OrchestratorError
 from specforge.orchestrator.nodes import execute_stage
@@ -373,6 +375,7 @@ def run_status(run_id: Annotated[str, typer.Argument(help="Идентифика�
 
 
 register_cli(app)  # report <run_id> → runs/<run_id>/report/
+register_doctor(app)  # doctor — проверка стенда
 
 if __name__ == "__main__":
     app()
