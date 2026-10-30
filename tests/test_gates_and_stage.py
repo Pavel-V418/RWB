@@ -17,7 +17,7 @@ class Out(BaseModel):
     text: str
 
 
-def _gated_agent(gate_commands: list[str]) -> StructuredAgent[Out]:
+def _gated_agent(gate_commands: list[str], max_repairs: int = 0) -> StructuredAgent[Out]:
     class Gated(StructuredAgent[Out]):
         spec = AgentSpec(
             name="gated",
@@ -25,6 +25,7 @@ def _gated_agent(gate_commands: list[str]) -> StructuredAgent[Out]:
             kind="structured",
             prompt_dir=str(PROMPTS),
             gate_commands=gate_commands,
+            max_repairs=max_repairs,
         )
         schema = Out
         output_file = "out.json"

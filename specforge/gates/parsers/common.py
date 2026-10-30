@@ -10,7 +10,9 @@ from pathlib import Path
 from specforge.core.contracts import Diagnostic
 
 MAX_MESSAGE_CHARS = 1500
-SKIP_DIRS = frozenset({".git", "node_modules", "bin", "obj", ".gradle", "__pycache__", ".venv"})
+SKIP_DIRS = frozenset(
+    {".git", ".specforge", "node_modules", "bin", "obj", ".gradle", "__pycache__", ".venv"}
+)
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 

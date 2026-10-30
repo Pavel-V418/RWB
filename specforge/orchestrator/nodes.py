@@ -1,4 +1,4 @@
-"""Исполнение одного этапа: песочница → агент → шлюз.
+"""Исполнение одного этапа: песочница → агент → шлюз → ремонт.
 
 Используется CLI и (позже) узлами графа LangGraph.
 """
@@ -14,7 +14,9 @@ from specforge.core.agent_api import Agent, AgentContext
 from specforge.core.contracts import AgentSpec, StageResult, StageStatus
 from specforge.core.events import Event
 from specforge.gates.runner import GateConfigError, GateRunner
-from specforge.sandbox.base import BaseSandbox, SandboxError
+from specforge.repair.loop import repair_loop
+from specforge.repair.snapshots import SnapshotError, Snapshotter
+from specforge.sandbox.base import BaseSandbox, Sandbox, SandboxError
 from specforge.sandbox.docker_sandbox import DockerSandbox
 from specforge.sandbox.local_sandbox import LocalSandbox
 
@@ -101,17 +103,38 @@ def _run_agent_and_gate(agent: Agent, ctx: AgentContext, started: float) -> Stag
             summary=f"{type(exc).__name__}: {exc}",
         )
 
-    if result.status == StageStatus.passed and spec.gate_commands and ctx.sandbox is not None:
-        try:
-            gate = GateRunner(logs_dir=ctx.workdir / "logs").run(spec, ctx.sandbox, ctx.run_id)
-        except GateConfigError as exc:
-            return result.model_copy(
-                update={"status": StageStatus.failed, "summary": f"шлюз: {exc}"}
-            )
-        result = result.model_copy(
-            update={
-                "gate": gate,
-                "status": StageStatus.passed if gate.passed else StageStatus.failed,
-            }
-        )
-    return result
+    if result.status != StageStatus.passed or not spec.gate_commands or ctx.sandbox is None:
+        return result
+    try:
+        gate = GateRunner(logs_dir=ctx.workdir / "logs").run(spec, ctx.sandbox, ctx.run_id)
+    except GateConfigError as exc:
+        return result.model_copy(update={"status": StageStatus.failed, "summary": f"шлюз: {exc}"})
+
+    if gate.passed:
+        _mark_green(ctx.sandbox)
+        return result.model_copy(update={"gate": gate})
+    if spec.max_repairs == 0:
+        return result.model_copy(update={"gate": gate, "status": StageStatus.failed})
+
+    repaired = repair_loop(spec, ctx, gate)
+    if repaired.status == StageStatus.passed:
+        _mark_green(ctx.sandbox)
+    return result.model_copy(
+        update={
+            "status": repaired.status,
+            "gate": repaired.gate,
+            "attempts": result.attempts + repaired.attempts,
+            "usage": result.usage.add(repaired.usage),
+            "summary": f"{result.summary}\nремонт: {repaired.summary}"[:1000],
+        }
+    )
+
+
+def _mark_green(sandbox: Sandbox) -> None:
+    """Запомнить зелёное состояние workspace — к нему откатится будущий неудачный ремонт."""
+    snapshots = Snapshotter(sandbox)
+    try:
+        if snapshots.available:
+            snapshots.mark_green()
+    except SnapshotError as exc:
+        log.warning("stage.green_snapshot_failed", error=str(exc))

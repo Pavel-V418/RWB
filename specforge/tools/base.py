@@ -32,6 +32,8 @@ class ToolEnv:
     sandbox: Sandbox
     protected_globs: Sequence[str] = field(default_factory=tuple)
     max_run_timeout_s: float = 1800.0
+    allowed_commands: Sequence[str] | None = None
+    """None — run выполняет любые команды; иначе только перечисленные (точное совпадение)."""
 
 
 ToolFn = Callable[[ToolEnv, Args], ToolResult]

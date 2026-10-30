@@ -23,7 +23,8 @@ GREP_MAX_MATCHES = 100
 GREP_MAX_FILE_BYTES = 1_000_000
 GREP_LINE_CHARS = 200
 SKIP_DIRS = frozenset(
-    {".git", "node_modules", "__pycache__", ".venv", "bin", "obj", "build", ".gradle", "dist"}
+    {".git", ".specforge", "node_modules", "__pycache__", ".venv", "bin", "obj", "build", ".gradle"}
+    | {"dist"}
 )
 
 

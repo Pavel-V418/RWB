@@ -28,7 +28,7 @@ from specforge.executor.compaction import (
     compact,
     estimate_tokens,
 )
-from specforge.llm import ChatMessage, LLMError, ToolCall, tool_error_message
+from specforge.llm import ChatMessage, LLMError, ProfileName, ToolCall, tool_error_message
 from specforge.sandbox.base import SandboxError
 from specforge.sandbox.local_sandbox import LocalSandbox
 from specforge.tools import FINISH, Tool, ToolEnv, ToolError, ToolResult, get_tools
@@ -66,6 +66,7 @@ def run_react_loop(
     max_steps: int,
     temperature: float,
     thinking: bool,
+    profile: str | None = None,
     settings: LoopSettings | None = None,
 ) -> AgentOutcome:
     settings = settings or LoopSettings()
@@ -78,9 +79,8 @@ def run_react_loop(
     sandbox = ctx.sandbox or LocalSandbox(
         ctx.output_dir, logs_dir=ctx.workdir / "logs", log_prefix=ctx.llm.labels.agent or "agent"
     )
-    loop = _Loop(
-        ctx, toolset, ToolEnv(sandbox, ctx.protected_globs, settings.max_run_timeout_s), settings
-    )
+    env = ToolEnv(sandbox, ctx.protected_globs, settings.max_run_timeout_s, ctx.allowed_commands)
+    loop = _Loop(ctx, toolset, env, settings, profile or ProfileName.CODE)
     try:
         return loop.run(system_prompt, task, max_steps, temperature, thinking)
     finally:
@@ -90,9 +90,15 @@ def run_react_loop(
 
 class _Loop:
     def __init__(
-        self, ctx: "AgentContext", toolset: list[Tool], env: ToolEnv, settings: LoopSettings
+        self,
+        ctx: "AgentContext",
+        toolset: list[Tool],
+        env: ToolEnv,
+        settings: LoopSettings,
+        profile: str,
     ) -> None:
         self.ctx = ctx
+        self.profile = profile
         self.env = env
         self.settings = settings
         self.tools = {t.name: t for t in toolset}
@@ -126,6 +132,7 @@ class _Loop:
                     response = self.ctx.llm.chat(
                         [e.message for e in entries],
                         tools=self.specs,
+                        profile=self.profile,
                         temperature=temperature,
                         thinking=thinking,
                     )

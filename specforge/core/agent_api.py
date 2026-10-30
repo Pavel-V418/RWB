@@ -50,6 +50,8 @@ class AgentContext:
     emit: EmitFn = _discard
     protected_globs: Sequence[str] = ()
     """Файлы, которые инструментам запрещено менять (AgentSpec.protected_globs)."""
+    allowed_commands: Sequence[str] | None = None
+    """Если задано — инструмент run выполняет только эти команды (ремонт: команды шлюза)."""
 
 
 @runtime_checkable
@@ -68,12 +70,14 @@ def agent_loop(
     max_steps: int = 30,
     temperature: float = 0.2,
     thinking: bool = False,
+    profile: str | None = None,
 ) -> AgentOutcome:
     """ReAct-цикл tool-агента: модель вызывает инструменты `tools` (имена из AgentSpec.tools,
     finish доступен всегда), пока не вызовет finish или не упрётся в лимит.
 
     Инструменты работают в ctx.sandbox (/work); бюджет — ctx.budget_tokens. Остановка и её причина —
-    в AgentOutcome.stopped_reason. Реализация — specforge.executor.react.
+    в AgentOutcome.stopped_reason. `profile` — профиль LLM (по умолчанию CODE); temperature и
+    thinking перекрывают его значения. Реализация — specforge.executor.react.
     """
     return run_react_loop(
         ctx,
@@ -83,6 +87,7 @@ def agent_loop(
         max_steps=max_steps,
         temperature=temperature,
         thinking=thinking,
+        profile=profile,
     )
 
 

@@ -4,7 +4,16 @@
 """
 
 from specforge.llm import ToolSpec
-from specforge.tools.base import Args, Tool, ToolEnv, ToolResult, arg_int, arg_str, truncate_middle
+from specforge.tools.base import (
+    Args,
+    Tool,
+    ToolEnv,
+    ToolError,
+    ToolResult,
+    arg_int,
+    arg_str,
+    truncate_middle,
+)
 
 OUTPUT_HEAD_CHARS = 2000
 OUTPUT_TAIL_CHARS = 4000
@@ -13,6 +22,9 @@ DEFAULT_TIMEOUT_S = 300
 
 def run(env: ToolEnv, args: Args) -> ToolResult:
     command = arg_str(args, "cmd")
+    if env.allowed_commands is not None and command.strip() not in env.allowed_commands:
+        allowed = "\n".join(f"  {c}" for c in env.allowed_commands) or "  (нет)"
+        raise ToolError(f"здесь разрешены только команды шлюза этапа:\n{allowed}")
     timeout = min(
         arg_int(args, "timeout", DEFAULT_TIMEOUT_S) or DEFAULT_TIMEOUT_S, int(env.max_run_timeout_s)
     )
