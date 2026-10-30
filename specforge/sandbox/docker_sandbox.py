@@ -25,7 +25,10 @@ CACHE_VOLUMES: dict[str, tuple[str, str]] = {
     "npm": ("/cache/npm", "npm_config_cache"),
     "gradle": ("/cache/gradle", "GRADLE_USER_HOME"),
     "pip": ("/cache/pip", "PIP_CACHE_DIR"),
+    "trivy": ("/cache/trivy", "TRIVY_CACHE_DIR"),
 }
+"""Каталоги созданы в образах infra/images/ с правами 1777: пустой volume при первом монтировании
+получает их содержимое (прогретые пакеты, база Trivy)."""
 CACHE_VOLUME_PREFIX = "specforge-cache-"
 KILL_GRACE_S = 5
 

@@ -92,7 +92,9 @@ def test_docker_sandbox_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert run["working_dir"] == "/work"
     assert run["volumes"][str((tmp_path / "w").resolve())] == {"bind": "/work", "mode": "rw"}
     caches = {k for k in run["volumes"] if k.startswith(CACHE_VOLUME_PREFIX)}
-    assert caches == {f"{CACHE_VOLUME_PREFIX}{n}" for n in ("nuget", "npm", "gradle", "pip")}
+    assert caches == {
+        f"{CACHE_VOLUME_PREFIX}{n}" for n in ("nuget", "npm", "gradle", "pip", "trivy")
+    }
     assert run["environment"]["NUGET_PACKAGES"] == "/cache/nuget"
     assert run["nano_cpus"] == 2_000_000_000
     assert run["mem_limit"] == "4g"

@@ -516,6 +516,16 @@ def _sandbox_checks(
     return _image_checks(spec.sandbox_image, programs, group, docker_client)
 
 
+SANDBOX_IMAGES = (
+    "specforge/dotnet:10",
+    "specforge/node:22",
+    "specforge/postgis:17",
+    "specforge/devops:1",
+    "specforge/android:21",
+)
+"""Образы infra/images/ (build.sh)."""
+
+
 def _image_checks(image: str, programs: list[str], group: str, docker_client: Any) -> list[Check]:
     try:
         docker_client.images.get(image)
@@ -526,7 +536,7 @@ def _image_checks(image: str, programs: list[str], group: str, docker_client: An
                 "sandbox_image",
                 "FAIL",
                 f"{image}: {exc}"[:200],
-                f"docker pull {image} или соберите образ из infra/images/",
+                f"соберите образ: infra/images/build.sh (образы — {', '.join(SANDBOX_IMAGES)})",
             )
         ]
     names = [p for p in programs if not p.startswith((".", "/"))]

@@ -191,11 +191,26 @@ agent_loop(ctx, system_prompt, task, spec.tools,
 
 Платформа создаёт песочницу на этап; в ней работают и инструменты, и шлюз:
 - задан `sandbox_image` → контейнер Docker: `/work` смонтирован из `output_dir`, кэши
-  nuget/npm/gradle/pip — общие именованные volumes, лимиты `SANDBOX_CPUS`, `SANDBOX_MEMORY`,
+  nuget/npm/gradle/pip/trivy — общие именованные volumes, лимиты `SANDBOX_CPUS`, `SANDBOX_MEMORY`,
   сеть `SANDBOX_NETWORK`; после этапа контейнер удаляется;
 - иначе — локальный subprocess на хосте (без изоляции; для разработки и тестов).
 
 `SPECFORGE_SANDBOX=local` заставляет работать локально даже с `sandbox_image`.
+
+Готовые образы — `infra/images/` (собрать: `infra/images/build.sh [имя ...]`):
+
+| `sandbox_image` | Что внутри | Для чего |
+|---|---|---|
+| `specforge/dotnet:10` | .NET 10 SDK, `dotnet-ef`; прогрет NuGet (EF Core + Npgsql/NTS, JWT, Kafka, health checks, Testcontainers) | backend, его тесты |
+| `specforge/node:22` | Node 22, Angular CLI 20.1.6, headless Chromium (`CHROME_BIN`); прогрет npm (+ UI Kit: `EXTRA_NPM_PACKAGES`) | web |
+| `specforge/postgis:17` | PostgreSQL 17 + PostGIS, `psql`, `pg-up` | БД: `gate_commands=["pg-up && psql -v ON_ERROR_STOP=1 -f db/schema.sql"]` |
+| `specforge/devops:1` | docker CLI + compose (без демона: `docker compose config`), Trivy с базой, hadolint | DevOps, безопасность |
+| `specforge/android:21` | JDK 21, Android SDK (`COMPILE_SDK`, `BUILD_TOOLS` — build-arg) | Android |
+
+Во всех есть `git` (снимки ремонта), `sh`, `timeout` и каталоги кэшей `/cache/*`. В песочнице
+сервер БД сам не запущен — шлюз поднимает его `pg-up`. Для боевого прогона ставьте
+`SPECFORGE_SANDBOX=docker`; `uv run specforge doctor` проверит, что образы есть и в них есть
+программы из `gate_commands`.
 
 ### Prefix caching и компакция
 

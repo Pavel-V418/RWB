@@ -25,6 +25,7 @@
 | — публикация | — | `repo_layout.yaml`: корень (`.`) и файлы в корень (`root`: .gitlab-ci.yml, docker-compose, README), этапы ux/db/mocks/tests/e2e/security/devops/ci/docs/acceptance; вердикт приёмщика в docs/report/ и MR; `doctor` — этапы без раскладки; парсер `diagnostics-json` |
 | — приёмка по ТЗ | — | `doc_templates.yaml` по ТЗ (14 разделов СА, 11 документов, ID ФТ); проверки CI, секретов, README/.env.example/миграций/тестовых данных, статического анализа; `test-report.md`, `security-report.md`; `GateResult.tests_executed` из TRX/JUnit |
 | — вопросы, seed, логи | — | Протокол уточняющих вопросов (`questions.json` → `--ask` / допущения → `input/clarifications.*`), ручное вмешательство в отчёте; `LLM_SEED`; логи шлюзов в `docs/report/logs/` |
+| — образы песочниц | — | `infra/images/{dotnet,node,postgis,devops,android}` + `build.sh`, `pg-up`; кэш Trivy; не собирались (Docker на машине разработки не запущен) |
 
 ## Начато и не доделано
 
