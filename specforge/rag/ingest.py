@@ -14,7 +14,11 @@ from collections.abc import Iterator
 from html.parser import HTMLParser
 from pathlib import Path
 
+from dotenv import find_dotenv, load_dotenv
+
 from specforge.paths import PROJECT_ROOT
+from specforge.rag.embeddings import Embedder, describe, embedder_from_env
+from specforge.rag.search import index_vectors
 from specforge.rag.store import DocChunk, DocStore, default_db_path
 
 DEFAULT_CORPUS = PROJECT_ROOT / "infra" / "docs-corpus"
@@ -24,10 +28,18 @@ HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 
 
-def ingest_corpus(corpus: Path = DEFAULT_CORPUS, store: DocStore | None = None) -> int:
-    """Пересобрать индекс по корпусу; возвращает число чанков."""
+def ingest_corpus(
+    corpus: Path = DEFAULT_CORPUS,
+    store: DocStore | None = None,
+    embedder: Embedder | None = None,
+) -> int:
+    """Пересобрать индекс по корпусу; с эмбеддером — и векторы (только изменённых чанков).
+    Возвращает число чанков."""
     store = store or DocStore()
-    return store.replace_all(iter_chunks(corpus))
+    count = store.replace_all(iter_chunks(corpus))
+    if embedder is not None:
+        index_vectors(store, embedder)
+    return count
 
 
 def iter_chunks(corpus: Path) -> Iterator[DocChunk]:
@@ -169,9 +181,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("corpus", nargs="?", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--db", type=Path, default=None)
     args = parser.parse_args(argv)
+    load_dotenv(find_dotenv(usecwd=True))  # EMBED_* из .env
     store = DocStore(args.db or default_db_path())
-    count = ingest_corpus(args.corpus, store)
+    embedder = embedder_from_env()
+    count = ingest_corpus(args.corpus, store, embedder)
     print(f"{count} чанков, tech: {', '.join(store.techs())} → {store.path}")
+    print(f"эмбеддинги: {describe(embedder)}")
 
 
 if __name__ == "__main__":

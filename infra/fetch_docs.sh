@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Скачать корпус документации для RAG (заранее, до хакатона/прогона) и проиндексировать его.
+# Скачать корпус документации для RAG (заранее, до хакатона/прогона), веса локальной модели
+# эмбеддингов (data/models — на площадке может не быть интернета) и проиндексировать всё.
 #
 #   infra/fetch_docs.sh            — скачать всё и собрать data/docs.db
 #   infra/fetch_docs.sh --index    — только пересобрать индекс по уже скачанному
@@ -64,6 +65,12 @@ fi
 
 if [[ -z "$(ls -A "$CORPUS/org-standards")" ]]; then
   echo "  org-standards пуст: положите шаблоны организаторов (.md/.html) в $CORPUS/org-standards/" >&2
+fi
+
+if [[ -z "${EMBED_BASE_URL:-}" ]]; then
+  echo "== веса локальной модели эмбеддингов (data/models)"
+  uv run python -m specforge.rag.embeddings download ||
+    echo "  не удалось скачать веса — поиск будет только FTS5" >&2
 fi
 
 echo "== индекс"

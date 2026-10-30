@@ -60,11 +60,16 @@
 - `infra/fetch_docs.sh` — sparse-clone документации (angular, dotnet, efcore, postgres, postgis, kafka, android,
   kotlin, docker, gitlab-ci) в `infra/docs-corpus/` + индекс; вживую не запускался. Шаблоны организаторов — вручную в
   `infra/docs-corpus/org-standards/`.
+- Векторный слой поверх FTS5: `rag/embeddings.py` — remote (EMBED_BASE_URL, /embeddings, батчи 64) / local fastembed
+  (paraphrase-multilingual-MiniLM-L12-v2, веса в data/models, во время прогона только с диска) / None → FTS-only;
+  `rag/search.py` — векторы в `data/docs_vectors.npy` + id в SQLite, переиндексация только изменённых чанков (хэш),
+  гибрид FTS5 топ-20 + векторы топ-20 → RRF (k=60) → топ-5; `search_docs(mode=hybrid|fts|vector)`; строка в doctor.
+  Реальная модель fastembed вживую не запускалась (тесты — фейковый Embedder).
 
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
-- Не начато: эмбеддинги/pgvector для RAG (сознательно — только FTS5).
+- pgvector для RAG не используется: векторы — numpy brute force (корпус — тысячи чанков).
 
 ## Не проверено вживую (только тесты на подделках)
 - PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.

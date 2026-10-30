@@ -37,6 +37,7 @@ from specforge.orchestrator.registry import (
     available_agents,
     load_agent,
 )
+from specforge.rag.embeddings import Embedder, describe, embedder_from_env
 
 log = structlog.get_logger(__name__)
 
@@ -68,12 +69,14 @@ class DoctorDeps:
     langfuse_factory: Callable[[Mapping[str, str]], Any] | None = None
     gitlab_factory: Callable[[str, str], Any] | None = None
     which: Callable[[str], str | None] = shutil.which
+    embedder_factory: Callable[[], Embedder | None] = embedder_from_env
 
 
 def run_doctor(deps: DoctorDeps | None = None) -> list[Check]:
     deps = deps or DoctorDeps()
     checks: list[Check] = []
     checks += check_llm(deps)
+    checks.append(check_embeddings(deps))
     checks.append(check_postgres(deps))
     checks.append(check_langfuse(deps))
     checks.append(check_gitlab(deps))
@@ -179,6 +182,33 @@ def check_llm(deps: DoctorDeps) -> list[Check]:
 
 def _list_models(llm: LLMClient) -> list[str]:
     return [m.id for m in llm._client().models.list()]
+
+
+def check_embeddings(deps: DoctorDeps) -> Check:
+    try:
+        embedder = deps.embedder_factory()
+    except Exception as exc:
+        return Check("Эмбеддинги", "режим", "FAIL", str(exc)[:200], "проверьте EMBED_* в .env")
+    mode = describe(embedder)
+    if embedder is None:
+        return Check(
+            "Эмбеддинги",
+            "режим",
+            "SKIP",
+            f"{mode}: поиск по документации только FTS5",
+            "infra/fetch_docs.sh скачает веса локальной модели, или задайте EMBED_BASE_URL",
+        )
+    try:
+        dim = int(embedder.embed_query("проверка").shape[-1])
+    except Exception as exc:
+        return Check(
+            "Эмбеддинги",
+            "режим",
+            "FAIL",
+            f"{mode}: {exc}"[:200],
+            "проверьте EMBED_BASE_URL / EMBED_MODEL / EMBED_API_KEY",
+        )
+    return Check("Эмбеддинги", "режим", "OK", f"{mode}, размерность {dim}")
 
 
 def check_postgres(deps: DoctorDeps) -> Check:

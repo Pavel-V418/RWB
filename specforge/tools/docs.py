@@ -5,9 +5,14 @@
   SEARCH_TOKEN_LIMIT токенов; инструмент агента `search_docs`.
 """
 
+from functools import cache
 from pathlib import Path
+from typing import Literal
 
 from specforge.llm import ToolSpec
+from specforge.rag.embeddings import Embedder, embedder_from_env
+from specforge.rag.search import SearchMode
+from specforge.rag.search import search as rag_search
 from specforge.rag.store import DocStore, default_db_path
 from specforge.tools.base import Args, Tool, ToolEnv, ToolError, ToolResult, arg_str
 
@@ -82,17 +87,37 @@ def _store(path: Path | None) -> DocStore:
     return _stores[key]
 
 
+@cache
+def default_embedder() -> Embedder | None:
+    """Эмбеддер из env, создаётся один раз на процесс (загрузка ONNX-модели дорогая);
+    None — FTS-only."""
+    return embedder_from_env()
+
+
 def search_docs(
     query: str,
     tech: str | None = None,
     *,
+    mode: SearchMode = "hybrid",
     db_path: Path | None = None,
+    embedder: Embedder | Literal["env"] | None = "env",
     limit_tokens: int = SEARCH_TOKEN_LIMIT,
 ) -> str:
-    """Топ-5 фрагментов документации с источником, всего не больше limit_tokens токенов."""
+    """Топ-5 фрагментов документации с источником, всего не больше limit_tokens токенов.
+
+    mode: hybrid (FTS5 + векторы, RRF) | fts | vector; без эмбеддера — всегда fts.
+    embedder: "env" — из окружения (default_embedder), None — только FTS5.
+    """
     if not query.strip():
         raise ToolError("пустой запрос")
-    hits = _store(db_path).search(query, tech=tech or None, limit=SEARCH_TOP_K)
+    hits = rag_search(
+        _store(db_path),
+        query,
+        tech=tech or None,
+        mode=mode,
+        embedder=default_embedder() if embedder == "env" else embedder,
+        limit=SEARCH_TOP_K,
+    )
     if not hits:
         where = f" в {tech}" if tech else ""
         return f"Ничего не найдено{where} по запросу {query!r}. Переформулируйте короче."
