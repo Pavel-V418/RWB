@@ -10,3 +10,5 @@ build/
 .idea/
 .env
 /runs/
+/data/
+/infra/docs-corpus/

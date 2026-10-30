@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><title>Migrations</title><style>body { color: red; }</style></head>
+<body>
+<nav>Docs home · Search</nav>
+<h1>Migrations overview</h1>
+<p>Migrations keep the database schema in sync with the EF Core model.</p>
+<h2>Create a migration</h2>
+<p>Run the CLI command from the project directory; a new index on a column is added the same way.</p>
+<pre><code>dotnet ef migrations add AddZoneIndex
+dotnet ef database update</code></pre>
+<h2>Remove a migration</h2>
+<p>Use <code>dotnet ef migrations remove</code> to undo the last migration that was not applied.</p>
+</body>
+</html>

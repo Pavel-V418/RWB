@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from specforge.llm import ToolSpec
 from specforge.tools.base import Tool, ToolEnv, ToolError, ToolResult
+from specforge.tools.docs import SEARCH_DOCS
 from specforge.tools.fs import GREP, LIST_DIR, READ_FILE, STR_REPLACE, WRITE_FILE
 from specforge.tools.shell import RUN
 
@@ -18,7 +19,7 @@ FINISH = ToolSpec(
 )
 
 TOOLS: dict[str, Tool] = {
-    t.name: t for t in (READ_FILE, WRITE_FILE, STR_REPLACE, LIST_DIR, GREP, RUN)
+    t.name: t for t in (READ_FILE, WRITE_FILE, STR_REPLACE, LIST_DIR, GREP, RUN, SEARCH_DOCS)
 }
 
 

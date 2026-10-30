@@ -51,10 +51,20 @@
   (не запущены), реестр пуст.
 - `scripts/e2e_case1.sh`: doctor → run examples/case1.md --autopilot → report. `examples/case1.md` ещё нет в репозитории.
 
+## RAG по документации
+- `rag/store.py` — SQLite FTS5 (`data/docs.db`, `SPECFORGE_DOCS_DB`), unicode61 remove_diacritics 2, bm25 (заголовок ×3),
+  префиксы с усечением слов ≥ 6 символов на 2 (грубый стемминг ru/en); `rag/ingest.py` — чанки по заголовкам,
+  блок кода целиком, HTML → Markdown; `python -m specforge.rag.ingest`.
+- Инструмент агентов `search_docs` (tools/docs.py): топ-5 с источником, ≤ 1500 токенов; `rag/lookup_agent.ask_docs` —
+  agent_loop только с search_docs, 3 шага, ответ ≤ 300 токенов.
+- `infra/fetch_docs.sh` — sparse-clone документации (angular, dotnet, efcore, postgres, postgis, kafka, android,
+  kotlin, docker, gitlab-ci) в `infra/docs-corpus/` + индекс; вживую не запускался. Шаблоны организаторов — вручную в
+  `infra/docs-corpus/org-standards/`.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
-- Не начаты: `rag/`.
+- Не начато: эмбеддинги/pgvector для RAG (сознательно — только FTS5).
 
 ## Не проверено вживую (только тесты на подделках)
 - PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.
