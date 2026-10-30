@@ -1,0 +1,21 @@
+# Раскладка артефактов прогона в GitLab-репозитории (orchestrator/publisher.py).
+# Файлы runs/<run_id>/artifacts/<stage>/ попадают в <путь>/ ветки run/<run_id>.
+# Этап без записи не публикуется (событие publish_warning) — добавьте его сюда.
+stages:
+  input: docs/tz/          # ТЗ: оригинал и извлечённый текст
+  profile: analysis/profile/
+  analysis: analysis/
+  backend: backend/
+  web: web/
+  mobile: android/
+  android: android/
+  infra: infra/
+  adr: docs/adr/
+  api: docs/api/
+  services: docs/services/
+
+# Отчёт о прогоне (report.md, report.json, графики) и verdict.json.
+report: docs/report/
+
+# Целевая ветка merge request.
+target_branch: main

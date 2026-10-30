@@ -37,11 +37,16 @@
 - `api/server.py` — FastAPI, SSE (`?after`, `Last-Event-ID`, `?follow=false`), CORS; контракт
   `docs/console-api.yaml`.
 
+## Телеметрия и публикация
+- `telemetry/` — метрики, `specforge report` (report.md, report.json, 2 PNG), Langfuse-хук (no-op без ключей).
+- `orchestrator/publisher.py` — подписчик EventBus: ветка run/<id>, коммит на этап по `config/repo_layout.yaml`,
+  отчёт + verdict.json, один MR в main. Без GITLAB_* или при ошибке GitLab — `publish_warning` и пропуск прогона.
+  Вживую с GitLab не проверялся (тесты на моке python-gitlab); этапы без записи в раскладке не публикуются.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
-- Не начаты: `orchestrator/publisher.py`, `telemetry/` (Langfuse, метрики, отчёт), `rag/`, `api/server.py`,
-  `tools/docs.py`, CLI `specforge report`.
+- Не начаты: `rag/`.
 
 ## Не проверено вживую (только тесты на подделках)
 - PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.

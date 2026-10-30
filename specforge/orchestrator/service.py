@@ -383,6 +383,7 @@ def open_service(
     time_limit: float | None = None,
 ) -> Iterator[RunService]:
     """RunService по окружению: реестр agents/, LLM_*, SPECFORGE_* и чекпойнты Postgres."""
+    from specforge.orchestrator.publisher import attach_publisher  # noqa: PLC0415
     from specforge.telemetry.langfuse import install_langfuse  # noqa: PLC0415 — нет цикла импорта
     from specforge.telemetry.metrics import CallLog  # noqa: PLC0415
 
@@ -399,6 +400,7 @@ def open_service(
     llm.add_hook(CallLog(runs_dir))  # повторы и вызовы для отчёта
     langfuse = install_langfuse(llm)
     bus = EventBus(event_store_from_env(runs_dir))
+    attach_publisher(bus, runs_dir)  # GitLab: ветка, коммиты этапов, MR
     with open_checkpointer() as checkpointer:
         config = GraphConfig(
             run=run,
