@@ -1,0 +1,17 @@
+# Переопределения профилей генерации (specforge/llm/profiles.py).
+# Указывайте только меняемые поля: thinking, temperature, top_p, top_k, max_tokens.
+# Можно добавить новый профиль — незаданные поля возьмутся из значений по умолчанию.
+# top_p/top_k — рекомендации для Qwen3; сверить с model card Qwen3.8.
+profiles:
+  ANALYSIS:
+    thinking: true
+    temperature: 0.6
+  REVIEW:
+    thinking: true
+    temperature: 0.3
+  CODE:
+    thinking: false
+    temperature: 0.2
+  REPAIR:
+    thinking: false
+    temperature: 0.1

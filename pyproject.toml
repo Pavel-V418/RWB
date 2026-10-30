@@ -7,6 +7,7 @@ dependencies = [
     "openai>=2.0",
     "pydantic>=2.9",
     "python-dotenv>=1.0",
+    "pyyaml>=6.0",
     "structlog>=24.4",
     "typer>=0.12",
 ]
@@ -20,6 +21,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "ruff>=0.8",
+    "types-pyyaml>=6.0",
 ]
 
 [build-system]
@@ -49,7 +51,7 @@ known-first-party = ["specforge", "agents"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["specforge", "agents"]
+files = ["specforge", "agents", "infra"]
 plugins = ["pydantic.mypy"]
 
 [tool.pydantic-mypy]

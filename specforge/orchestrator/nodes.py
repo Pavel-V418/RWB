@@ -1,5 +1,6 @@
 """Исполнение одного этапа: агент → шлюз. Используется CLI и (позже) узлами графа LangGraph."""
 
+import dataclasses
 import time
 
 import structlog
@@ -16,6 +17,10 @@ log = structlog.get_logger(__name__)
 def execute_stage(agent: Agent, ctx: AgentContext) -> StageResult:
     """Запустить агента и, если он отработал, его шлюз. Ремонт пока не выполняется."""
     spec = agent.spec
+    # Токены этапа учитываются с метками run/stage/agent в общем UsageTracker.
+    ctx = dataclasses.replace(
+        ctx, llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name)
+    )
     ctx.emit(Event(kind="stage.started", run_id=ctx.run_id, agent=spec.name))
     started = time.monotonic()
     try:

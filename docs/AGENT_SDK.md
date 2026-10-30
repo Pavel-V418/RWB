@@ -232,9 +232,12 @@ uv run specforge agent run _example --in examples/ --out out/
 
 | Эндпоинт | Настройки |
 |---|---|
-| vLLM + Qwen3 | `LLM_CHAT_TEMPLATE_KWARGS=true`, `LLM_STRUCTURED_MODE=json_schema` |
-| OpenAI | `LLM_BASE_URL=https://api.openai.com/v1`, `LLM_API_KEY=...` |
+| vLLM + Qwen3 (по умолчанию) | `LLM_VLLM_EXTRAS=true`, `LLM_STRUCTURED_MODE=json_schema` |
+| OpenAI | `LLM_BASE_URL=https://api.openai.com/v1`, `LLM_API_KEY=...`, `LLM_VLLM_EXTRAS=false` |
 | Эндпоинт без `response_format` | `LLM_STRUCTURED_MODE=prompt` |
+
+Свой vLLM поднимается через `infra/docker-compose.platform.yml`; проверить эндпоинт целиком
+(чат, tool call, json_schema, thinking on/off) — `uv run python infra/smoke_llm.py`.
 
 ---
 
@@ -270,8 +273,19 @@ def test_my_analyzer(tmp_path):
     assert "case.md" in llm.calls[0].messages[1].content  # что ушло в модель
 ```
 
-Ответ `FakeLLM` может быть функцией от сообщений: `FakeLLM([lambda msgs: "..."])`.
-Фикстура `make_ctx` из `tests/conftest.py` собирает контекст во временном каталоге.
+Элементы скрипта `FakeLLM`:
+
+| Элемент | Что вернёт |
+|---|---|
+| `"текст"` | Ответ с этим content (`<think>…</think>` уйдёт в reasoning) |
+| `FakeReply(content=, reasoning=, tool_calls=[FakeToolCall(name, {args})])` | Ответ с размышлениями и вызовами инструментов |
+| `FakeReply(structured=Model(...))` | JSON для `structured()` |
+| `FakeReply(..., expect=Expect(profile="ANALYSIS", tools=[...], schema="Model", contains="..."))` | То же, но сначала проверит запрос; несовпадение — `FakeExpectationError` |
+| `LLMTransientError("503")` | Исключение транспорта (проверка повторов) |
+| `lambda request: "..."` | Ответ, вычисленный по `LLMRequest` |
+
+`llm.calls` — список отправленных `LLMRequest`, `llm.assert_exhausted()` — все ответы
+использованы. Фикстура `make_ctx` из `tests/conftest.py` собирает контекст во временном каталоге.
 
 ---
 
@@ -288,8 +302,33 @@ def test_my_analyzer(tmp_path):
 | `emit(event)` | Отправить `Event` в телеметрию: `ctx.emit(Event(kind="my.progress", message="..."))` |
 | `budget_tokens` | Бюджет токенов этапа |
 
-`LLMClient`: `chat(messages, temperature=, thinking=) -> ChatResponse`,
-`structured(messages, Schema, ...) -> Schema`, `with llm.track() as t:` — токены блока в `t.usage`.
+### `LLMClient` (`specforge.llm`)
+
+```python
+r = ctx.llm.chat(messages, tools=[ToolSpec(...)], profile=ProfileName.CODE)
+r.content, r.reasoning, r.tool_calls, r.usage, r.latency_s
+history.append(r.to_message())  # без reasoning — размышления в историю не попадают
+
+value = ctx.llm.structured(messages, MySchema, profile=ProfileName.ANALYSIS)
+
+with ctx.llm.track() as meter:  # токены вызовов внутри блока
+    ...
+meter.usage
+```
+
+- **Профили** (`ProfileName`): `ANALYSIS` (thinking, t=0.6), `REVIEW` (thinking, t=0.3),
+  `CODE` (t=0.2, по умолчанию), `REPAIR` (t=0.1). Переопределяются в `config/profiles.yaml`;
+  `temperature=`, `thinking=`, `max_tokens=` в вызове перекрывают профиль.
+- **structured**: `response_format=json_schema`; при ошибке валидации — один повтор с текстом
+  ошибки, затем `StructuredOutputError` (`.raw`, `.validation_error`).
+- **tool calls**: если сервер не разобрал вызов и он остался в content (`<tool_call>` XML или
+  JSON-блок), клиент достанет его сам. Невалидный вызов приходит как `ToolCall` с `error` —
+  верните модели `ChatMessage.tool_result(call.id, tool_error_message(call))`, не исполняя его.
+- **Сбои сети/5xx/429** повторяются с экспоненциальным backoff (`LLM_MAX_RETRIES`), после —
+  `LLMUnavailableError`. Параллелизм ограничен `LLM_MAX_CONCURRENCY`.
+- **Учёт токенов**: платформа привязывает `ctx.llm` к run/stage/agent (`llm.bind(...)`), разрез
+  доступен через `llm.tracker.breakdown("stage")`; хуки `llm.add_hook(fn)` получают
+  `LLMCallRecord` каждого вызова (для телеметрии).
 
 ---
 
