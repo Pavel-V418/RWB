@@ -1,126 +1,86 @@
 # Статус платформы SpecForge
 
-Срез на коммит `6a7902b` (исправления по ревью 4.1–4.4). pytest 200 passed / 2 skipped, ruff, mypy — зелёные.
+Срез на `0b80436`. pytest 286 passed / 2 skipped (симлинки на Windows, LLM_BASE_URL), ruff, mypy —
+зелёные. `main` опережает `origin/main` на 21 коммит — **не запушено**.
 
-## Сделано (4.1–4.4)
-- **4.1 Профили.** `AgentSpec.profile: ProfileName = CODE`, `thinking`/`temperature` — Optional (None = из профиля).
-  `Profile` + `presence_penalty`, `timeout_s` (= `max_tokens / LLM_MIN_TOKENS_PER_S + 60`); ANALYSIS 16384, REVIEW/CODE 8192,
-  REPAIR 4096 токенов; REVIEW t=0.6. ToolAgent/StructuredAgent/agent_loop/run_structured/ремонт передают `spec.profile`
-  и перекрывают только не-None поля. thinking + t<0.5 → 0.6 с warning. `config/profiles.yaml` обновлён,
-  `LLM_PROFILES_PATH` — от корня проекта.
-- **4.2 События.** `PipelineState.events` удалён; добавлен `EventBus` (`core/events.py`), CLI подписывает на него логи.
-- **4.3 Новые поля.** `GateResult.failed_command_index` (заполняется шлюзом), `GateResult.tests_executed`,
-  `StageResult.stopped_reason` (заполняет ToolAgent).
-- **4.4 Невалидные tool call.** В истории `arguments="{}"`; сырой текст — в лог `llm.tool_call.invalid` и событие `tool_called`.
-- `docs/AGENT_SDK.md`, раздел «10. Изменения»: таблица «было/стало» и миграция для агентов команды.
+## Сделано по этапам
 
-## Оркестратор (LangGraph)
-- `orchestrator/registry.py` — `Registry`: автозагрузка `agents/*/agent.py` (кроме `_*`), проверка depends_on,
-  циклов, пересечения outputs, групп; детерминированный план шагов; `specforge list-agents`.
-- `orchestrator/graph.py` — `build_graph`: profile → шаги (fan-out/fan-in по `parallel_group`) → finalize;
-  PostgresSaver (`SPECFORGE_PG_DSN`), `specforge run`, `specforge resume <run_id> [--from <этап>]`.
-- `orchestrator/nodes.py` — узлы: зависимости (degraded с артефактами — дальше, иначе skipped), enabled_if,
-  бюджет, кэш, `execute_stage(max_repairs=)`; `pipeline.json`.
-- `orchestrator/budget.py` — `BudgetController`: >70% — thinking off (`LLMClient.with_thinking`), >85% —
-  max_repairs=1, 100% — skipped; события `budget_warning`.
-- `orchestrator/cache.py` — кэш этапов в `runs/.cache/` по хэшу входов + spec + промптов + исходника агента.
-- `core/artifacts.py` — `RunWorkspace`, `artifacts/<stage>/manifest.json` с sha256.
+| Этап | Коммиты | Кратко |
+|---|---|---|
+| 0 каркас | `b377151` | Контракты (`core/contracts.py`, `core/agent_api.py`), реестр `agents/<name>`, `specforge agent run`, AGENT_SDK.md |
+| 1 LLM | `d575415` | LLMClient: профили, ретраи, учёт токенов, FakeLLM; compose vLLM/Postgres/Langfuse |
+| 2 исполнитель | `d7bed94` | agent_loop (ReAct), инструменты, Local/DockerSandbox, компакция |
+| 3 шлюзы | `8ccb140` | GateRunner, парсеры (tsc, eslint, MSBuild, TRX, JUnit, psql, Spectral, AsyncAPI, generic) |
+| 4 ремонт | `b7e4018`, `6a7902b`, `304a123` | repair_loop, git-снимки, память исправлений; правки ревью 4.1–4.4 (BREAKING профили/события) |
+| 5 оркестратор | `06bb7b0`, `56da211` | LangGraph: реестр, шаги/параллельные группы, бюджет, кэш этапов, PostgresSaver, resume, manifest |
+| — | `d550069`, `a65769a` | Скоростной режим в CLAUDE.md, pytest-timeout |
+| 6 CLI/API | `bf605f1`, `fb3137b` | EventType + хранилища событий; CLI run/resume/status (rich), pdf/docx, --only, approve (interrupt); FastAPI + SSE, `docs/console-api.yaml` |
+| 7 телеметрия | `02e216a`, `1122311` | Метрики, `specforge report` (md, json, 2 PNG), Langfuse-хук |
+| 8 публикация | `8d8342e` | GitLab publisher: ветка run/<id>, коммит на этап, отчёт + verdict, один MR |
+| 9 doctor | `eccabb3` | `specforge doctor`, `scripts/e2e_case1.sh` |
+| 10 RAG | `0fca4cd`, `6b7c150` | FTS5 + векторы (remote / fastembed / FTS-only), RRF, `search_docs`, `ask_docs`, `infra/fetch_docs.sh` |
+| 11 эффективность | `b524278` | Стабильные префиксы, thinking по агентам (profiles.yaml), dedup_hits, селекторы входов, bench_concurrency, «до/после» |
+| 12 приёмка | `3fbd867`, `0b80436` | agents/acceptance (verdict.json), таймаут этапа, инфра-повторы, ожидание LLM; словарь доменной утечки |
 
-## CLI, события, API консоли
-- `core/events.py` — `EventType`, поле `stage`; `EventBus` пишет в `PostgresEventStore` (таблица events),
-  `SqliteEventStore` (`runs/events.sqlite` без Postgres) или память; ошибка хранилища его отключает.
-- Подтверждение: узел `approve_<i>` после каждого шага, interrupt при `--approve-after`; `approve_run` с
-  правками артефактов (пути проверяются до продолжения); `--only` — этапы + зависимости.
-- `orchestrator/service.py` — `RunService` (фоновые запуски, статус, граф для консоли), общий для CLI и API.
-- `cli.py` — run (md/txt/pdf/docx, `--autopilot | --approve-after`, `--only`, `--budget`, дерево rich), resume
-  (подтверждает остановку), status, report; `telemetry/report.py` — отчёт в Markdown.
-- `api/server.py` — FastAPI, SSE (`?after`, `Last-Event-ID`, `?follow=false`), CORS; контракт
-  `docs/console-api.yaml`.
+## Начато и не доделано
 
-## Телеметрия и публикация
-- `telemetry/` — метрики, `specforge report` (report.md, report.json, 2 PNG), Langfuse-хук (no-op без ключей).
-- `orchestrator/publisher.py` — подписчик EventBus: ветка run/<id>, коммит на этап по `config/repo_layout.yaml`,
-  отчёт + verdict.json, один MR в main. Без GITLAB_* или при ошибке GitLab — `publish_warning` и пропуск прогона.
-  Вживую с GitLab не проверялся (тесты на моке python-gitlab); этапы без записи в раскладке не публикуются.
+Незакоммиченных правок нет. Не сделано из промптов:
+- **Baseline (этап 11) и `bench/concurrency.md`** — не сняты: нет ТЗ `examples/case1.md`, vLLM, Docker и агентов.
+- **Данные кейса 1 не в репозитории.** `response.json` (Москва, 16 656 зон, перекачан — целый) и `spb.json` (6 867 зон)
+  лежат в загрузках пользователя. ТЗ кейса 1 не получено. План: `examples/case1/` (ТЗ + `data/`).
+- **`specforge run` копирует в `artifacts/input/` только файл ТЗ** — каталог с данными кейса агентам не передаётся.
+  Нужно: опция вроде `--data <dir>` → `artifacts/input/data/`.
+- Из STATUS 4.x: `GateResult.tests_executed` всегда `None` (TRX/JUnit не считают тесты); `StageResult.stopped_reason`
+  не заполняют StructuredAgent и ремонт.
 
-## Проверка стенда
-- `specforge doctor` (`specforge/doctor.py`): vLLM (модель, tool calling, json_schema, thinking on/off), Postgres
-  (+ pg_trgm, vector), Langfuse, GitLab, Docker; агенты (spec, prompt_dir, sandbox_image запускается, программы
-  gate_commands в образе); граф — недостижимые этапы для профилей «всё включено / без mobile / без geo».
-  Не настроенные Postgres / Langfuse / GitLab — SKIP. На машине разработки вживую: vLLM, Langfuse, Docker — FAIL
-  (не запущены), реестр пуст.
-- `scripts/e2e_case1.sh`: doctor → run examples/case1.md --autopilot → report. `examples/case1.md` ещё нет в репозитории.
+## Отклонения от промптов и TODO
 
-## RAG по документации
-- `rag/store.py` — SQLite FTS5 (`data/docs.db`, `SPECFORGE_DOCS_DB`), unicode61 remove_diacritics 2, bm25 (заголовок ×3),
-  префиксы с усечением слов ≥ 6 символов на 2 (грубый стемминг ru/en); `rag/ingest.py` — чанки по заголовкам,
-  блок кода целиком, HTML → Markdown; `python -m specforge.rag.ingest`.
-- Инструмент агентов `search_docs` (tools/docs.py): топ-5 с источником, ≤ 1500 токенов; `rag/lookup_agent.ask_docs` —
-  agent_loop только с search_docs, 3 шага, ответ ≤ 300 токенов.
-- `infra/fetch_docs.sh` — sparse-clone документации (angular, dotnet, efcore, postgres, postgis, kafka, android,
-  kotlin, docker, gitlab-ci) в `infra/docs-corpus/` + индекс; вживую не запускался. Шаблоны организаторов — вручную в
-  `infra/docs-corpus/org-standards/`.
-- Векторный слой поверх FTS5: `rag/embeddings.py` — remote (EMBED_BASE_URL, /embeddings, батчи 64) / local fastembed
-  (paraphrase-multilingual-MiniLM-L12-v2, веса в data/models, во время прогона только с диска) / None → FTS-only;
-  `rag/search.py` — векторы в `data/docs_vectors.npy` + id в SQLite, переиндексация только изменённых чанков (хэш),
-  гибрид FTS5 топ-20 + векторы топ-20 → RRF (k=60) → топ-5; `search_docs(mode=hybrid|fts|vector)`; строка в doctor.
-  Реальная модель fastembed вживую не запускалась (тесты — фейковый Embedder).
+- Этапы 7, 10, 11 просили «в отдельном worktree» — его не было, работа шла в основном checkout на `main`;
+  запрет на правку `cli.py`/`api/server.py`/`graph.py` соблюдён, кроме случаев, когда пользователь разрешил явно.
+- Этап 12, таймаут: Python-поток не убить — зависший агент дорабатывает в брошенном потоке; agent_loop и ремонт
+  останавливаются по `deadline` между шагами.
+- Этап 11, дедупликация: в ключ кэша добавлен `thinking` (ответы разные). Профили по умолчанию с temperature > 0 —
+  кэш срабатывает только у агентов с temperature=0.
+- Этап 11, селекторы: платформа агентов не сужает сама — только событие `input_too_large`; селекторы ставит команда.
+- Этап 11, тест префикса: совпадение байт-в-байт — только первого запроса; дальше расходятся id вызовов инструментов
+  (ответ модели).
+- Этап 5: пересечение `outputs` проверяется приближённо (совпадение, вложенность, префикс с `**`).
+- Этап 8: этапы из кэша публикуются (`stage_cached`), этапы без записи в `repo_layout.yaml` — нет (`publish_warning`).
+- Этап 12: шаблоны `config/doc_templates.yaml` — заглушки; frontend-сервисы в healthcheck отсекаются по имени
+  (web|front|ui|nginx|console|admin).
+- Этап 6: поведение по умолчанию — автопилот (без `--approve-after` остановок нет); `--only` добавляет зависимости.
 
-## Эффективность (этап 11)
-- Префиксы: `$input_dir`/`$output_dir` — метки, `run` без длительности и пути лога; тест — первый запрос двух прогонов
-  совпадает байт-в-байт, история дописывается (общий префикс ≥ 80%).
-- thinking по агентам и для ремонта — `config/profiles.yaml` (agents / repair); budget → `LLMClient.without_thinking`
-  (жёстко), yaml → `for_agent` (мягко), ремонт → `for_repair`. Имена агентов в yaml — предполагаемые, сверить с командой.
-- Дедупликация ответов при temperature == 0 в пределах прогона, `Usage.dedup_hits` в метриках и отчёте. Профили по
-  умолчанию имеют temperature > 0 — кэш срабатывает только у агентов с temperature=0.
-- Селекторы входов (core/selectors.py), событие `input_too_large` > INPUT_INLINE_MAX_TOKENS.
-- `infra/bench_concurrency.py` → bench/concurrency.md; отчёт «до/после» относительно bench/baseline (`specforge report
-  --save-baseline`, `E2E_SAVE_BASELINE=1`).
-- НЕ сделано: baseline e2e кейса 1 и bench/concurrency.md — нет ТЗ (examples/case1.md), vLLM, Docker и агентов.
+## Договорённости сессии (нет в CLAUDE.md / AGENT_SDK.md)
 
-## Приёмка и устойчивость (этап 12)
-- `agents/acceptance` — последний шаг графа: итоговый репозиторий по repo_layout, повтор шлюзов (регрессии), compose +
-  /health + /metrics + e2e, docs по config/doc_templates.yaml, Trivy HIGH+, матрица трассируемости; verdict.json и
-  summary.md (REVIEW). Docker/compose, HTTP и Trivy вживую не запускались — тесты на подделках.
-- Таймаут этапа (AgentSpec.timeout_s / SPECFORGE_STAGE_TIMEOUT_S) с откатом к specforge-green-<agent>; инфраструктурные
-  сбои (gates/infra.py) — повтор без ремонта (≤ 2, stage_retry); LLM недоступна — ожидание до LLM_WAIT_MAX_S,
-  failed этапа (llm_unavailable), resume продолжает с него.
-- Зависший агент после таймаута продолжает работать в брошенном потоке (Python не убивает потоки): agent_loop и ремонт
-  останавливаются по deadline между шагами, но один долгий вызов LLM или команда доработают до своего таймаута.
-- Словарь доменной утечки заполнен словами кейса 1 (раньше был пуст — тест ничего не проверял).
-- Шаблоны документации (config/doc_templates.yaml) и имена агентов в profiles.yaml — заглушки до шаблонов организаторов.
+- Формат ошибок шлюза — существующий `Diagnostic` (`column`, не `col`) + `code`, `category`, `code_window`.
+- KVM на машине разработки нет; скриншоты Android — Roborazzi, эмулятор — опция (WSL2 nestedVirtualization при нужде).
+- Имена агентов в `config/profiles.yaml` (`analyst`, `backend_coder`, …) — предположение, сверить с командой;
+  несовпадения покажет `specforge doctor`.
+- Приёмщик ждёт от команды: `e2e/run.sh`, `docs/traceability.md` (FR | Код | Тест), compose в корне/`infra/`/`deploy/`,
+  `reports/trivy*.json`, у backend — `/health` (Healthy/Degraded/Unhealthy) и `/metrics` (Prometheus).
+- Данные кейса и ТЗ — входы прогона (`artifacts/input/`), не RAG; RAG — документация стека и `org-standards`.
+- `.gitignore`: игнорируется только корневой `/runs/` (фикстуры `tests/fixtures/runs/` в git), `/data/`, `/infra/docs-corpus/`.
+- Пользовательские события (кроме EventType): `stage_cached`, `stage_retry`, `stage_timeout`, `llm_unavailable`,
+  `llm_available`, `artifacts_edited`, `input_too_large`, `input_selector_failed`, `publish_warning`, `published`,
+  `profile_built`, `profile_fallback`, `escalation`, `budget_warning`.
+- Изменения публичных контрактов после 4.x — только необязательные поля (Usage.dedup_hits, AgentSpec.timeout_s,
+  GateResult.infra_error, StopReason `timeout`, AgentContext.deadline); `docs/console-api.yaml` перегенерирован.
 
-## Осталось
-- `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
-- `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
-- pgvector для RAG не используется: векторы — numpy brute force (корпус — тысячи чанков).
+## Известные проблемы
 
-## Не проверено вживую (только тесты на подделках)
-- PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.
-- Лимит времени этапа не прерывает этап — превышение фиксируется событием после него.
-- `PostgresEventStore` и approve через CLI между процессами — только с Postgres, вживую не запускались.
-- SSE опрашивает хранилище каждые 0.2 с (без LISTEN/NOTIFY).
-- DockerSandbox — поддельный docker-клиент; Docker на машине разработки нет.
-- `infra/docker-compose.platform.yml` — проверен разбором YAML, `docker compose up` не запускался.
-- Память исправлений в Postgres (pg_trgm, SQL) — поддельное соединение.
-- vLLM/Qwen3.8: smoke (`infra/smoke_llm.py`) не запускался; парсеры `hermes`/`qwen3`, top_p/top_k, длину контекста
-  131072 нужно сверить с model card.
-- Тест симлинков за пределы /work пропускается на Windows без прав администратора.
+- Падающих тестов нет. 2 предупреждения pytest — штатное повышение температуры при thinking (CODE t=0.2).
+- Вживую не проверено (только подделки): vLLM/Qwen, Docker/DockerSandbox, Postgres (чекпойнты, события, память
+  исправлений), Langfuse, GitLab, docker compose/Trivy в приёмщике, fastembed с реальными весами,
+  `infra/fetch_docs.sh` (пути документации в репозиториях — по памяти), uvicorn.
+- `doctor` на машине разработки: vLLM, Langfuse, Docker — FAIL; в `.env` ключи Langfuse-заглушки.
+- SSE опрашивает хранилище каждые 0.2 с (без LISTEN/NOTIFY). `LocalSandbox` не изолирует команды.
+- `VLLM_IMAGE_TAG=latest` — закрепить версию.
 
-## Незакрытые проблемы
-- Все запросы теперь несут `max_tokens` (CODE — 8192) — поведение старых агентов без явных настроек изменилось.
-- `VLLM_IMAGE_TAG=latest` — нужно закрепить версию.
-- `LocalSandbox` не изолирует команды: только для разработки и тестов.
-- В `.env` пользователя нет `SPECFORGE_PG_DSN` — память исправлений у него выключена.
-- `main.py` (шаблон PyCharm) в корне — исключён из ruff, в коммиты не попадает.
+## Следующий шаг
 
-## Неочевидные решения
-- `ProfileName` перенесён в `core.contracts`: иначе `AgentSpec` → `llm.profiles` → `contracts` — цикл импорта.
-- Правило thinking/температуры проверяется ещё и в каждом вызове LLM: валидатор AgentSpec не видит thinking профиля.
-- Переопределение `max_tokens` в YAML без `timeout_s` пересчитывает таймаут, а не берёт старый.
-- Ремонт: служебный git в `/work/.specforge/git` с отключёнными подписью и хуками пользователя; метка `specforge-green`
-  ставится после каждого зелёного шлюза, поэтому `degraded` откатывает всю работу неудачного этапа.
-- Запреты ремонта (глушение ошибок, отключение тестов, защищённые файлы) проверяются по diff кодом, не только промптом.
-- Postgres-память отключается после первой ошибки соединения, чтобы ремонт не ждал таймаут на каждой ошибке.
-- `.env` ищется от текущего каталога (`find_dotenv(usecwd=True)`), иначе тесты подхватывали `.env` репозитория.
-- Шлюз останавливается на первой упавшей команде; песочница этапа общая для агента, шлюза и ремонта.
+1. Запушить `main` в `origin` (ждёт подтверждения пользователя) — у участников на VM старая версия.
+2. Получить ТЗ кейса 1 → `examples/case1/` вместе с `data/`; добавить передачу каталога данных в `run`.
+3. На VM: `specforge doctor` → `infra/fetch_docs.sh` → `uv run python infra/bench_concurrency.py` →
+   `E2E_SAVE_BASELINE=1 scripts/e2e_case1.sh`.
+4. Сверить имена агентов с командой (`config/profiles.yaml`), шаблоны документации организаторов
+   (`config/doc_templates.yaml`, `infra/docs-corpus/org-standards/`).
