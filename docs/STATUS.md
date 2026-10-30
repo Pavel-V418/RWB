@@ -23,6 +23,7 @@
 | 12 приёмка | `3fbd867`, `0b80436` | agents/acceptance (verdict.json), таймаут этапа, инфра-повторы, ожидание LLM; словарь доменной утечки |
 | 13 репетиция | — | `scripts/rehearse.py`: все ТЗ из examples/ → rehearsal.md (этап × ТЗ, топ-10 ошибок шлюзов с исправлениями по `config/rehearse_rules.yaml`); diagnostics в событиях gate_failed/repair_attempt |
 | — публикация | — | `repo_layout.yaml`: корень (`.`) и файлы в корень (`root`: .gitlab-ci.yml, docker-compose, README), этапы ux/db/mocks/tests/e2e/security/devops/ci/docs/acceptance; вердикт приёмщика в docs/report/ и MR; `doctor` — этапы без раскладки; парсер `diagnostics-json` |
+| — приёмка по ТЗ | — | `doc_templates.yaml` по ТЗ (14 разделов СА, 11 документов, ID ФТ); проверки CI, секретов, README/.env.example/миграций/тестовых данных, статического анализа; `test-report.md`, `security-report.md`; `GateResult.tests_executed` из TRX/JUnit |
 
 ## Начато и не доделано
 
@@ -34,8 +35,7 @@
   лежат в загрузках пользователя. ТЗ кейса 1 не получено. План: `examples/case1/` (ТЗ + `data/`).
 - **`specforge run` копирует в `artifacts/input/` только файл ТЗ** — каталог с данными кейса агентам не передаётся.
   Нужно: опция вроде `--data <dir>` → `artifacts/input/data/`.
-- Из STATUS 4.x: `GateResult.tests_executed` всегда `None` (TRX/JUnit не считают тесты); `StageResult.stopped_reason`
-  не заполняют StructuredAgent и ремонт.
+- Из STATUS 4.x: `StageResult.stopped_reason` не заполняют StructuredAgent и ремонт.
 
 ## Отклонения от промптов и TODO
 
@@ -51,7 +51,8 @@
 - Этап 5: пересечение `outputs` проверяется приближённо (совпадение, вложенность, префикс с `**`).
 - Этап 8: этапы из кэша публикуются (`stage_cached`), этапы без записи в `repo_layout.yaml` — нет (`publish_warning`,
   `doctor` — FAIL). Имена этапов в `repo_layout.yaml` (ux, db, tests, e2e, security, devops, docs…) — предложение, сверить с командой.
-- Этап 12: шаблоны `config/doc_templates.yaml` — заглушки; frontend-сервисы в healthcheck отсекаются по имени
+- Шаблоны `config/doc_templates.yaml` — по тексту ТЗ (не шаблоны организаторов); пути документов — соглашение, сверить с тех. писателем;
+  frontend-сервисы в healthcheck отсекаются по имени
   (web|front|ui|nginx|console|admin).
 - Этап 6: поведение по умолчанию — автопилот (без `--approve-after` остановок нет); `--only` добавляет зависимости.
 

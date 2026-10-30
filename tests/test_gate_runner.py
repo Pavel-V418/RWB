@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 from specforge.core.contracts import AgentSpec, Diagnostic
+from specforge.gates.parsers.common import ParseContext
 from specforge.gates.runner import GateConfigError, GateRunner, normalize, prioritize
+from specforge.gates.test_counts import count_tests
 from specforge.sandbox.local_sandbox import LocalSandbox
 
 PY = f'"{sys.executable}"'
@@ -154,6 +156,21 @@ def test_junit_reports_from_sandbox(runner: GateRunner, sandbox: LocalSandbox) -
     assert (first.category, first.line) == ("test", 27)
     assert first.code_window is not None
     assert ">   27 | line 27" in first.code_window
+    assert result.tests_executed == 3
+
+
+def test_tests_executed_from_trx_and_none_without_reports(
+    runner: GateRunner, sandbox: LocalSandbox
+) -> None:
+    green = runner.run(spec([f"{PY} -c pass"]), sandbox, "r1")
+    assert green.tests_executed is None  # тестов не было — не «0 упало»
+
+    target = sandbox.workspace / "tests" / "results.trx"
+    target.parent.mkdir(parents=True)
+    target.write_bytes((FIXTURES / "results.trx").read_bytes())
+    counts = count_tests(ParseContext(command="dotnet test", workspace=sandbox.workspace))
+    assert counts is not None
+    assert (counts.executed, counts.failed, counts.skipped) == (2, 1, 0)
 
 
 def test_unknown_parser_is_config_error(runner: GateRunner, sandbox: LocalSandbox) -> None:

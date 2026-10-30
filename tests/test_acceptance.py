@@ -210,7 +210,7 @@ def test_docs_trivy_and_requirement_coverage(tmp_path: Path) -> None:
     )
     assert not verdict.ready
     assert verdict.blockers == ["уязвимости HIGH и выше: 1 (CVE-1 (libx, HIGH))"]
-    assert any(r.startswith("docs/tz: 67% разделов") and "Ограничения" in r for r in verdict.risks)
+    assert any(r.startswith("«tz»: 67% разделов") and "Ограничения" in r for r in verdict.risks)
     assert any(n.startswith("FR-2: код: backend/Payments.cs") for n in verdict.not_done)
     assert "Не готово" in fallback_summary(verdict)
 
@@ -228,6 +228,9 @@ def test_summary_falls_back_without_llm_and_registry_order(tmp_path: Path) -> No
     )
     assert verdict["summary"].startswith(("Готово", "Не готово"))
     assert any("резюме LLM не получено" in r for r in verdict["risks"])
+    reports = tmp_path / "runs" / "r1" / "artifacts" / "acceptance"
+    assert (reports / "test-report.md").read_text("utf-8").startswith("# Отчёт о тестировании")
+    assert (reports / "security-report.md").is_file()
     assert "acceptance" in state["stage_results"]
 
     registry = Registry([FakeAgent(spec("b", depends_on=["a"])), acceptance, FakeAgent(spec("a"))])

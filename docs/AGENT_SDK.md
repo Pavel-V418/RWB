@@ -764,16 +764,39 @@ specforge.api.server:app`, контракт — `docs/console-api.yaml` (обн�
    репозитория backend-сервисов `/health` отвечает Healthy / Degraded / Unhealthy, `/metrics` — в
    формате Prometheus; e2e/демо-сценарий `e2e/run.sh` (или `tests/e2e/run.sh`, `scripts/e2e.sh`),
    если тест-инженер его сгенерировал.
-3. Документация `docs/{tz,adr,api,services}` — доля обязательных разделов из
-   `config/doc_templates.yaml` (заменить на разделы шаблонов организаторов).
+3. Документы по `config/doc_templates.yaml`: перечень и разделы взяты из требований кейса —
+   системный анализ (14 разделов, идентификаторы ФТ `FR-1` / `ФТ-1`), продуктовое описание,
+   архитектура, API (OpenAPI), модель данных, инструкция по запуску (`README.md`), руководство
+   пользователя и разработчика, перечень ограничений. Нет обязательного документа — «не
+   сделано», не хватает разделов — риск. Где ищется каждый документ — `paths` в шаблоне.
 4. Отчёты Trivy `trivy*.json`: уязвимость HIGH или CRITICAL — «не готово».
 5. Матрица трассируемости `traceability.{md,csv,yaml,json}` (FR → код → тест): требование покрыто,
    если указаны и код, и тест и эти пути есть в репозитории.
+6. Без запуска:
+   - `.gitlab-ci.yml` в корне: нет — «не сделано», невалиден — блокер; нет job'а тестов, job'а
+     безопасности или `artifacts` — риск;
+   - секреты: приватные ключи, токены AWS / GitLab / GitHub / Slack и закоммиченный `.env` —
+     блокер; пароль или ключ, присвоенный литералом вне тестов и примеров, — риск;
+   - запуск из чистого окружения: `README.md` в корне, `.env.example` (если compose ссылается
+     на переменные), миграции (если в compose PostgreSQL), тестовые данные (`seed`,
+     `test-data/`, `fixtures/`);
+   - статический анализ: анализаторы в командах шлюзов и CI (eslint, `-warnaserror`, detekt,
+     ktlint, Android Lint, Semgrep, Sonar, Spectral, hadolint) или отчёты `*.sarif`.
+7. Шлюзы считают выполненные тесты по TRX / JUnit этого запуска (`GateResult.tests_executed`;
+   `None` — отчётов не было).
 
-Результат — `artifacts/acceptance/verdict.json` (`ready`, `blockers`, `regressions`, `not_done`,
-`risks`, документация, покрытие, уязвимости, перепроверка шлюзов) и `summary.md` — резюме через
-LLM (профиль REVIEW). Этап `passed`, если готово, иначе `degraded`.
+Результат — в `artifacts/acceptance/` (в GitLab — `docs/report/acceptance/`):
+- `verdict.json` — `ready`, `blockers`, `regressions`, `not_done`, `risks` и все проверки;
+- `summary.md` — резюме через LLM (профиль REVIEW);
+- `test-report.md` — шлюзы на итоговом репозитории с числом тестов, запуск и e2e, покрытие
+  требований, дефекты, итоговый статус;
+- `security-report.md` — инструменты, уязвимости по критичности, секреты, итоговый статус.
+
+Этап `passed`, если готово, иначе `degraded`.
 
 Что ждёт приёмщик от команды: тест-инженер — `e2e/run.sh` и матрицу `docs/traceability.md`
-(колонки FR | Код | Тест), DevOps — compose-файл и отчёт Trivy в JSON (`trivy fs --format json
--o reports/trivy.json .`), backend — `/health` и `/metrics`.
+(колонки FR | Код | Тест) с отчётами тестов в TRX / JUnit; DevOps — compose-файл,
+`.gitlab-ci.yml`, `.env.example` и отчёт Trivy в JSON (`trivy fs --format json -o
+reports/trivy.json .`) в корне своего этапа; backend — `/health`, `/metrics`, миграции и
+тестовые данные; технический писатель — документы по `config/doc_templates.yaml` и
+`README.md` с инструкцией запуска.

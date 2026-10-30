@@ -76,6 +76,8 @@ class GateCheck(BaseModel):
     total_errors: int = 0
     first_error: str = ""
     infra_error: str | None = None
+    tests_executed: int | None = None
+    """Тестов выполнено при повторе шлюза (TRX / JUnit); None — отчётов не было."""
 
     @property
     def regression(self) -> bool:
@@ -131,6 +133,7 @@ def rerun_gates(
             passed_now=gate.passed,
             total_errors=gate.total_errors,
             first_error=first,
+            tests_executed=gate.tests_executed,
         )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -338,26 +341,69 @@ class DocTypeCheck(BaseModel):
     share: float
     """Средняя доля обязательных разделов по файлам типа; 0 — документов нет."""
     files: list[DocFile] = Field(default_factory=list)
+    title: str = ""
+    required: bool = True
+    """False — документ желателен: его отсутствие — не «не сделано»."""
+    paths: list[str] = Field(default_factory=list)
+    missing_patterns: list[str] = Field(default_factory=list)
+    """Названия patterns шаблона, не найденные ни в одном файле типа."""
 
 
-def load_templates(path: Path) -> dict[str, dict[str, list[str]]]:
+Template = dict[str, Any]
+
+
+def load_templates(path: Path) -> dict[str, Template]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return {str(k): v for k, v in (data.get("templates") or {}).items()}
+    return {str(k): v or {} for k, v in (data.get("templates") or {}).items()}
 
 
-def check_docs(repo: Path, templates: dict[str, dict[str, list[str]]]) -> list[DocTypeCheck]:
+DOC_SUFFIXES = (".md", ".markdown")
+SPEC_SUFFIXES = (".yaml", ".yml", ".json")
+
+
+def check_docs(repo: Path, templates: dict[str, Template]) -> list[DocTypeCheck]:
     checks = []
     for doc_type, template in templates.items():
-        folder = repo / "docs" / doc_type
+        globs = [str(g) for g in template.get("paths") or [f"docs/{doc_type}/**/*"]]
+        sections = [str(x) for x in template.get("sections") or []]
+        keys = [str(x) for x in template.get("keys") or []]
         files: list[DocFile] = []
-        for path in sorted(folder.rglob("*")) if folder.is_dir() else []:
-            if path.suffix.lower() in (".md", ".markdown"):
-                files.append(_doc_sections(path, repo, template.get("sections", [])))
-            elif path.suffix.lower() in (".yaml", ".yml", ".json") and template.get("keys"):
-                files.append(_doc_keys(path, repo, template["keys"]))
+        texts: list[str] = []
+        for path in _doc_paths(repo, globs):
+            if path.suffix.lower() in DOC_SUFFIXES:
+                files.append(_doc_sections(path, repo, sections))
+                texts.append(path.read_text(encoding="utf-8", errors="replace"))
+            elif path.suffix.lower() in SPEC_SUFFIXES and keys:
+                files.append(_doc_keys(path, repo, keys))
         share = sum(f.share for f in files) / len(files) if files else 0.0
-        checks.append(DocTypeCheck(doc_type=doc_type, share=round(share, 3), files=files))
+        patterns = template.get("patterns") or {}
+        missing_patterns = [
+            str(name)
+            for name, rx in patterns.items()
+            if texts and not any(re.search(str(rx), t) for t in texts)
+        ]
+        checks.append(
+            DocTypeCheck(
+                doc_type=doc_type,
+                share=round(share, 3),
+                files=files,
+                title=str(template.get("title") or doc_type),
+                required=bool(template.get("required", True)),
+                paths=globs,
+                missing_patterns=missing_patterns,
+            )
+        )
     return checks
+
+
+def _doc_paths(repo: Path, globs: list[str]) -> list[Path]:
+    found: dict[Path, None] = {}
+    for pattern in globs:
+        for path in sorted(repo.glob(pattern)):
+            rel = path.relative_to(repo)
+            if path.is_file() and not rel.parts[0].startswith("_unmapped"):
+                found.setdefault(path, None)
+    return list(found)
 
 
 def _doc_sections(path: Path, repo: Path, sections: list[str]) -> DocFile:

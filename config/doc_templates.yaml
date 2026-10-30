@@ -1,30 +1,152 @@
-# Обязательные разделы документации по шаблонам (проверка приёмщика, agents/acceptance).
-# Ключ — каталог в итоговом репозитории (docs/<тип>/); sections — заголовки, которые должны
-# быть в каждом .md файле (совпадение по вхождению, без учёта регистра; варианты — через |).
-# Для api в каталоге может лежать OpenAPI (.yaml/.json): тогда проверяются keys верхнего уровня.
-# Замените списки на разделы из шаблонов организаторов (infra/docs-corpus/org-standards/).
+# Обязательные документы и их разделы — проверка приёмщика (agents/acceptance).
+# Источник — требования кейса: разделы системного анализа (этап 2) и перечень документов
+# (этап 7). Шаблоны организаторов, когда придут, — заменить списки здесь.
+#
+# Поля шаблона:
+#   title     — название для вердикта;
+#   paths     — glob-шаблоны файлов в итоговом репозитории (по умолчанию docs/<ключ>/**/*);
+#   sections  — заголовки, которые должны быть в каждом .md (вхождение без учёта регистра,
+#               варианты через |); неприменимый раздел оставьте с обоснованием, не удаляйте;
+#   keys      — ключи верхнего уровня для .yaml/.json (OpenAPI);
+#   patterns  — {название: regex}, которые должны встречаться в тексте документа;
+#   required  — false: документ желателен, его отсутствие — не «не сделано».
 templates:
-  tz:
+  system_analysis:
+    title: Документ системного анализа
+    paths:
+      - analysis/**/*system*analys*.md
+      - analysis/**/*системн*анализ*.md
+      - analysis/system*.md
+      - docs/system-analysis*.md
+      - docs/analysis/**/*.md
     sections:
-      - Цел|Назначение|Goal
+      - Назначение|Purpose
+      - Границы|Scope
+      - Роли|Права доступа|Roles
+      - Пользовательские сценарии|Сценари|Use case|User stor
       - Функциональные требования|Functional requirements
       - Нефункциональные требования|Non-functional requirements
-      - Ограничения|Constraints
-      - Глоссарий|Термин|Glossary
-  adr:
+      - Компонент|Components
+      - Модель данных|Data model
+      - API
+      - События|Интеграц|Events|Integrations
+      - Проверки входных|Валидац|Ограничения и проверки|Validation
+      - Обработка ошибок|Ошибки|Error handling
+      - Критерии приемки|Критерии приёмки|Acceptance criteria
+      - Допущения|Открытые вопросы|Assumptions|Open questions
+    patterns:
+      идентификаторы функциональных требований: '\b(FR|ФТ)-?\d+'
+
+  product:
+    title: Продуктовое описание
+    paths: [docs/product*.md, docs/product/**/*.md, docs/продукт*.md]
     sections:
-      - Контекст|Context
-      - Решение|Decision
-      - Последствия|Consequences
-      - Статус|Status
+      - Назначение|Проблема|Цел|Purpose|Problem
+      - Пользовател|Роли|Users|Personas
+      - Возможности|Функции|Features|Capabilities
+      - Сценари|Scenarios
+      - Ограничения|Limitations
+
+  architecture:
+    title: Описание архитектуры
+    paths: [docs/architecture*.md, docs/architecture/**/*.md, docs/архитектур*.md]
+    sections:
+      - Компонент|Components
+      - Взаимодейств|Диаграмм|Interaction|Diagram
+      - Технолог|Стек|Stack
+      - Развертыван|Развёртыван|Deployment
+      - Безопасност|Security
+
   api:
+    title: Описание API
+    paths: [docs/api/**/*]
     sections:
       - Описание|Overview
       - Аутентификац|Authentication
       - Эндпоинт|Ресурс|Endpoints|Resources
       - Ошибки|Коды ответов|Errors
     keys: [openapi, info, paths, components]
+
+  data_model:
+    title: Модель данных
+    paths: [docs/data-model*.md, docs/data_model*.md, docs/data-model/**/*.md, db/**/*.md]
+    sections:
+      - Сущност|Entities|Таблиц|Tables
+      - Связ|Relations
+      - Ограничения|Индекс|Constraints|Indexes
+      - Миграц|Migrations
+
+  run_guide:
+    title: Инструкция по запуску
+    paths: [README.md, docs/run*.md, docs/deploy*.md, docs/запуск*.md]
+    sections:
+      - Требования|Предварительн|Prerequisites|Requirements
+      - Запуск|Run|Quick start|Getting started
+      - Переменные окружения|Окружени|Environment|Configuration
+      - Миграц|Migrations
+      - Тестовые данные|Демо-данные|Seed|Test data
+      - Проверка|Health|Работоспособност|Verify
+
+  user_guide:
+    title: Руководство пользователя
+    paths: [docs/user*guide*.md, docs/user/**/*.md, docs/руководство*пользоват*.md]
+    sections:
+      - Начало работы|Вход|Getting started
+      - Сценари|Функции|Как |How to|Features
+      - Ошибки|Вопросы|FAQ|Troubleshooting
+
+  dev_guide:
+    title: Руководство по дальнейшей разработке
+    paths:
+      - docs/dev*guide*.md
+      - docs/development*.md
+      - docs/developer/**/*.md
+      - docs/руководство*разработ*.md
+      - CONTRIBUTING.md
+    sections:
+      - Структура|Structure
+      - Сборка|Локальн|Build|Local
+      - Тест|Tests
+      - CI
+      - Расширен|Добавлен|Extending|Adding
+
+  test_report:
+    title: Отчёт о тестировании
+    required: false  # приёмщик всегда пишет свой (docs/report/acceptance/test-report.md)
+    paths: [docs/test*report*.md, docs/testing/**/*.md, docs/отчет*тест*.md]
+    sections:
+      - Результат|Results
+      - Дефект|Defects|Ошибки
+      - Итог|Статус|Summary|Status
+
+  security_report:
+    title: Отчёт о проверке безопасности
+    required: false  # приёмщик всегда пишет свой (docs/report/acceptance/security-report.md)
+    paths: [docs/security/**/*.md, docs/security*.md]
+    sections:
+      - Инструмент|Методик|Tools|Method
+      - Уязвимост|Vulnerabilit
+      - Критичност|Severity
+      - Итог|Статус|Summary|Status
+
+  limitations:
+    title: Перечень известных ограничений
+    paths: [docs/*limitation*.md, docs/*ограничени*.md, docs/limitations/**/*.md]
+    sections:
+      - Ограничени|Limitations
+
+  adr:
+    title: Архитектурные решения (ADR)
+    required: false
+    sections:
+      - Контекст|Context
+      - Решение|Decision
+      - Последствия|Consequences
+      - Статус|Status
+
   services:
+    title: Описание сервисов
+    required: false
     sections:
       - Назначение|Purpose|Overview
       - Зависимости|Dependencies

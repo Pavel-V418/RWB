@@ -24,6 +24,7 @@ from pydantic import JsonValue
 from specforge.core.contracts import AgentSpec, Diagnostic, GateResult
 from specforge.gates.infra import classify_failure
 from specforge.gates.parsers import PARSERS, ParseContext, select_parser
+from specforge.gates.test_counts import TestCounts, count_tests
 from specforge.sandbox.base import WORKDIR, ExecResult, Sandbox
 
 log = structlog.get_logger(__name__)
@@ -65,6 +66,7 @@ class GateRunner:
         diagnostics: list[Diagnostic] = []
         failed_index: int | None = None
         infra: str | None = None
+        tests: TestCounts | None = None
         with log_path.open("w", encoding="utf-8") as gate_log:
             for index, (command, parser) in enumerate(
                 zip(spec.gate_commands, parsers, strict=True)
@@ -80,6 +82,9 @@ class GateRunner:
                 )
                 found = self._parse(parser, result, ctx)
                 diagnostics += found
+                counted = count_tests(ctx)
+                if counted is not None:
+                    tests = counted if tests is None else tests.add(counted)
                 log.info(
                     "gate.command",
                     agent=spec.name,
@@ -104,6 +109,7 @@ class GateRunner:
             log_path=str(log_path),
             duration_s=time.monotonic() - started,
             infra_error=infra,
+            tests_executed=tests.executed if tests is not None else None,
         )
 
     def _parse(self, parser: str, result: ExecResult, ctx: ParseContext) -> list[Diagnostic]:
