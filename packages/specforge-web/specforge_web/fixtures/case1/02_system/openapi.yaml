@@ -1,0 +1,469 @@
+openapi: 3.1.0
+info:
+  title: Parking Assistant API
+  version: 1.0.0
+  description: |
+    ВРЕМЕННЫЙ эталон участника 4 для разработки фронтенда на Prism.
+    Заменяется артефактом системного архитектора / backend (участники 2 и 3) по соглашениям contracts/api/api-conventions.md.
+    Координаты и номера зон — демонстрационные.
+servers:
+  - url: /api/v1
+security:
+  - bearer: []
+tags:
+  - name: Auth
+  - name: Vehicles
+  - name: ParkingZones
+  - name: ParkingSessions
+  - name: Events
+  - name: Stats
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /vehicles:
+    get:
+      tags: [Vehicles]
+      operationId: listVehicles
+      x-roles: [admin, dispatcher]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/q'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/VehicleStatus' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VehiclePage' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Vehicles]
+      operationId: createVehicle
+      x-roles: [admin]
+      x-idempotent: true
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VehicleCreate' }
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /vehicles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Vehicles]
+      operationId: getVehicle
+      x-roles: [admin, dispatcher, driver]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /vehicles/{id}/track:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Vehicles]
+      operationId: listVehicleTrack
+      x-roles: [admin, dispatcher, driver]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - $ref: '#/components/parameters/page'
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 5000, default: 1000 } }
+      responses:
+        '200':
+          description: Точки трека по возрастанию времени
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackPointPage' }
+    post:
+      tags: [Vehicles]
+      operationId: createVehicleTrackPoint
+      summary: Приём координаты от мобильного приложения или mock-маршрута
+      x-roles: [driver, admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrackPointCreate' }
+      responses:
+        '202': { description: Принято }
+        '400': { $ref: '#/components/responses/Problem' }
+  /parking-zones:
+    get:
+      tags: [ParkingZones]
+      operationId: listParkingZones
+      x-roles: [admin, dispatcher, driver]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/q'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingZonePage' }
+  /parking-zones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [ParkingZones]
+      operationId: getParkingZone
+      x-roles: [admin, dispatcher, driver]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingZone' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /parking-sessions:
+    get:
+      tags: [ParkingSessions]
+      operationId: listParkingSessions
+      x-roles: [admin, dispatcher, driver]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SessionStatus' } }
+        - { name: vehicleId, in: query, schema: { type: string, format: uuid } }
+        - { name: zoneId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSessionPage' }
+    post:
+      tags: [ParkingSessions]
+      operationId: startParkingSession
+      summary: Водитель запускает или подтверждает оплаченную сессию
+      x-roles: [driver]
+      x-idempotent: true
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParkingSessionStart' }
+      responses:
+        '201':
+          description: Сессия создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /parking-sessions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [ParkingSessions]
+      operationId: getParkingSession
+      x-roles: [admin, dispatcher, driver]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /parking-sessions/{id}/finish:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [ParkingSessions]
+      operationId: finishParkingSession
+      x-roles: [driver, admin]
+      x-idempotent: true
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /events:
+    get:
+      tags: [Events]
+      operationId: listEvents
+      x-roles: [admin, dispatcher, driver]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/EventType' } }
+        - { name: vehicleId, in: query, schema: { type: string, format: uuid } }
+        - { name: sessionId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: OK, по убыванию времени
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventRecordPage' }
+  /stats/overview:
+    get:
+      tags: [Stats]
+      operationId: getOverviewStats
+      x-roles: [admin, dispatcher]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OverviewStats' }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    size: { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    sort: { name: sort, in: query, schema: { type: string, pattern: '^[a-zA-Z]+,(asc|desc)$' } }
+    q: { name: q, in: query, schema: { type: string, maxLength: 100 } }
+    idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, format: uuid } }
+  responses:
+    Problem:
+      description: Ошибка (RFC 7807)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        traceId: { type: string }
+        errors: { type: object, additionalProperties: { type: array, items: { type: string } } }
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+    LoginResponse:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken: { type: string, examples: ['eyJhbGciOiJIUzI1NiJ9.demo.token'] }
+        expiresIn: { type: integer, examples: [3600] }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      required: [id, name, roles]
+      properties:
+        id: { type: string, format: uuid, examples: ['0b7f5d1e-3a51-4f0a-9d3c-1f6a2c8e0001'] }
+        name: { type: string, examples: ['Анна Диспетчер'] }
+        roles: { type: array, items: { type: string, enum: [admin, dispatcher, driver] }, examples: [[admin]] }
+        vehicleId: { type: [string, 'null'], format: uuid, description: 'Закреплённый автомобиль (для водителя)' }
+    GeoPoint:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { const: Point }
+        coordinates: { type: array, items: { type: number }, minItems: 2, maxItems: 2, examples: [[30.3351, 59.9343]] }
+    GeoPolygon:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [Polygon, MultiPolygon] }
+        coordinates: { type: array, items: {} }
+    VehicleStatus: { type: string, enum: [moving, parked, offline] }
+    Vehicle:
+      type: object
+      required: [id, plateNumber, model, status]
+      properties:
+        id: { type: string, format: uuid, examples: ['5a1c6f0e-7a2b-4c1d-8e3f-000000000001'] }
+        plateNumber: { type: string, pattern: '^[АВЕКМНОРСТУХ][0-9]{3}[АВЕКМНОРСТУХ]{2}[0-9]{2,3}$', examples: ['А123ВС178'] }
+        model: { type: string, maxLength: 64, examples: ['Lada Largus'] }
+        driverName: { type: [string, 'null'], maxLength: 128, examples: ['Иван Петров'] }
+        status: { $ref: '#/components/schemas/VehicleStatus' }
+        lastPosition: { $ref: '#/components/schemas/GeoPoint' }
+        lastSeenAt: { type: [string, 'null'], format: date-time, examples: ['2026-10-30T09:12:00Z'] }
+        currentZoneId: { type: [string, 'null'], format: uuid }
+        currentZoneNumber: { type: [string, 'null'], examples: ['7801'] }
+        activeSessionId: { type: [string, 'null'], format: uuid }
+    VehicleCreate:
+      type: object
+      required: [plateNumber, model]
+      properties:
+        plateNumber: { type: string, pattern: '^[АВЕКМНОРСТУХ][0-9]{3}[АВЕКМНОРСТУХ]{2}[0-9]{2,3}$' }
+        model: { type: string, minLength: 2, maxLength: 64 }
+        driverName: { type: string, maxLength: 128 }
+    VehiclePage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Vehicle' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    TrackPoint:
+      type: object
+      required: [recordedAt, geometry]
+      properties:
+        recordedAt: { type: string, format: date-time }
+        geometry: { $ref: '#/components/schemas/GeoPoint' }
+        speedKmh: { type: number, minimum: 0 }
+        zoneNumber: { type: [string, 'null'] }
+    TrackPointCreate:
+      type: object
+      required: [recordedAt, lon, lat]
+      properties:
+        recordedAt: { type: string, format: date-time }
+        lon: { type: number, minimum: -180, maximum: 180 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        accuracyM: { type: number, minimum: 0 }
+        speedKmh: { type: number, minimum: 0 }
+    TrackPointPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TrackPoint' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    ParkingZone:
+      type: object
+      required: [id, number, name, geometry, tariffPerHour]
+      properties:
+        id: { type: string, format: uuid, examples: ['9e2b7c4a-1d3f-4a5b-8c6d-000000007801'] }
+        number: { type: string, pattern: '^[0-9]{4}$', examples: ['7801'] }
+        name: { type: string, examples: ['Невский проспект — Дворцовая'] }
+        geometry: { $ref: '#/components/schemas/GeoPolygon' }
+        tariffPerHour: { type: number, minimum: 0, examples: [200] }
+        maxDurationMinutes: { type: [integer, 'null'], examples: [180] }
+        schedule: { type: string, examples: ['Пн–Пт 08:00–20:00'] }
+        freeMinutes: { type: integer, minimum: 0, examples: [15] }
+        vehiclesInside: { type: integer, minimum: 0, examples: [3] }
+    ParkingZonePage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ParkingZone' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    SessionStatus: { type: string, enum: [active, expiring, expired, finished] }
+    ParkingSession:
+      type: object
+      required: [id, vehicleId, zoneId, status, startedAt, paidUntil]
+      properties:
+        id: { type: string, format: uuid, examples: ['3c4d5e6f-0000-4000-8000-000000000001'] }
+        vehicleId: { type: string, format: uuid }
+        vehiclePlate: { type: string, examples: ['А123ВС178'] }
+        driverName: { type: [string, 'null'], examples: ['Иван Петров'] }
+        zoneId: { type: string, format: uuid }
+        zoneNumber: { type: string, examples: ['7801'] }
+        status: { $ref: '#/components/schemas/SessionStatus' }
+        startedAt: { type: string, format: date-time, examples: ['2026-10-30T09:20:00Z'] }
+        paidUntil: { type: string, format: date-time, examples: ['2026-10-30T12:20:00Z'] }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        remainingSeconds: { type: integer, examples: [5400] }
+        provider: { type: string, examples: ['mock-parkomatika'] }
+        paymentUrl: { type: string, format: uri, examples: ['https://parking.spb.ru/'] }
+    ParkingSessionStart:
+      type: object
+      required: [vehicleId, zoneId, paidUntil]
+      properties:
+        vehicleId: { type: string, format: uuid }
+        zoneId: { type: string, format: uuid }
+        paidUntil: { type: string, format: date-time }
+    ParkingSessionPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ParkingSession' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    EventType:
+      type: string
+      enum: [vehicle.position, zone.entered, zone.exited, zone.changed, session.started, session.expiring, session.expired, session.finished]
+    EventRecord:
+      type: object
+      required: [id, type, occurredAt, message]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/EventType' }
+        occurredAt: { type: string, format: date-time, examples: ['2026-10-30T09:18:00Z'] }
+        vehicleId: { type: [string, 'null'], format: uuid }
+        vehiclePlate: { type: [string, 'null'], examples: ['А123ВС178'] }
+        zoneNumber: { type: [string, 'null'], examples: ['7801'] }
+        sessionId: { type: [string, 'null'], format: uuid }
+        message: { type: string, examples: ['Вы въехали в зону платной парковки'] }
+        severity: { type: string, enum: [info, success, warn, danger], examples: [info] }
+    EventRecordPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/EventRecord' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    OverviewStats:
+      type: object
+      required: [vehiclesTotal, vehiclesInZones, activeSessions, expiringSessions, eventsToday]
+      properties:
+        vehiclesTotal: { type: integer, examples: [12] }
+        vehiclesInZones: { type: integer, examples: [5] }
+        activeSessions: { type: integer, examples: [4] }
+        expiringSessions: { type: integer, examples: [1] }
+        eventsToday: { type: integer, examples: [57] }

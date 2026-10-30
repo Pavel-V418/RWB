@@ -1,12 +1,15 @@
 # Обязательные документы и их разделы — проверка приёмщика (agents/acceptance).
-# Источник — требования кейса: разделы системного анализа (этап 2) и перечень документов
-# (этап 7). Шаблоны организаторов, когда придут, — заменить списки здесь.
+# Перечень — требования кейса (этап 7); разделы — регламенты организаторов, по которым пишет
+# документацию часть анализа (packages/specforge-analysis): «Правила проектирования и ведения
+# документации по системному анализу» (шаблон ТЗ), шаблоны API, ADR и описания сервисов.
+# Варианты через | — совпадение по вхождению в любой заголовок, без учёта регистра.
 #
 # Поля шаблона:
 #   title     — название для вердикта;
 #   paths     — glob-шаблоны файлов в итоговом репозитории (по умолчанию docs/<ключ>/**/*);
-#   sections  — заголовки, которые должны быть в каждом .md (вхождение без учёта регистра,
-#               варианты через |); неприменимый раздел оставьте с обоснованием, не удаляйте;
+#   exclude   — имена файлов, которые не проверяются (fnmatch: index.md);
+#   sections  — заголовки, которые должны быть в каждом .md; неприменимый раздел оставьте
+#               с обоснованием, не удаляйте; пусто — проверяется только наличие документа;
 #   keys      — ключи верхнего уровня для .yaml/.json (OpenAPI);
 #   patterns  — {название: regex}, которые должны встречаться в тексте документа;
 #   required  — false: документ желателен, его отсутствие — не «не сделано».
@@ -14,73 +17,72 @@ templates:
   system_analysis:
     title: Документ системного анализа
     paths:
+      - docs/system-analysis*.md
       - analysis/**/*system*analys*.md
       - analysis/**/*системн*анализ*.md
-      - analysis/system*.md
-      - docs/system-analysis*.md
       - docs/analysis/**/*.md
     sections:
-      - Назначение|Purpose
-      - Границы|Scope
-      - Роли|Права доступа|Roles
-      - Пользовательские сценарии|Сценари|Use case|User stor
+      # разделы шаблона ТЗ организаторов + обязательный состав из требований кейса (этап 2)
+      - Общие положения|Назначение|Purpose
+      - Условия и ограничения|Границы|Scope
+      - Сценарии использования|UseCase|Пользовательские сценарии
+      - Диаграммы|Diagram
       - Функциональные требования|Functional requirements
-      - Нефункциональные требования|Non-functional requirements
-      - Компонент|Components
+      - Описание Frontend|Интерфейс пользователя|Компонент
       - Модель данных|Data model
-      - API
-      - События|Интеграц|Events|Integrations
-      - Проверки входных|Валидац|Ограничения и проверки|Validation
-      - Обработка ошибок|Ошибки|Error handling
-      - Критерии приемки|Критерии приёмки|Acceptance criteria
-      - Допущения|Открытые вопросы|Assumptions|Open questions
+      - Описание API|API
+      - Интеграции|События|Integrations
+      - Нефункциональные требования|Non-functional requirements
+      - Требования к безопасности|Security
+      - Критерии приемки|Критерии приёмки|Критерии успеха|Acceptance criteria
+      - Допущения|Открытые вопросы|Assumptions
+      - Трассируемост|Traceability
     patterns:
       идентификаторы функциональных требований: '\b(FR|ФТ)-?\d+'
 
   product:
     title: Продуктовое описание
-    paths: [docs/product*.md, docs/product/**/*.md, docs/продукт*.md]
+    paths: [docs/index.md, docs/product*.md, docs/product/**/*.md, docs/продукт*.md]
     sections:
-      - Назначение|Проблема|Цел|Purpose|Problem
-      - Пользовател|Роли|Users|Personas
-      - Возможности|Функции|Features|Capabilities
-      - Сценари|Scenarios
-      - Ограничения|Limitations
+      - Проблема|Назначение|Purpose|Problem
+      - Для кого|Пользовател|Роли|Users
+      - Ценность|Value
+      - Возможности|Функции|Features
 
   architecture:
     title: Описание архитектуры
     paths: [docs/architecture*.md, docs/architecture/**/*.md, docs/архитектур*.md]
     sections:
       - Компонент|Components
-      - Взаимодейств|Диаграмм|Interaction|Diagram
-      - Технолог|Стек|Stack
-      - Развертыван|Развёртыван|Deployment
-      - Безопасност|Security
+      - Решени|Decision
+      - Жизненный цикл|Последовательност|Взаимодейств|Диаграмм|Sequence
 
   api:
-    title: Описание API
-    paths: [docs/api/**/*]
-    sections:
-      - Описание|Overview
-      - Аутентификац|Authentication
-      - Эндпоинт|Ресурс|Endpoints|Resources
-      - Ошибки|Коды ответов|Errors
+    title: Описание API (OpenAPI)
+    paths: [docs/contracts/openapi*.yaml, docs/contracts/openapi*.json, docs/api/**/*.yaml, analysis/**/openapi*.yaml]
     keys: [openapi, info, paths, components]
+
+  api_methods:
+    title: Описание методов API (шаблон API)
+    paths: [docs/api-methods/*.md, analysis/**/api-methods/*.md]
+    exclude: [index.md]
+    sections:
+      - Назначение
+      - Входные данные
+      - Выходные данные
+      - Алгоритм
+    required: false
 
   data_model:
     title: Модель данных
-    paths: [docs/data-model*.md, docs/data_model*.md, docs/data-model/**/*.md, db/**/*.md]
-    sections:
-      - Сущност|Entities|Таблиц|Tables
-      - Связ|Relations
-      - Ограничения|Индекс|Constraints|Indexes
-      - Миграц|Migrations
+    paths: [docs/data-model*.md, docs/data_model*.md, docs/data-model/**/*.md]
+    sections: []
 
   run_guide:
     title: Инструкция по запуску
     paths: [README.md, docs/run*.md, docs/deploy*.md, docs/запуск*.md]
     sections:
-      - Требования|Предварительн|Prerequisites|Requirements
+      - Требования|Предварительн|Prerequisites|Requirements|Общий порядок
       - Запуск|Run|Quick start|Getting started
       - Переменные окружения|Окружени|Environment|Configuration
       - Миграц|Migrations
@@ -91,9 +93,8 @@ templates:
     title: Руководство пользователя
     paths: [docs/user*guide*.md, docs/user/**/*.md, docs/руководство*пользоват*.md]
     sections:
-      - Начало работы|Вход|Getting started
-      - Сценари|Функции|Как |How to|Features
-      - Ошибки|Вопросы|FAQ|Troubleshooting
+      - Начать работу|Начало работы|Вход|Getting started
+      - пошло не так|Ошибки|Вопросы|FAQ|Troubleshooting
 
   dev_guide:
     title: Руководство по дальнейшей разработке
@@ -104,30 +105,21 @@ templates:
       - docs/руководство*разработ*.md
       - CONTRIBUTING.md
     sections:
-      - Структура|Structure
-      - Сборка|Локальн|Build|Local
-      - Тест|Tests
-      - CI
-      - Расширен|Добавлен|Extending|Adding
+      - Где что лежит|Структура|Structure
+      - добавить|изменить функцию|Расширен|Extending|Adding
+      - Соглашени|Conventions
 
   test_report:
     title: Отчёт о тестировании
     required: false  # приёмщик всегда пишет свой (docs/report/acceptance/test-report.md)
     paths: [docs/test*report*.md, docs/testing/**/*.md, docs/отчет*тест*.md]
-    sections:
-      - Результат|Results
-      - Дефект|Defects|Ошибки
-      - Итог|Статус|Summary|Status
+    sections: []
 
   security_report:
     title: Отчёт о проверке безопасности
     required: false  # приёмщик всегда пишет свой (docs/report/acceptance/security-report.md)
-    paths: [docs/security/**/*.md, docs/security*.md]
-    sections:
-      - Инструмент|Методик|Tools|Method
-      - Уязвимост|Vulnerabilit
-      - Критичност|Severity
-      - Итог|Статус|Summary|Status
+    paths: [docs/security-report*.md, docs/security/**/*.md]
+    sections: []
 
   limitations:
     title: Перечень известных ограничений
@@ -136,20 +128,26 @@ templates:
       - Ограничени|Limitations
 
   adr:
-    title: Архитектурные решения (ADR)
+    title: Архитектурные решения (шаблон ADR)
+    paths: [docs/adr/*.md]
+    exclude: [index.md]
     required: false
     sections:
       - Контекст|Context
-      - Решение|Decision
-      - Последствия|Consequences
       - Статус|Status
+      - Альтернатив|Alternatives
+      - Принятое решение|Решение|Decision
+      - Последствия|Consequences
 
   services:
-    title: Описание сервисов
+    title: Описание сервисов (шаблон описания сервисов)
+    paths: [docs/services/*.md]
+    exclude: [index.md]
     required: false
     sections:
-      - Назначение|Purpose|Overview
-      - Зависимости|Dependencies
+      - Описание|Purpose|Overview
+      - Сборка|Build
+      - Деплой|Deployment|Запуск
       - Конфигурац|Configuration
-      - Запуск|Running|Deployment
-      - Мониторинг|Health|Метрики|Metrics
+      - Мониторинг|Health|Metrics
+      - Логирование|Logging

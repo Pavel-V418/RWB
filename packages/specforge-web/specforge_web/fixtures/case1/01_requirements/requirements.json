@@ -1,0 +1,183 @@
+{
+  "_note": "ВРЕМЕННЫЙ эталон участника 4. Заменяется артефактом аналитика (участник 2) того же формата: functional[].id/title/channels.",
+  "product": "Помощник управления платными парковками (кейс №1)",
+  "roles": [
+    {
+      "id": "admin",
+      "title": "Администратор",
+      "description": "Управляет автопарком и справочниками, видит всё"
+    },
+    {
+      "id": "dispatcher",
+      "title": "Диспетчер",
+      "description": "Наблюдает за автомобилями, сессиями и событиями, без изменения справочников"
+    },
+    {
+      "id": "driver",
+      "title": "Водитель",
+      "description": "Пользуется мобильным приложением"
+    }
+  ],
+  "functional": [
+    {
+      "id": "FR-01",
+      "title": "Определять местоположение автомобиля",
+      "channels": [
+        "android",
+        "backend"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-02",
+      "title": "Определять нахождение автомобиля в платной парковочной зоне",
+      "channels": [
+        "backend",
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-03",
+      "title": "Показывать номер и границы зоны",
+      "channels": [
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-04",
+      "title": "Отображать доступные параметры парковки",
+      "channels": [
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-05",
+      "title": "Хранить информацию об активной парковочной сессии",
+      "channels": [
+        "backend",
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-06",
+      "title": "Отслеживать перемещение автомобиля",
+      "channels": [
+        "backend",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-07",
+      "title": "Определять выход из текущей зоны",
+      "channels": [
+        "backend",
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-08",
+      "title": "Определять переход в другую парковочную зону",
+      "channels": [
+        "backend",
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-09",
+      "title": "Контролировать время окончания оплаченной сессии",
+      "channels": [
+        "backend",
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-10",
+      "title": "Предупреждать о необходимости проверки или новой оплаты",
+      "channels": [
+        "backend",
+        "android"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-11",
+      "title": "Предоставлять переход к официальному сервису оплаты",
+      "channels": [
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-12",
+      "title": "Отображать маршрут и историю парковочных сессий",
+      "channels": [
+        "android",
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-13",
+      "title": "Web: просмотр автомобилей, зон, активных сессий, маршрутов, событий и истории",
+      "channels": [
+        "web"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-14",
+      "title": "Водитель запускает или подтверждает парковочную сессию",
+      "channels": [
+        "android",
+        "backend"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-15",
+      "title": "События отображаются в административном интерфейсе и сохраняются в истории",
+      "channels": [
+        "web",
+        "backend"
+      ],
+      "source": "customer"
+    },
+    {
+      "id": "FR-16",
+      "title": "Вход пользователей и разграничение доступа по ролям",
+      "channels": [
+        "web",
+        "android",
+        "backend"
+      ],
+      "source": "assumption",
+      "rationale": "Регламент требует аутентификацию и авторизацию API"
+    },
+    {
+      "id": "FR-17",
+      "title": "Администратор регистрирует служебный автомобиль",
+      "channels": [
+        "web",
+        "backend"
+      ],
+      "source": "assumption",
+      "rationale": "Нужен источник списка служебных автомобилей; подтверждает сохранение данных через UI"
+    }
+  ]
+}

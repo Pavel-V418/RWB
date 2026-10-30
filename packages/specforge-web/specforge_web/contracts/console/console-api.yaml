@@ -1,0 +1,302 @@
+openapi: 3.1.0
+info:
+  title: SpecForge Console API
+  version: 1.0.0
+  description: |
+    API между веб-консолью конвейера (участник 4) и бэкендом оркестратора (участник 1).
+    Консоль до готовности бэкенда работает на Prism-моке этого файла.
+servers:
+  - url: /console-api/v1
+tags:
+  - name: Runs
+  - name: Artifacts
+paths:
+  /runs:
+    get:
+      tags: [Runs]
+      operationId: listRuns
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunPage' }
+    post:
+      tags: [Runs]
+      operationId: createRun
+      summary: Запустить конвейер на бизнес-требованиях
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                file: { type: string, format: binary, description: 'txt / md / docx / pdf' }
+                text: { type: string, maxLength: 200000, description: 'Требования текстом, если файла нет' }
+                title: { type: string, maxLength: 120 }
+                mode: { $ref: '#/components/schemas/RunMode' }
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '400': { $ref: '#/components/responses/Problem' }
+  /runs/{runId}:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Runs]
+      operationId: getRun
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/events:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Runs]
+      operationId: streamRunEvents
+      summary: SSE-поток событий прогона
+      description: |
+        `text/event-stream`. Поле `event:` = RunEvent.type, `data:` = RunEvent (JSON), `id:` = RunEvent.seq.
+        Клиент переподключается с `Last-Event-ID`, сервер досылает пропущенное.
+      responses:
+        '200':
+          description: Поток
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/RunEvent' }
+  /runs/{runId}/approve:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Runs]
+      operationId: approveRunStage
+      summary: Решение человека в режиме approve
+      description: |
+        reject — этап перезапускается с комментарием как замечанием агенту (attempts + 1); комментарий обязателен (иначе 422).
+        approve — недоступно, пока не отвечены блокирующие вопросы этапа (Stage.questions[].blocking), иначе 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stageId, decision]
+              properties:
+                stageId: { type: string }
+                decision: { type: string, enum: [approve, reject] }
+                comment: { type: string, maxLength: 4000, description: 'При reject обязателен: уходит агенту как замечание' }
+                answers:
+                  type: object
+                  description: 'Ответы на вопросы этапа: id вопроса → ответ (Stage.questions). Необязательно'
+                  additionalProperties: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/cancel:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+  /runs/{runId}/artifacts:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Artifacts]
+      operationId: listRunArtifacts
+      responses:
+        '200':
+          description: Плоский список файлов artifacts/
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Artifact' }
+  /runs/{runId}/artifacts/content:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+      - { name: path, in: query, required: true, schema: { type: string, pattern: '^[0-9]{2}_[a-z_]+/.+$' } }
+    get:
+      tags: [Artifacts]
+      operationId: getRunArtifactContent
+      responses:
+        '200':
+          description: Содержимое (тип по расширению)
+          content:
+            text/plain: { schema: { type: string } }
+            image/png: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/metrics:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Runs]
+      operationId: getRunMetrics
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunMetrics' }
+components:
+  responses:
+    Problem:
+      description: Ошибка (RFC 7807)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    RunMode: { type: string, enum: [autopilot, approve] }
+    RunStatus: { type: string, enum: [queued, running, awaiting_approval, passed, failed, cancelled] }
+    StageStatus: { type: string, enum: [pending, running, gate, repairing, awaiting_approval, passed, failed, skipped] }
+    GateResult:
+      type: object
+      required: [passed]
+      properties:
+        name: { type: string, examples: ['ng build + lint + test'] }
+        passed: { type: boolean }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [message]
+            properties:
+              file: { type: string }
+              line: { type: integer }
+              message: { type: string }
+              severity: { type: string, enum: [error, warning] }
+    Stage:
+      type: object
+      required: [id, title, status, attempts]
+      properties:
+        id: { type: string, examples: ['03_ux'] }
+        title: { type: string }
+        status: { $ref: '#/components/schemas/StageStatus' }
+        dependsOn: { type: array, items: { type: string } }
+        attempts: { type: integer, minimum: 0 }
+        tokensIn: { type: integer }
+        tokensOut: { type: integer }
+        tokensCached: { type: integer }
+        startedAt: { type: [string, 'null'], format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        gate: { $ref: '#/components/schemas/GateResult' }
+        artifacts: { type: array, items: { type: string } }
+        skipReason: { type: string, description: 'Почему профилировщик отключил этап' }
+        summary: { type: string, description: 'Необязательно: краткий итог этапа для человека (что сделано, что учтено)' }
+        questions:
+          type: array
+          description: 'Необязательно: открытые вопросы и допущения этапа; блокирующие нужно ответить до approve'
+          items: { $ref: '#/components/schemas/StageQuestion' }
+    StageQuestion:
+      type: object
+      required: [id, text]
+      properties:
+        id: { type: string }
+        text: { type: string, description: 'Вопрос к человеку' }
+        assumption: { type: string, description: 'Что агент принял, если ответа не будет' }
+        blocking: { type: boolean, default: false, description: 'true — без ответа этап нельзя принять' }
+        answer: { type: string, description: 'Ответ, если уже дан' }
+    Run:
+      type: object
+      required: [id, title, mode, status, createdAt, stages]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        mode: { $ref: '#/components/schemas/RunMode' }
+        status: { $ref: '#/components/schemas/RunStatus' }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        stages: { type: array, items: { $ref: '#/components/schemas/Stage' } }
+        repoUrl: { type: string, description: 'Ссылка на репозиторий/MR в GitLab' }
+        appUrl: { type: string, description: 'Ссылка на развёрнутый прототип' }
+        simulated: { type: boolean, description: 'true — прогон имитирован демо-оркестратором (console/demo_server.py): цифры не являются замером' }
+    RunPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Run' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    RunEvent:
+      type: object
+      required: [seq, type, at]
+      properties:
+        seq: { type: integer }
+        type:
+          type: string
+          enum: [stage.started, stage.gate, stage.repair, stage.passed, stage.failed, stage.skipped, run.awaiting_approval, run.finished, log]
+        at: { type: string, format: date-time }
+        stageId: { type: string }
+        message: { type: string }
+        stage: { $ref: '#/components/schemas/Stage' }
+    Artifact:
+      type: object
+      required: [path, size]
+      properties:
+        path: { type: string, examples: ['03_ux/screen-spec.json'] }
+        stageId: { type: string }
+        size: { type: integer }
+        kind: { type: string, enum: [markdown, json, yaml, code, image, report, other] }
+    RunMetrics:
+      type: object
+      required: [totals, stages]
+      properties:
+        totals:
+          type: object
+          properties:
+            tokensIn: { type: integer }
+            tokensOut: { type: integer }
+            tokensCached: { type: integer }
+            llmCalls: { type: integer }
+            attempts: { type: integer }
+            durationSec: { type: number }
+            deterministicShare: { type: number, minimum: 0, maximum: 1, description: 'Доля кода, созданного без LLM' }
+        stages:
+          type: array
+          items:
+            type: object
+            properties:
+              stageId: { type: string }
+              tokensIn: { type: integer }
+              tokensOut: { type: integer }
+              tokensCached: { type: integer }
+              llmCalls: { type: integer }
+              attempts: { type: integer }
+              durationSec: { type: number }
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        traceId: { type: string }
+        errors: { type: object, additionalProperties: { type: array, items: { type: string } } }

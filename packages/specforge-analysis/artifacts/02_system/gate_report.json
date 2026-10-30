@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_ENTITY_NO_API",
+      "severity": "warning",
+      "message": "сущность не видна ни в API, ни в событиях",
+      "target": "Driver"
+    },
+    {
+      "code": "W_DDL_NO_POSTGIS",
+      "severity": "warning",
+      "message": "DDL проверен во временном PostgreSQL без PostGIS (геометрия заменена на bytea); для полной проверки задайте SPECFORGE_PG_DSN",
+      "target": null
+    }
+  ],
+  "ddl_check": {
+    "ran": true,
+    "ok": true,
+    "mode": "local-no-postgis",
+    "message": ""
+  },
+  "coverage": {
+    "functional": 21,
+    "fr_with_api_or_event": 21,
+    "fr_no_api_justified": 0,
+    "operations": 19,
+    "events": 8,
+    "entities": 9,
+    "sequences": 3
+  },
+  "metrics": {
+    "llm_calls": 3,
+    "input_tokens": 18774,
+    "output_tokens": 14010,
+    "retries": 0,
+    "cached_calls": 3,
+    "duration_s": 0.0
+  }
+}

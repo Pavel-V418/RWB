@@ -124,43 +124,38 @@ def test_agent_thinking_from_yaml_budget_and_repair(tmp_path: Path) -> None:
     settings = load_agent_settings(PROJECT_ROOT / "config" / "profiles.yaml")
     on = {
         "profiler",
-        "analyst",
         "requirements_critic",
-        "system_architect",
-        "ux_designer",
         "vlm_reviewer",
         "security_analyst",
         "acceptance",
     }
     off = {
         "backend_coder",
-        "frontend_coder",
         "android_coder",
         "test_engineer",
         "devops",
-        "tech_writer",
     }
     assert {n for n, v in settings.agents.items() if v} == on
     assert {n for n, v in settings.agents.items() if not v} == off
     assert settings.repair_thinking is False
 
-    # в графе: analyst — с thinking, backend_coder — без (профиль CODE одинаковый)
+    # в графе: security_analyst — с thinking, backend_coder — без (профиль CODE одинаковый)
     llm = FakeLLM(
         [
-            FakeReply(content="a", expect=Expect(contains="analyst", thinking=True)),
+            FakeReply(content="a", expect=Expect(contains="security_analyst", thinking=True)),
             FakeReply(content="b", expect=Expect(contains="backend_coder", thinking=False)),
         ]
     )
     llm.agent_settings = settings
-    agents = [ChatAgent("analyst"), ChatAgent("backend_coder")]
+    agents = [ChatAgent("security_analyst"), ChatAgent("backend_coder")]
     Harness(tmp_path).run(agents, llm=llm, use_cache=False)
     llm.assert_exhausted()
 
     # бюджет сильнее yaml, ремонт не наследует thinking агента
     probe = FakeLLM(["1", "2", "3"])
     probe.agent_settings = settings
-    probe.for_agent("analyst").without_thinking().chat([])
-    probe.without_thinking().for_agent("analyst").chat([])
-    probe.for_agent("analyst").for_repair().chat([])
+    probe.for_agent("security_analyst").without_thinking().chat([])
+    probe.without_thinking().for_agent("security_analyst").chat([])
+    probe.for_agent("security_analyst").for_repair().chat([])
     assert [c.thinking for c in probe.calls] == [False, False, False]
     assert FakeLLM(["x"]).for_agent("analyst").forced_thinking is None  # без yaml — как в spec

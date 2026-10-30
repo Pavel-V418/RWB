@@ -1,0 +1,1547 @@
+{
+  "components": [
+    {
+      "name": "Mobile App",
+      "kind": "mobile",
+      "tech": "Kotlin 2.2, Jetpack Compose, Material 3",
+      "responsibility": "Карта, текущая зона, статус и таймер сессии, уведомления, передача координат, переход к оплате"
+    },
+    {
+      "name": "Admin Web",
+      "kind": "web",
+      "tech": "Angular 20, UI Kit, MapLibre",
+      "responsibility": "Просмотр автомобилей, зон, сессий, маршрутов, журнала событий; загрузка зон; запуск демо-маршрута"
+    },
+    {
+      "name": "Backend API",
+      "kind": "backend",
+      "tech": "ASP.NET Core 10, C# 14, EF Core + NetTopologySuite, SignalR",
+      "responsibility": "REST API, определение зоны, жизненный цикл сессий, outbox событий, push обновлений в Admin Web"
+    },
+    {
+      "name": "Background Worker",
+      "kind": "worker",
+      "tech": ".NET 10 BackgroundService",
+      "responsibility": "Таймеры сессий (expiring/expired), публикация outbox в Kafka, создание уведомлений, проигрывание демо-маршрутов"
+    },
+    {
+      "name": "PostgreSQL + PostGIS",
+      "kind": "database",
+      "tech": "PostgreSQL 17.9, PostGIS",
+      "responsibility": "Данные, геозапросы, outbox, ключи идемпотентности"
+    },
+    {
+      "name": "Kafka",
+      "kind": "broker",
+      "tech": "Apache Kafka",
+      "responsibility": "Доменные события между компонентами"
+    },
+    {
+      "name": "Parkomatica Mock",
+      "kind": "mock",
+      "tech": "ASP.NET Core minimal API",
+      "responsibility": "Имитация API поставщика парковочных сессий за адаптером IParkingProvider"
+    },
+    {
+      "name": "Official Payment Service",
+      "kind": "external",
+      "tech": "Сайт и приложения «Парковки Санкт-Петербурга» / «Парковки России»",
+      "responsibility": "Оплата парковки водителем"
+    }
+  ],
+  "operations": [
+    {
+      "operation_id": "createToken",
+      "method": "post",
+      "path": "/api/v1/auth/tokens",
+      "summary": "Выдать JWT по логину и паролю",
+      "tag": "Auth",
+      "roles": [
+        "anonymous"
+      ],
+      "fr": [
+        "FR-15",
+        "FR-16"
+      ],
+      "request": {
+        "entity": "UserAccount",
+        "fields": [
+          "login"
+        ],
+        "extra": [
+          {
+            "name": "password",
+            "type": "string",
+            "required": true,
+            "max_length": 128,
+            "description": "пароль"
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "accessToken",
+            "type": "string",
+            "required": true,
+            "max_length": 4000,
+            "description": "JWT"
+          },
+          {
+            "name": "expiresAt",
+            "type": "datetime",
+            "required": true,
+            "description": "срок действия токена"
+          },
+          {
+            "name": "role",
+            "type": "enum",
+            "required": true,
+            "enum_values": [
+              "driver",
+              "dispatcher"
+            ],
+            "description": "роль"
+          }
+        ]
+      },
+      "success_status": 200,
+      "errors": [
+        401
+      ],
+      "idempotent": false,
+      "rate_limited": true,
+      "algorithm": [
+        "1. Найти учётную запись по login (UserAccount)",
+        "2. Проверить пароль по passwordHash и признак isActive",
+        "3. Выпустить JWT с ролью и driverId, срок жизни 8 часов",
+        "4. Вернуть accessToken, expiresAt, role"
+      ],
+      "exceptions": [
+        "Учётная запись не найдена или пароль неверен → 401 invalid-credentials",
+        "Учётная запись отключена → 401",
+        "Более 10 попыток в минуту с одного адреса → 429"
+      ],
+      "tables": [
+        "UserAccount"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getMyStatus",
+      "method": "get",
+      "path": "/api/v1/me/status",
+      "summary": "Состояние для главного экрана водителя: зона, сессия, оставшееся время",
+      "tag": "Me",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-9",
+        "FR-14",
+        "FR-16"
+      ],
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "vehicleId",
+            "type": "uuid",
+            "required": true,
+            "description": "закреплённый автомобиль"
+          },
+          {
+            "name": "plateNumber",
+            "type": "string",
+            "required": true,
+            "max_length": 9,
+            "description": "госномер"
+          },
+          {
+            "name": "zoneId",
+            "type": "uuid",
+            "required": false,
+            "description": "текущая зона"
+          },
+          {
+            "name": "zoneNumber",
+            "type": "string",
+            "required": false,
+            "max_length": 4,
+            "description": "номер текущей зоны"
+          },
+          {
+            "name": "sessionId",
+            "type": "uuid",
+            "required": false,
+            "description": "активная сессия"
+          },
+          {
+            "name": "sessionStatus",
+            "type": "enum",
+            "required": false,
+            "enum_values": [
+              "active",
+              "expiring",
+              "expired",
+              "closed"
+            ],
+            "description": "статус сессии"
+          },
+          {
+            "name": "paidUntil",
+            "type": "datetime",
+            "required": false,
+            "description": "оплачено до"
+          },
+          {
+            "name": "remainingMinutes",
+            "type": "int",
+            "required": false,
+            "minimum": 0,
+            "description": "осталось минут"
+          },
+          {
+            "name": "lastPositionAt",
+            "type": "datetime",
+            "required": false,
+            "description": "время последней координаты"
+          }
+        ]
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "algorithm": [
+        "1. Взять driverId из токена, найти закреплённый автомобиль",
+        "2. Прочитать currentZoneId и lastPositionAt автомобиля",
+        "3. Найти активную сессию автомобиля (status active или expiring)",
+        "4. Посчитать remainingMinutes = paidUntil − now, вернуть состояние"
+      ],
+      "exceptions": [
+        "За водителем не закреплён автомобиль → 404"
+      ],
+      "tables": [
+        "Driver",
+        "Vehicle",
+        "ParkingZone",
+        "ParkingSession"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "submitPosition",
+      "method": "post",
+      "path": "/api/v1/vehicles/{vehicleId}/positions",
+      "summary": "Передать координату автомобиля; ответ содержит определённую зону и переход",
+      "tag": "Positions",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-1",
+        "FR-2",
+        "FR-6",
+        "FR-7",
+        "FR-8",
+        "FR-13"
+      ],
+      "request": {
+        "entity": "VehiclePosition",
+        "fields": [
+          "point",
+          "recordedAt",
+          "accuracyM",
+          "speedKmh",
+          "source"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "zoneId",
+            "type": "uuid",
+            "required": false,
+            "description": "текущая зона после обработки точки"
+          },
+          {
+            "name": "zoneNumber",
+            "type": "string",
+            "required": false,
+            "max_length": 4,
+            "description": "номер зоны"
+          },
+          {
+            "name": "transition",
+            "type": "enum",
+            "required": true,
+            "enum_values": [
+              "none",
+              "entered",
+              "exited",
+              "changed"
+            ],
+            "description": "изменение зоны"
+          },
+          {
+            "name": "notification",
+            "type": "string",
+            "required": false,
+            "max_length": 300,
+            "description": "текст уведомления для немедленного показа"
+          }
+        ]
+      },
+      "success_status": 202,
+      "errors": [
+        404,
+        422
+      ],
+      "rate_limited": true,
+      "algorithm": [
+        "1. Проверить, что автомобиль закреплён за водителем из токена",
+        "2. Проверить координаты, recordedAt (не позже now + 5 мин) и точность",
+        "3. Если точка с тем же recordedAt уже есть — вернуть сохранённый результат",
+        "4. Найти зону ST_Contains по GIST-индексу; точки с точностью хуже 100 м зону не меняют",
+        "5. Сравнить с двумя последними точками: при смене зоны записать ParkingEvent и outbox в одной транзакции",
+        "6. Обновить Vehicle.currentZoneId и lastPositionAt",
+        "7. Вернуть zoneId, zoneNumber, transition и текст уведомления"
+      ],
+      "exceptions": [
+        "Чужой автомобиль → 403 vehicle-not-assigned",
+        "Автомобиль не найден → 404",
+        "recordedAt в будущем более чем на 5 минут → 422 position-from-future",
+        "Координаты вне диапазона → 400",
+        "Превышен лимит частоты → 429"
+      ],
+      "tables": [
+        "Vehicle",
+        "VehiclePosition",
+        "ParkingZone",
+        "ParkingEvent"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getRoute",
+      "method": "get",
+      "path": "/api/v1/vehicles/{vehicleId}/route",
+      "summary": "Маршрут автомобиля за период",
+      "tag": "Positions",
+      "roles": [
+        "driver",
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-6",
+        "FR-12",
+        "FR-15"
+      ],
+      "query": [
+        {
+          "name": "from",
+          "type": "datetime",
+          "required": true,
+          "description": "начало периода"
+        },
+        {
+          "name": "to",
+          "type": "datetime",
+          "required": true,
+          "description": "конец периода"
+        }
+      ],
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "path",
+            "type": "linestring",
+            "required": false,
+            "description": "маршрут; отсутствует, если точек меньше двух"
+          },
+          {
+            "name": "pointsCount",
+            "type": "int",
+            "required": true,
+            "minimum": 0,
+            "description": "число точек"
+          }
+        ]
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "algorithm": [
+        "1. Проверить доступ: водитель — только свой автомобиль, диспетчер — любой",
+        "2. Выбрать точки VehiclePosition за [from, to] по индексу (vehicleId, recordedAt)",
+        "3. Собрать LineString по порядку recordedAt, вернуть с числом точек"
+      ],
+      "exceptions": [
+        "Период больше 31 дня или from > to → 400",
+        "Автомобиль не найден → 404"
+      ],
+      "tables": [
+        "VehiclePosition"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listVehicles",
+      "method": "get",
+      "path": "/api/v1/vehicles",
+      "summary": "Список автомобилей с текущей зоной",
+      "tag": "Vehicles",
+      "roles": [
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-15"
+      ],
+      "query": [
+        {
+          "name": "plateNumber",
+          "type": "string",
+          "required": false,
+          "description": "поиск по госномеру"
+        }
+      ],
+      "response": {
+        "kind": "page",
+        "entity": "Vehicle",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Отфильтровать по plateNumber (подстрока), постранично"
+      ],
+      "exceptions": [],
+      "tables": [
+        "Vehicle"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listZones",
+      "method": "get",
+      "path": "/api/v1/zones",
+      "summary": "Парковочные зоны с границами и параметрами",
+      "tag": "Zones",
+      "roles": [
+        "driver",
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-15"
+      ],
+      "query": [
+        {
+          "name": "zoneNumber",
+          "type": "string",
+          "required": false,
+          "description": "фильтр по номеру"
+        }
+      ],
+      "response": {
+        "kind": "list",
+        "entity": "ParkingZone",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Вернуть зоны с границами и параметрами, фильтр по zoneNumber"
+      ],
+      "exceptions": [],
+      "tables": [
+        "ParkingZone"
+      ],
+      "external": [],
+      "caching": "ответ кэшируется на 10 минут; сбрасывается при загрузке зон (POST /zone-imports)"
+    },
+    {
+      "operation_id": "getZone",
+      "method": "get",
+      "path": "/api/v1/zones/{zoneId}",
+      "summary": "Карточка зоны",
+      "tag": "Zones",
+      "roles": [
+        "driver",
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4"
+      ],
+      "response": {
+        "kind": "object",
+        "entity": "ParkingZone",
+        "fields": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "algorithm": [
+        "1. Найти зону по zoneId и вернуть карточку"
+      ],
+      "exceptions": [
+        "Зона не найдена → 404"
+      ],
+      "tables": [
+        "ParkingZone"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getPaymentLink",
+      "method": "get",
+      "path": "/api/v1/zones/{zoneId}/payment-link",
+      "summary": "Ссылки на официальный сервис оплаты с номером зоны",
+      "tag": "Zones",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-11"
+      ],
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "appUrl",
+            "type": "string",
+            "required": true,
+            "max_length": 500,
+            "description": "deeplink в приложение оплаты"
+          },
+          {
+            "name": "webUrl",
+            "type": "string",
+            "required": true,
+            "max_length": 500,
+            "description": "веб-версия сервиса оплаты"
+          }
+        ]
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "algorithm": [
+        "1. Найти зону по zoneId",
+        "2. Сформировать deeplink и ссылку на веб-версию сервиса оплаты с номером зоны из настроек провайдера оплаты"
+      ],
+      "exceptions": [
+        "Зона не найдена → 404"
+      ],
+      "tables": [
+        "ParkingZone"
+      ],
+      "external": [
+        "Official Payment Service (только ссылка)"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "createZoneImport",
+      "method": "post",
+      "path": "/api/v1/zone-imports",
+      "summary": "Загрузить зоны из GeoJSON (снимок открытых данных или демо-набор)",
+      "tag": "Zones",
+      "roles": [
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-21"
+      ],
+      "request": {
+        "entity": "ParkingZone",
+        "fields": [
+          "dataSource",
+          "dataVersion"
+        ],
+        "extra": [
+          {
+            "name": "featureCollection",
+            "type": "json",
+            "required": true,
+            "description": "GeoJSON FeatureCollection зон"
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "imported",
+            "type": "int",
+            "required": true,
+            "minimum": 0,
+            "description": "загружено зон"
+          },
+          {
+            "name": "skipped",
+            "type": "int",
+            "required": true,
+            "minimum": 0,
+            "description": "пропущено зон"
+          },
+          {
+            "name": "errors",
+            "type": "json",
+            "required": false,
+            "description": "ошибки по номерам зон"
+          }
+        ]
+      },
+      "success_status": 200,
+      "errors": [
+        422
+      ],
+      "algorithm": [
+        "1. Проверить GeoJSON FeatureCollection",
+        "2. Для каждой зоны проверить полигон ST_IsValid и номер",
+        "3. Валидные зоны вставить или обновить по zoneNumber, невалидные — пропустить с причиной",
+        "4. Вернуть imported, skipped и ошибки по номерам зон"
+      ],
+      "exceptions": [
+        "Файл не GeoJSON FeatureCollection → 422",
+        "Все зоны невалидны → 422 invalid-zone-geometry"
+      ],
+      "tables": [
+        "ParkingZone"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "startSession",
+      "method": "post",
+      "path": "/api/v1/sessions",
+      "summary": "Запустить новую сессию или подтвердить оплаченную",
+      "tag": "Sessions",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-5",
+        "FR-14",
+        "FR-17",
+        "FR-19"
+      ],
+      "request": {
+        "entity": "ParkingSession",
+        "fields": [
+          "vehicleId",
+          "zoneId",
+          "startMode"
+        ],
+        "extra": [
+          {
+            "name": "durationMinutes",
+            "type": "int",
+            "required": false,
+            "minimum": 15,
+            "maximum": 1440,
+            "description": "длительность для режима started",
+            "example": "60"
+          },
+          {
+            "name": "confirmedPaidUntil",
+            "type": "datetime",
+            "required": false,
+            "description": "оплачено до, для режима confirmed"
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": "ParkingSession",
+        "fields": []
+      },
+      "success_status": 201,
+      "errors": [
+        409,
+        422,
+        503
+      ],
+      "idempotent": true,
+      "algorithm": [
+        "1. Проверить ключ идемпотентности: повтор возвращает первую сессию",
+        "2. Проверить, что автомобиль закреплён за водителем и текущая зона равна zoneId",
+        "3. Проверить, что в зоне нет активной сессии",
+        "4. Режим started: вызвать IParkingProvider.StartSession(зона, автомобиль, durationMinutes); режим confirmed: принять confirmedPaidUntil",
+        "5. Сохранить ParkingSession (active) и outbox parking.session.started в одной транзакции",
+        "6. Вернуть сессию"
+      ],
+      "exceptions": [
+        "Автомобиль не в платной зоне → 422 vehicle-not-in-paid-zone",
+        "Активная сессия уже есть → 409 session-already-active",
+        "confirmedPaidUntil в прошлом → 422 paid-until-in-past",
+        "Поставщик не ответил за 5 с → 503 provider-unavailable"
+      ],
+      "tables": [
+        "ParkingSession",
+        "Vehicle",
+        "ParkingEvent"
+      ],
+      "external": [
+        "Parkomatica Mock (IParkingProvider)"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "getActiveSession",
+      "method": "get",
+      "path": "/api/v1/vehicles/{vehicleId}/sessions/active",
+      "summary": "Активная сессия автомобиля",
+      "tag": "Sessions",
+      "roles": [
+        "driver",
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-5"
+      ],
+      "response": {
+        "kind": "object",
+        "entity": "ParkingSession",
+        "fields": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "algorithm": [
+        "1. Найти сессию автомобиля в статусе active или expiring"
+      ],
+      "exceptions": [
+        "Активной сессии нет → 404"
+      ],
+      "tables": [
+        "ParkingSession"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "createSessionExtension",
+      "method": "post",
+      "path": "/api/v1/sessions/{sessionId}/extensions",
+      "summary": "Подтвердить продление оплаты",
+      "tag": "Sessions",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-10",
+        "FR-14"
+      ],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "paidUntil",
+            "type": "datetime",
+            "required": true,
+            "description": "новое время окончания оплаты"
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": "ParkingSession",
+        "fields": []
+      },
+      "success_status": 200,
+      "errors": [
+        404,
+        409,
+        422,
+        503
+      ],
+      "idempotent": true,
+      "algorithm": [
+        "1. Проверить ключ идемпотентности",
+        "2. Проверить, что сессия принадлежит водителю и не закрыта",
+        "3. Проверить, что новый paidUntil позже текущего времени и текущего paidUntil",
+        "4. Обновить paidUntil, статус active; записать outbox parking.session.extended",
+        "5. Вернуть сессию"
+      ],
+      "exceptions": [
+        "Сессия не найдена → 404",
+        "Сессия закрыта → 409 session-not-active",
+        "paidUntil в прошлом → 422 paid-until-in-past",
+        "Поставщик недоступен → 503"
+      ],
+      "tables": [
+        "ParkingSession",
+        "ParkingEvent"
+      ],
+      "external": [
+        "Parkomatica Mock (IParkingProvider)"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "updateSession",
+      "method": "patch",
+      "path": "/api/v1/sessions/{sessionId}",
+      "summary": "Завершить сессию (status = closed)",
+      "tag": "Sessions",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-5"
+      ],
+      "response": {
+        "kind": "object",
+        "entity": "ParkingSession",
+        "fields": []
+      },
+      "success_status": 200,
+      "errors": [
+        404,
+        409
+      ],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "status",
+            "type": "enum",
+            "required": true,
+            "enum_values": [
+              "closed"
+            ],
+            "description": "новый статус"
+          }
+        ]
+      },
+      "algorithm": [
+        "1. Проверить, что сессия принадлежит водителю",
+        "2. Перевести в closed, заполнить endedAt, записать outbox parking.session.closed",
+        "3. Вернуть сессию"
+      ],
+      "exceptions": [
+        "Сессия не найдена → 404",
+        "Сессия уже закрыта → 409 session-not-active"
+      ],
+      "tables": [
+        "ParkingSession",
+        "ParkingEvent"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listSessions",
+      "method": "get",
+      "path": "/api/v1/sessions",
+      "summary": "История парковочных сессий",
+      "tag": "Sessions",
+      "roles": [
+        "driver",
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-12",
+        "FR-15"
+      ],
+      "query": [
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": false,
+          "description": "автомобиль; для водителя — только свой"
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum_values": [
+            "active",
+            "expiring",
+            "expired",
+            "closed"
+          ],
+          "description": "статус"
+        },
+        {
+          "name": "from",
+          "type": "datetime",
+          "required": false,
+          "description": "начало периода"
+        },
+        {
+          "name": "to",
+          "type": "datetime",
+          "required": false,
+          "description": "конец периода"
+        }
+      ],
+      "response": {
+        "kind": "page",
+        "entity": "ParkingSession",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Для водителя — только его автомобиль; для диспетчера — фильтр vehicleId",
+        "2. Фильтр по статусу и периоду startedAt, постранично"
+      ],
+      "exceptions": [
+        "Водитель запросил чужой автомобиль → 403"
+      ],
+      "tables": [
+        "ParkingSession"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listEvents",
+      "method": "get",
+      "path": "/api/v1/events",
+      "summary": "Журнал событий",
+      "tag": "Events",
+      "roles": [
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-15",
+        "FR-20"
+      ],
+      "query": [
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": false,
+          "description": "автомобиль"
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": false,
+          "enum_values": [
+            "zone_entered",
+            "zone_exited",
+            "zone_changed",
+            "session_started",
+            "session_extended",
+            "session_expiring",
+            "session_expired",
+            "session_closed"
+          ],
+          "description": "тип"
+        },
+        {
+          "name": "from",
+          "type": "datetime",
+          "required": false,
+          "description": "начало периода"
+        },
+        {
+          "name": "to",
+          "type": "datetime",
+          "required": false,
+          "description": "конец периода"
+        }
+      ],
+      "response": {
+        "kind": "page",
+        "entity": "ParkingEvent",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Фильтры по автомобилю, типу и периоду occurredAt, сортировка по времени убыв., постранично"
+      ],
+      "exceptions": [],
+      "tables": [
+        "ParkingEvent"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listMyNotifications",
+      "method": "get",
+      "path": "/api/v1/me/notifications",
+      "summary": "Уведомления водителя",
+      "tag": "Me",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-7",
+        "FR-8",
+        "FR-9",
+        "FR-10",
+        "FR-13"
+      ],
+      "query": [
+        {
+          "name": "unreadOnly",
+          "type": "bool",
+          "required": false,
+          "description": "только непрочитанные"
+        }
+      ],
+      "response": {
+        "kind": "page",
+        "entity": "Notification",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Выбрать уведомления водителя из токена, фильтр unreadOnly, новые первыми"
+      ],
+      "exceptions": [],
+      "tables": [
+        "Notification"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "updateMyNotification",
+      "method": "patch",
+      "path": "/api/v1/me/notifications/{notificationId}",
+      "summary": "Отметить уведомление прочитанным",
+      "tag": "Me",
+      "roles": [
+        "driver"
+      ],
+      "fr": [
+        "FR-16"
+      ],
+      "response": {
+        "kind": "none"
+      },
+      "success_status": 204,
+      "errors": [
+        404
+      ],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "isRead",
+            "type": "bool",
+            "required": true,
+            "description": "true — прочитано"
+          }
+        ]
+      },
+      "algorithm": [
+        "1. Найти уведомление водителя",
+        "2. Установить readAt = now"
+      ],
+      "exceptions": [
+        "Уведомление не найдено или чужое → 404"
+      ],
+      "tables": [
+        "Notification"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listDemoRoutes",
+      "method": "get",
+      "path": "/api/v1/demo/routes",
+      "summary": "Демонстрационные маршруты",
+      "tag": "Demo",
+      "roles": [
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-18"
+      ],
+      "response": {
+        "kind": "list",
+        "entity": "DemoRoute",
+        "fields": []
+      },
+      "success_status": 200,
+      "algorithm": [
+        "1. Вернуть список демонстрационных маршрутов"
+      ],
+      "exceptions": [],
+      "tables": [
+        "DemoRoute"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "createDemoRouteRun",
+      "method": "post",
+      "path": "/api/v1/demo/routes/{routeId}/runs",
+      "summary": "Запустить проигрывание маршрута для автомобиля",
+      "tag": "Demo",
+      "roles": [
+        "dispatcher"
+      ],
+      "fr": [
+        "FR-18"
+      ],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "vehicleId",
+            "type": "uuid",
+            "required": true,
+            "description": "автомобиль"
+          },
+          {
+            "name": "speedFactor",
+            "type": "decimal",
+            "required": false,
+            "minimum": 1,
+            "maximum": 100,
+            "default": "10",
+            "description": "ускорение времени"
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "runId",
+            "type": "uuid",
+            "required": true,
+            "description": "идентификатор проигрывания"
+          },
+          {
+            "name": "pointsTotal",
+            "type": "int",
+            "required": true,
+            "minimum": 2,
+            "description": "число точек"
+          }
+        ]
+      },
+      "success_status": 202,
+      "errors": [
+        404,
+        409,
+        422
+      ],
+      "algorithm": [
+        "1. Проверить маршрут (не меньше 2 точек) и автомобиль",
+        "2. Проверить, что для автомобиля нет текущего проигрывания",
+        "3. Поставить задачу Background Worker: отправлять точки с интервалом pointIntervalSec / speedFactor по тому же пути обработки, что и GPS",
+        "4. Вернуть runId и число точек"
+      ],
+      "exceptions": [
+        "Маршрут или автомобиль не найден → 404",
+        "Проигрывание уже идёт → 409 demo-route-running",
+        "В маршруте меньше 2 точек → 422 invalid-demo-route"
+      ],
+      "tables": [
+        "DemoRoute",
+        "VehiclePosition"
+      ],
+      "external": [
+        "Background Worker"
+      ],
+      "caching": null
+    }
+  ],
+  "events": [
+    {
+      "name": "parking.zone.entered",
+      "version": 1,
+      "description": "Автомобиль въехал в платную зону",
+      "producer": "Backend API",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingEvent",
+      "fields": [
+        "id",
+        "vehicleId",
+        "zoneId",
+        "occurredAt"
+      ],
+      "extra": [
+        {
+          "name": "zoneNumber",
+          "type": "string",
+          "required": true,
+          "max_length": 4,
+          "description": "номер зоны"
+        }
+      ],
+      "fr": [
+        "FR-2",
+        "FR-13",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.zone.exited",
+      "version": 1,
+      "description": "Автомобиль покинул платную зону",
+      "producer": "Backend API",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingEvent",
+      "fields": [
+        "id",
+        "vehicleId",
+        "zoneId",
+        "sessionId",
+        "occurredAt"
+      ],
+      "fr": [
+        "FR-7",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.zone.changed",
+      "version": 1,
+      "description": "Автомобиль перешёл в другую платную зону",
+      "producer": "Backend API",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingEvent",
+      "fields": [
+        "id",
+        "vehicleId",
+        "previousZoneId",
+        "zoneId",
+        "sessionId",
+        "occurredAt"
+      ],
+      "extra": [
+        {
+          "name": "zoneNumber",
+          "type": "string",
+          "required": true,
+          "max_length": 4,
+          "description": "номер новой зоны"
+        }
+      ],
+      "fr": [
+        "FR-8",
+        "FR-10",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.session.started",
+      "version": 1,
+      "description": "Сессия запущена или подтверждена",
+      "producer": "Backend API",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingSession",
+      "fields": [
+        "id",
+        "vehicleId",
+        "driverId",
+        "zoneId",
+        "startMode",
+        "startedAt",
+        "paidUntil"
+      ],
+      "fr": [
+        "FR-19",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.session.extended",
+      "version": 1,
+      "description": "Оплата сессии продлена",
+      "producer": "Backend API",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingSession",
+      "fields": [
+        "id",
+        "vehicleId",
+        "driverId",
+        "paidUntil"
+      ],
+      "fr": [
+        "FR-14",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.session.expiring",
+      "version": 1,
+      "description": "До окончания оплаты осталось 10 минут или меньше",
+      "producer": "Background Worker",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingSession",
+      "fields": [
+        "id",
+        "vehicleId",
+        "driverId",
+        "zoneId",
+        "paidUntil"
+      ],
+      "extra": [
+        {
+          "name": "minutesLeft",
+          "type": "int",
+          "required": true,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "осталось минут"
+        }
+      ],
+      "fr": [
+        "FR-9",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.session.expired",
+      "version": 1,
+      "description": "Оплаченный период истёк",
+      "producer": "Background Worker",
+      "consumers": [
+        "Background Worker",
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingSession",
+      "fields": [
+        "id",
+        "vehicleId",
+        "driverId",
+        "zoneId",
+        "paidUntil"
+      ],
+      "fr": [
+        "FR-9",
+        "FR-10",
+        "FR-20"
+      ]
+    },
+    {
+      "name": "parking.session.closed",
+      "version": 1,
+      "description": "Сессия завершена",
+      "producer": "Backend API",
+      "consumers": [
+        "Backend API"
+      ],
+      "key": "vehicleId",
+      "entity": "ParkingSession",
+      "fields": [
+        "id",
+        "vehicleId",
+        "driverId",
+        "endedAt"
+      ],
+      "fr": [
+        "FR-5",
+        "FR-20"
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "title": "Въезд в платную зону",
+      "scenario": "UC_002",
+      "steps": [
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "POST /vehicles/{id}/positions (точка, recordedAt)"
+        },
+        {
+          "source": "Backend API",
+          "target": "PostgreSQL + PostGIS",
+          "message": "ST_Contains: зона для точки, две последние точки"
+        },
+        {
+          "source": "PostgreSQL + PostGIS",
+          "target": "Backend API",
+          "message": "зона 7801",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "PostgreSQL + PostGIS",
+          "message": "ParkingEvent zone_entered + outbox в одной транзакции"
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "202 transition=entered, «Вы въехали в зону платной парковки»",
+          "reply": true
+        },
+        {
+          "source": "Background Worker",
+          "target": "Kafka",
+          "message": "parking.zone.entered.v1 из outbox"
+        },
+        {
+          "source": "Kafka",
+          "target": "Background Worker",
+          "message": "parking.zone.entered → Notification"
+        },
+        {
+          "source": "Backend API",
+          "target": "Admin Web",
+          "message": "SignalR: новое событие в журнале"
+        }
+      ]
+    },
+    {
+      "title": "Запуск парковочной сессии",
+      "scenario": "UC_003",
+      "steps": [
+        {
+          "source": "Водитель",
+          "target": "Mobile App",
+          "message": "«Начать сессию», 1 час"
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "POST /sessions, Idempotency-Key"
+        },
+        {
+          "source": "Backend API",
+          "target": "Parkomatica Mock",
+          "message": "IParkingProvider.StartSession(зона, автомобиль, 60 мин)"
+        },
+        {
+          "source": "Parkomatica Mock",
+          "target": "Backend API",
+          "message": "providerSessionId, paidUntil 15:20",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "PostgreSQL + PostGIS",
+          "message": "ParkingSession active + outbox session.started"
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "201 ParkingSession",
+          "reply": true
+        },
+        {
+          "source": "Mobile App",
+          "target": "Водитель",
+          "message": "«Парковка оплачена до 15:20»",
+          "reply": true
+        }
+      ]
+    },
+    {
+      "title": "Предупреждение об окончании и переход к оплате",
+      "scenario": "UC_004",
+      "steps": [
+        {
+          "source": "Background Worker",
+          "target": "PostgreSQL + PostGIS",
+          "message": "сессии с paidUntil ≤ now + 10 мин → status expiring + outbox"
+        },
+        {
+          "source": "Background Worker",
+          "target": "Kafka",
+          "message": "parking.session.expiring.v1"
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "GET /me/notifications?unreadOnly=true (опрос) "
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "«До окончания парковки осталось 10 минут»",
+          "reply": true
+        },
+        {
+          "source": "Водитель",
+          "target": "Mobile App",
+          "message": "«Оплатить»"
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "GET /zones/{zoneId}/payment-link"
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "appUrl, webUrl",
+          "reply": true
+        },
+        {
+          "source": "Mobile App",
+          "target": "Official Payment Service",
+          "message": "deeplink с номером зоны"
+        }
+      ]
+    }
+  ],
+  "no_api": []
+}

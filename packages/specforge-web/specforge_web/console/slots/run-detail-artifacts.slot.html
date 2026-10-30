@@ -1,0 +1,51 @@
+<p-card header="Артефакты" data-testid="run-artifacts">
+  @if (groups().length === 0) {
+    <span class="sf-muted">Артефакты появятся по мере прохождения этапов</span>
+  } @else {
+    <div class="sf-stack">
+      @for (g of groups(); track g.id) {
+        <div class="sf-stack sf-stack--sm" [attr.data-testid]="'run-artifacts-stage-' + g.id">
+          <strong class="sf-art-stage">{{ g.title }}</strong>
+          <div class="sf-art-list">
+            @for (a of g.files; track a.path) {
+              <div class="sf-art-row">
+                <span class="sf-art-name" [title]="a.path">{{ name(a) }}</span>
+                <p-tag [value]="kindLabel(a)" severity="secondary" />
+                <span class="sf-muted sf-art-size">{{ size(a) }}</span>
+                <p-button label="Открыть" icon="pi pi-eye" [text]="true" size="small" (onClick)="show(a)"
+                          [attr.data-testid]="'run-artifacts-open-' + a.path" />
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</p-card>
+
+<p-dialog [visible]="open()" (visibleChange)="$event ? null : close()" [header]="selected()?.path ?? ''" [modal]="true"
+          [draggable]="false" [style]="{ width: 'min(960px, 96vw)' }" [breakpoints]="{ '767px': '100vw' }" data-testid="run-artifacts-dialog">
+  @if (loading()) {
+    <div class="sf-row sf-art-center"><p-progressspinner styleClass="sf-art-spinner" ariaLabel="Загрузка" /></div>
+  } @else {
+    @switch (view()?.kind) {
+      @case ('image') {
+        <img class="sf-art-image" [src]="$any(view()).url" [alt]="selected()?.path ?? ''" data-testid="run-artifacts-image" />
+      }
+      @case ('text') {
+        @if ($any(view()).truncated) {
+          <p-message severity="info" text="Показано начало файла — он слишком большой для просмотра целиком" />
+        }
+        <pre class="sf-art-text" data-testid="run-artifacts-text">{{ $any(view()).text }}</pre>
+      }
+      @case ('error') {
+        <p-message severity="error" [text]="$any(view()).message" data-testid="run-artifacts-error" />
+      }
+    }
+  }
+  <ng-template #footer>
+    <p-button label="Скачать" icon="pi pi-download" severity="secondary" [outlined]="true" [disabled]="loading() || view()?.kind === 'error'"
+              (onClick)="download()" data-testid="run-artifacts-download" />
+    <p-button label="Закрыть" (onClick)="close()" data-testid="run-artifacts-close" />
+  </ng-template>
+</p-dialog>

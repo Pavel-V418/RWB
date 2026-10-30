@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info: { title: Repair Requests API, version: 1.0.0 }
+servers: [ { url: /api/v1 } ]
+paths:
+  /tickets:
+    get:
+      operationId: listTickets
+      x-roles: [manager, engineer]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+        - { name: sort, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/TicketStatus' } }
+        - { name: priority, in: query, schema: { type: integer, minimum: 1, maximum: 3 } }
+        - { name: assigneeId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TicketPage' } } } }
+    post:
+      operationId: createTicket
+      x-roles: [manager, engineer]
+      x-idempotent: true
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TicketCreate' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Ticket' } } } }
+  /tickets/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getTicket
+      x-roles: [manager, engineer]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Ticket' } } } }
+  /tickets/{id}/close:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    post:
+      operationId: closeTicket
+      x-roles: [manager]
+      x-idempotent: true
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Ticket' } } } }
+  /tickets/{id}/history:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: listTicketHistory
+      x-roles: [manager, engineer]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } } } } }
+  /engineers:
+    get:
+      operationId: listEngineers
+      x-roles: [manager, engineer]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Engineer' } } } } }
+  /stats/tickets:
+    get:
+      operationId: getTicketStats
+      x-roles: [manager]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TicketStats' } } } }
+components:
+  schemas:
+    TicketStatus: { type: string, enum: [new, in_progress, done, overdue] }
+    Ticket:
+      type: object
+      required: [id, title, status, priority, createdAt]
+      properties:
+        id: { type: string }
+        title: { type: string, maxLength: 120 }
+        description: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        priority: { type: integer }
+        dueDate: { type: [string, 'null'], format: date }
+        assigneeId: { type: [string, 'null'] }
+        assigneeName: { type: [string, 'null'] }
+        estimateHours: { type: [number, 'null'] }
+        urgent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    TicketCreate:
+      type: object
+      required: [title, priority]
+      properties:
+        title: { type: string, minLength: 5, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        priority: { type: integer, minimum: 1, maximum: 3 }
+        dueDate: { type: string, format: date }
+        assigneeId: { type: string }
+        estimateHours: { type: number, minimum: 0, maximum: 200 }
+        urgent: { type: boolean }
+    TicketPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Ticket' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    HistoryEntry:
+      type: object
+      required: [id, at, action]
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        action: { type: string }
+        author: { type: string }
+    Engineer:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        openTickets: { type: integer }
+    TicketStats:
+      type: object
+      required: [open, overdue]
+      properties:
+        open: { type: integer }
+        overdue: { type: integer }

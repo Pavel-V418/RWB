@@ -1,0 +1,22 @@
+business_req,requirement,title,priority,origin,source_line,scenarios,stories,acceptance,api,events,entities,screens,tests,status
+BR-4,FR-1,Определение местоположения автомобиля,must,customer,19,UC_001 UC_002,US-001,AC-FR-1-01 AC-FR-1-02 AC-FR-1-03,,,ENT-Vehicle ENT-VehiclePosition,,,analysed
+BR-5,FR-2,Определение нахождения в платной зоне,must,customer,20,UC_001 UC_002,US-002,AC-FR-2-01 AC-FR-2-02,,,ENT-VehiclePosition ENT-ParkingZone,,,analysed
+BR-6,FR-3,Отображение номера и границ зоны,must,customer,21,UC_002 UC_007,US-003,AC-FR-3-01 AC-FR-3-02,,,ENT-ParkingZone,,,analysed
+BR-7,FR-4,Отображение параметров парковки,must,customer,22,UC_002,US-004,AC-FR-4-01 AC-FR-4-02,,,ENT-ParkingZone,,,analysed
+BR-8,FR-5,Хранение активной парковочной сессии,must,customer,23,UC_003,US-005,AC-FR-5-01 AC-FR-5-02,,,ENT-ParkingSession,,,analysed
+BR-9,FR-6,Отслеживание перемещения,must,customer,24,UC_005,US-006,AC-FR-6-01 AC-FR-6-02,,,ENT-VehiclePosition,,,analysed
+BR-10,FR-7,Определение выхода из зоны,must,customer,25,UC_001 UC_005,US-007,AC-FR-7-01 AC-FR-7-02,,,ENT-ParkingZone ENT-ParkingEvent ENT-Notification,,,analysed
+BR-11,FR-8,Определение перехода в другую зону,must,customer,26,UC_001 UC_005,US-008,AC-FR-8-01 AC-FR-8-02,,,ENT-ParkingZone ENT-ParkingEvent ENT-Notification,,,analysed
+BR-12,FR-9,Контроль окончания оплаченной сессии,must,customer,27,UC_001 UC_004,US-009,AC-FR-9-01 AC-FR-9-02 AC-FR-9-03,,,ENT-ParkingSession ENT-Notification,,,analysed
+BR-13,FR-10,Предупреждение о проверке или новой оплате,must,customer,28,UC_001 UC_004 UC_005,US-010,AC-FR-10-01 AC-FR-10-02,,,ENT-Notification ENT-ParkingSession,,,analysed
+BR-14,FR-11,Переход к официальному сервису оплаты,must,customer,29,UC_004,US-011,AC-FR-11-01 AC-FR-11-02 AC-FR-11-03,,,ENT-ParkingZone,,,analysed
+BR-15,FR-12,Маршрут и история парковочных сессий,must,customer,30,UC_006 UC_007,US-012,AC-FR-12-01 AC-FR-12-02,,,ENT-VehiclePosition ENT-ParkingSession,,,analysed
+BR-17,FR-13,Уведомление о въезде в платную зону,must,customer,34,UC_001 UC_002,US-013,AC-FR-13-01 AC-FR-13-02,,,ENT-Notification ENT-ParkingEvent,,,analysed
+BR-18,FR-14,Отображение времени окончания оплаты,must,customer,35,UC_001 UC_003,US-014,AC-FR-14-01 AC-FR-14-02 AC-FR-14-03,,,ENT-ParkingSession,,,analysed
+BR-27,FR-15,Административный просмотр данных,must,customer,56,UC_001 UC_007,US-015,AC-FR-15-01 AC-FR-15-02 AC-FR-15-03,,,ENT-Vehicle ENT-ParkingZone ENT-ParkingSession ENT-VehiclePosition ENT-ParkingEvent,,,analysed
+BR-27,FR-16,Главный экран мобильного приложения,must,customer,56,UC_004,US-016,AC-FR-16-01 AC-FR-16-02,,,ENT-ParkingSession ENT-ParkingZone ENT-Notification,,,analysed
+BR-32,FR-17,Адаптер поставщика парковочных услуг,must,customer,71,UC_003,US-017,AC-FR-17-01 AC-FR-17-02 AC-FR-17-03,,,ENT-ParkingSession,,,analysed
+BR-33,FR-18,Демонстрационный маршрут,must,customer,77,UC_001 UC_008,US-018,AC-FR-18-01 AC-FR-18-02,,,ENT-VehiclePosition,,,analysed
+BR-34,FR-19,Запуск и подтверждение сессии,must,customer,80,UC_001 UC_003,US-019,AC-FR-19-01 AC-FR-19-02 AC-FR-19-03 AC-FR-19-04,,,ENT-ParkingSession ENT-Driver,,,analysed
+BR-35,FR-20,Журнал событий,must,customer,85,UC_001 UC_007,US-020,AC-FR-20-01 AC-FR-20-02,,,ENT-ParkingEvent,,,analysed
+,FR-21,Загрузка геоданных парковочных зон,must,derived,62,UC_008,US-021,AC-FR-21-01 AC-FR-21-02,,,ENT-ParkingZone,,,analysed

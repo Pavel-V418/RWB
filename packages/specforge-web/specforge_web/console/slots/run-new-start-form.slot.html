@@ -1,0 +1,31 @@
+<p-card data-testid="run-new-form">
+  <div class="sf-form">
+    @if (error()) {
+      <p-message severity="error" [text]="error()!" data-testid="run-new-error" />
+    }
+    <div class="sf-field">
+      <label for="run-title">Название прогона</label>
+      <input pInputText id="run-title" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="Например: Кейс №2" maxlength="120" data-testid="run-new-title" />
+    </div>
+    <div class="sf-field">
+      <label>Файл требований</label>
+      <p-fileupload mode="basic" chooseLabel="Выбрать файл" accept=".txt,.md,.docx,.pdf" [auto]="false" [customUpload]="true" (onSelect)="onFile($event.currentFiles)" data-testid="run-new-file" />
+      <small class="sf-hint">txt, md, docx или pdf до 10 МБ. Либо вставьте текст ниже.</small>
+    </div>
+    <div class="sf-field">
+      <label for="run-text">Требования текстом</label>
+      <textarea pTextarea id="run-text" rows="8" [ngModel]="text()" (ngModelChange)="text.set($event)" [disabled]="!!file()" placeholder="Цели, роли, функциональные требования, ограничения…" data-testid="run-new-text"></textarea>
+      @if (touched() && !valid()) {
+        <small class="sf-error" data-testid="run-new-invalid">Загрузите файл или введите требования (не короче 20 символов)</small>
+      }
+    </div>
+    <div class="sf-field">
+      <label>Режим</label>
+      <p-selectbutton [options]="modes" optionLabel="label" optionValue="value" [ngModel]="mode()" (ngModelChange)="mode.set($event)" [allowEmpty]="false" data-testid="run-new-mode" />
+      <small class="sf-hint">С подтверждением — конвейер остановится после анализа требований и подождёт вашего решения.</small>
+    </div>
+    <div class="sf-row">
+      <p-button label="Запустить конвейер" icon="pi pi-play" (onClick)="submit()" [loading]="saving()" data-testid="run-new-submit" />
+    </div>
+  </div>
+</p-card>

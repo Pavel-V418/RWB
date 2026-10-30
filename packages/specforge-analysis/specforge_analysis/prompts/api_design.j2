@@ -1,0 +1,39 @@
+<МОДЕЛЬ_ТРЕБОВАНИЙ>
+{{ req_json }}
+</МОДЕЛЬ_ТРЕБОВАНИЙ>
+
+<ДОМЕННАЯ_МОДЕЛЬ>
+{{ domain_json }}
+</ДОМЕННАЯ_МОДЕЛЬ>
+
+ЗАДАЧА: спроектируй компоненты, REST API, события и диаграммы последовательности.
+
+components — части решения по профилю кейса. kind: mobile | web | backend | worker | database | broker | mock | external. Внешние системы с availability "mock_required" — компонент kind "mock"; системы, куда пользователь уходит по ссылке, — "external". broker — только если профиль требует асинхронных событий.
+
+operations — REST-операции:
+- Покрой каждое FR с priority "must": операцией, событием или записью в no_api с причиной (например, требование выполняется на устройстве).
+- Каждый переход жизненного цикла (state_machines), который запускает пользователь, — операция API (обычно PATCH ресурса со статусом или POST вложенного ресурса): завершение, отмена, продление, подтверждение.
+- Каждая операция связана хотя бы с одним FR; вход в систему — с FR об аутентификации или разграничении доступа.
+- no_api — только для требований, которые целиком выполняются на клиенте и не меняют данные на сервере; если требование отображает данные — укажи в fr операции, которая их отдаёт.
+- GET и DELETE — без request.
+- request: entity + fields — какие поля сущности принимаются (только записываемые); extra — поля, которых нет в сущности. response: kind object | list | page | none, entity, fields (пусто — все поля).
+- roles — ключи ролей; "anonymous" — для входа в систему; "system" — для вызовов между сервисами.
+- errors — бизнес-коды ответа: 404, 409, 422, 502 — ошибка или таймаут внешней системы (400/401/403/429/500 добавит код; 503 не используй — это недоступность нашего сервиса).
+- idempotent = true для операций, повтор которых недопустим (создание платежа, заказа, бронирования). rate_limited = true для частых или открытых операций.
+- Списки с потенциально большим объёмом — kind "page"; фильтры — в query.
+- Пути — только существительные, действие задаёт HTTP-метод: POST /orders/{orderId}/cancellations, PATCH /orders/{orderId} вместо /orders/{orderId}/cancel; POST /auth/tokens вместо /auth/login; POST /order-imports вместо /orders/import.
+- Для каждой операции — описание по шаблону метода: algorithm — основной сценарий по шагам (откуда берутся параметры, что проверяется, что сохраняется, что возвращается); exceptions — сценарий исключений «условие → код ответа»; tables — сущности, которые метод читает или меняет; external — внешние компоненты, которые он вызывает; caching — если ответ кэшируется (время жизни, сброс), иначе null.
+
+events — доменные события (если профиль требует асинхронных событий): name в формате домен.объект.действие (orders.order.created), producer и consumers — имена компонентов, key — поле ключа партиции, entity + fields или extra — состав данных. Небольшие и предметные: только то, что нужно потребителям.
+
+sequences — 2–4 диаграммы последовательности для ключевых сценариев (scenario — UC-ID, например UC_001). Участники — имена компонентов и ролей. reply = true для ответа.
+
+Структура ответа:
+{"components": [{"name": "Backend API", "kind": "backend", "tech": "ASP.NET Core", "responsibility": "..."}],
+ "operations": [{"operation_id": "createOrder", "method": "post", "path": "/api/v1/orders", "summary": "...", "tag": "Orders", "roles": ["operator"], "fr": ["FR-1"],
+   "query": [], "request": {"entity": "Order", "fields": ["number"], "extra": []}, "response": {"kind": "object", "entity": "Order", "fields": []},
+   "success_status": 201, "errors": [409, 422], "idempotent": true, "rate_limited": false,
+   "algorithm": ["1. Проверить права роли operator", "2. ..."], "exceptions": ["Заказ с таким номером существует → 409"], "tables": ["Order"], "external": [], "caching": null}],
+ "events": [{"name": "orders.order.created", "version": 1, "description": "...", "producer": "Backend API", "consumers": ["Worker"], "key": "orderId", "entity": "Order", "fields": ["id", "status"], "extra": [], "fr": ["FR-1"]}],
+ "sequences": [{"title": "...", "scenario": "UC_001", "steps": [{"source": "Оператор", "target": "Mobile App", "message": "...", "reply": false}]}],
+ "no_api": [{"fr": "FR-10", "reason": "..."}]}

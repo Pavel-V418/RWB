@@ -1,0 +1,16 @@
+@startuml
+autonumber
+title Запуск парковочной сессии
+participant "Водитель" as ________
+participant "Mobile App" as Mobile_App
+participant "Backend API" as Backend_API
+participant "Parkomatica Mock" as Parkomatica_Mock
+participant "PostgreSQL + PostGIS" as PostgreSQL___PostGIS
+________ -> Mobile_App : «Начать сессию», 1 час
+Mobile_App -> Backend_API : POST /sessions, Idempotency-Key
+Backend_API -> Parkomatica_Mock : IParkingProvider.StartSession(зона, автомобиль, 60 мин)
+Parkomatica_Mock --> Backend_API : providerSessionId, paidUntil 15:20
+Backend_API -> PostgreSQL___PostGIS : ParkingSession active + outbox session.started
+Backend_API --> Mobile_App : 201 ParkingSession
+Mobile_App --> ________ : «Парковка оплачена до 15:20»
+@enduml

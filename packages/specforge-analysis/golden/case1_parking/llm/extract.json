@@ -1,0 +1,118 @@
+{
+  "product_name": "Помощник управления платными парковками Санкт-Петербурга",
+  "summary": "Мобильный помощник водителя служебного автомобиля и административный web-интерфейс. Система по координатам определяет нахождение автомобиля в зоне платной парковки, ведёт парковочную сессию, предупреждает об окончании оплаченного периода и о смене зоны и даёт переход к официальному сервису оплаты. Реальная оплата не выполняется: внешний поставщик подключается через адаптер с mock-сервисом.",
+  "goals": [
+    {"statement": "Снизить число повторных оплат, пропусков окончания сессии и штрафов за неоплаченную парковку служебных автомобилей", "metric": null, "source_quote": "Это увеличивает вероятность повторной оплаты, пропуска окончания сессии и получения штрафа"},
+    {"statement": "Автоматически определять нахождение автомобиля в зоне платной парковки и подсказывать водителю, требуется ли новая оплата", "metric": null, "source_quote": "помогает водителю понять, требуется ли новая оплата"},
+    {"statement": "Дать руководителям служб прозрачность по автомобилям, парковочным сессиям, маршрутам и событиям", "metric": null, "source_quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии"}
+  ],
+  "roles": [
+    {"key": "driver", "name": "Водитель", "description": "Сотрудник технической службы, управляющий служебным автомобилем; пользуется мобильным приложением", "origin": "customer", "source_quote": "водитель может перемещаться между объектами"},
+    {"key": "dispatcher", "name": "Диспетчер", "description": "Сотрудник, который через административный web-интерфейс просматривает автомобили, зоны, сессии, маршруты и события", "origin": "derived", "source_quote": "административный web-интерфейс на Angular"}
+  ],
+  "functional": [
+    {"title": "Определение местоположения автомобиля", "statement": "Система должна получать координаты служебного автомобиля от мобильного приложения (GPS или демонстрационный маршрут) и сохранять их с временем фиксации", "priority": "must", "actors": ["driver"], "entities": ["Vehicle", "VehiclePosition"], "origin": "customer", "source_quote": "определять местоположение автомобиля"},
+    {"title": "Определение нахождения в платной зоне", "statement": "Система должна по последней координате определять, находится ли автомобиль внутри границ платной парковочной зоны, и какой именно", "priority": "must", "actors": ["driver"], "entities": ["VehiclePosition", "ParkingZone"], "origin": "customer", "source_quote": "определять нахождение автомобиля в платной парковочной зоне"},
+    {"title": "Отображение номера и границ зоны", "statement": "Система должна показывать номер текущей зоны и её границы на карте", "priority": "must", "actors": ["driver", "dispatcher"], "entities": ["ParkingZone"], "origin": "customer", "source_quote": "показывать номер и границы зоны"},
+    {"title": "Отображение параметров парковки", "statement": "Система должна отображать параметры парковки в зоне: стоимость часа, часы платного режима и ограничения по длительности", "priority": "must", "actors": ["driver"], "entities": ["ParkingZone"], "origin": "customer", "source_quote": "отображать доступные параметры парковки"},
+    {"title": "Хранение активной парковочной сессии", "statement": "Система должна хранить активную парковочную сессию автомобиля: зону, время начала, время окончания оплаты, статус и идентификатор сессии у поставщика", "priority": "must", "actors": ["driver"], "entities": ["ParkingSession"], "origin": "customer", "source_quote": "хранить информацию об активной парковочной сессии"},
+    {"title": "Отслеживание перемещения", "statement": "Система должна отслеживать перемещение автомобиля по последовательности координат в течение рабочего дня", "priority": "must", "actors": ["driver"], "entities": ["VehiclePosition"], "origin": "customer", "source_quote": "отслеживать перемещение автомобиля"},
+    {"title": "Определение выхода из зоны", "statement": "Система должна определять выход автомобиля из текущей парковочной зоны и уведомлять водителя", "priority": "must", "actors": ["driver"], "entities": ["ParkingZone", "ParkingEvent", "Notification"], "origin": "customer", "source_quote": "определять выход из текущей зоны"},
+    {"title": "Определение перехода в другую зону", "statement": "Система должна определять переход автомобиля из одной платной зоны в другую и уведомлять водителя о необходимости проверить оплату", "priority": "must", "actors": ["driver"], "entities": ["ParkingZone", "ParkingEvent", "Notification"], "origin": "customer", "source_quote": "определять переход в другую парковочную зону"},
+    {"title": "Контроль окончания оплаченной сессии", "statement": "Система должна контролировать время окончания оплаченного периода активной сессии и за 10 минут до окончания предупреждать водителя", "priority": "must", "actors": ["driver"], "entities": ["ParkingSession", "Notification"], "origin": "customer", "source_quote": "контролировать время окончания оплаченной сессии"},
+    {"title": "Предупреждение о проверке или новой оплате", "statement": "Система должна предупреждать водителя о необходимости проверить оплату или оплатить заново при смене зоны и при истечении оплаченного периода", "priority": "must", "actors": ["driver"], "entities": ["Notification", "ParkingSession"], "origin": "customer", "source_quote": "предупреждать о необходимости проверки или новой оплаты"},
+    {"title": "Переход к официальному сервису оплаты", "statement": "Система должна по действию водителя открывать официальный сервис или приложение оплаты парковки с переданным номером зоны", "priority": "must", "actors": ["driver"], "entities": ["ParkingZone"], "origin": "customer", "source_quote": "предоставлять переход к официальному сервису оплаты"},
+    {"title": "Маршрут и история парковочных сессий", "statement": "Система должна отображать маршрут автомобиля за выбранный период и историю его парковочных сессий", "priority": "must", "actors": ["driver", "dispatcher"], "entities": ["VehiclePosition", "ParkingSession"], "origin": "customer", "source_quote": "отображать маршрут и историю парковочных сессий"},
+    {"title": "Уведомление о въезде в платную зону", "statement": "Система должна при въезде автомобиля в платную зону показывать водителю уведомление «Вы въехали в зону платной парковки» с номером зоны", "priority": "must", "actors": ["driver"], "entities": ["Notification", "ParkingEvent"], "origin": "customer", "source_quote": "Вы въехали в зону платной парковки"},
+    {"title": "Отображение времени окончания оплаты", "statement": "Система должна показывать водителю время окончания оплаченного периода в формате «Парковка оплачена до ЧЧ:ММ»", "priority": "must", "actors": ["driver"], "entities": ["ParkingSession"], "origin": "customer", "source_quote": "Парковка оплачена до 15:20"},
+    {"title": "Административный просмотр данных", "statement": "Административный web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю", "priority": "must", "actors": ["dispatcher"], "entities": ["Vehicle", "ParkingZone", "ParkingSession", "VehiclePosition", "ParkingEvent"], "origin": "customer", "source_quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю"},
+    {"title": "Главный экран мобильного приложения", "statement": "Мобильное приложение должно показывать карту, текущую зону, статус сессии, оставшееся время, уведомления и действие перехода к оплате", "priority": "must", "actors": ["driver"], "entities": ["ParkingSession", "ParkingZone", "Notification"], "origin": "customer", "source_quote": "Мобильный интерфейс должен содержать карту, текущую зону, статус сессии, оставшееся время"},
+    {"title": "Адаптер поставщика парковочных услуг", "statement": "Система должна работать с поставщиком парковочных услуг через адаптер с mock-реализацией, чтобы поставщика можно было заменить без изменения бизнес-логики", "priority": "must", "actors": [], "entities": ["ParkingSession"], "origin": "customer", "source_quote": "Интеграция должна быть реализована через адаптер и mock-сервис"},
+    {"title": "Демонстрационный маршрут", "statement": "Система должна поддерживать демонстрационный режим, в котором координаты автомобиля поступают из заданного mock-маршрута вместо реального GPS", "priority": "must", "actors": ["driver", "dispatcher"], "entities": ["VehiclePosition"], "origin": "customer", "source_quote": "служебный автомобиль движется по заданному маршруту"},
+    {"title": "Запуск и подтверждение сессии", "statement": "Система должна позволять водителю запустить новую парковочную сессию в текущей зоне или подтвердить уже оплаченную", "priority": "must", "actors": ["driver"], "entities": ["ParkingSession", "Driver"], "origin": "customer", "source_quote": "водитель запускает или подтверждает парковочную сессию"},
+    {"title": "Журнал событий", "statement": "Система должна сохранять события (въезд, выход, смена зоны, старт, предупреждение и окончание сессии) в истории и показывать их в административном интерфейсе", "priority": "must", "actors": ["dispatcher"], "entities": ["ParkingEvent"], "origin": "customer", "source_quote": "события отображаются в административном интерфейсе и сохраняются в истории"},
+    {"title": "Загрузка геоданных парковочных зон", "statement": "Система должна загружать границы и параметры парковочных зон из набора геоданных (снимок открытых данных Санкт-Петербурга или демонстрационный набор)", "priority": "must", "actors": ["dispatcher"], "entities": ["ParkingZone"], "origin": "derived", "source_quote": "открытые данные о парковочных зонах Санкт-Петербурга"}
+  ],
+  "non_functional": [
+    {"category": "maintainability", "statement": "API системы должен быть документирован (OpenAPI)", "metric": null, "origin": "customer", "source_quote": "документированный API"},
+    {"category": "maintainability", "statement": "Обмен событиями между компонентами описывается документированной моделью событий", "metric": null, "origin": "customer", "source_quote": "модель событий"}
+  ],
+  "constraints": [
+    {"kind": "technology", "statement": "Мобильное приложение — Kotlin (Android)", "origin": "customer", "source_quote": "мобильное приложение на Kotlin"},
+    {"kind": "technology", "statement": "Административный web-интерфейс — Angular", "origin": "customer", "source_quote": "административный web-интерфейс на Angular"},
+    {"kind": "technology", "statement": "Backend — C# / ASP.NET Core", "origin": "customer", "source_quote": "backend на C# / ASP.NET Core"},
+    {"kind": "technology", "statement": "Хранилище — PostgreSQL с PostGIS", "origin": "customer", "source_quote": "PostgreSQL/PostGIS"},
+    {"kind": "technology", "statement": "Запуск в Docker-окружении, сборка через CI/CD-пайплайн", "origin": "customer", "source_quote": "Docker-окружение"},
+    {"kind": "scope", "statement": "Промышленный доступ к внешним сервисам и реальная оплата не требуются", "origin": "customer", "source_quote": "Получение промышленного доступа и выполнение реальной оплаты не требуются"},
+    {"kind": "scope", "statement": "Собственный платёжный механизм не разрабатывается", "origin": "customer", "source_quote": "Собственный платежный механизм разрабатывать не требуется"},
+    {"kind": "integration", "statement": "Внешний поставщик заменяем без изменения основной бизнес-логики", "origin": "customer", "source_quote": "внешнего поставщика можно было заменить без изменения основной бизнес-логики"},
+    {"kind": "data", "statement": "Решение поставляется с тестовыми данными", "origin": "customer", "source_quote": "тестовые данные"}
+  ],
+  "entities": [
+    {"name": "Vehicle", "description": "Служебный автомобиль", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "plateNumber", "type": "string", "description": "госномер", "required": true},
+      {"name": "model", "type": "string", "description": "марка и модель", "required": false},
+      {"name": "isActive", "type": "bool", "description": "в эксплуатации", "required": true}], "origin": "customer", "source_quote": "используя служебные автомобили"},
+    {"name": "Driver", "description": "Водитель служебного автомобиля", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "fullName", "type": "string", "description": "ФИО", "required": true},
+      {"name": "vehicleId", "type": "uuid", "description": "закреплённый автомобиль", "required": false}], "origin": "customer", "source_quote": "водитель может перемещаться между объектами"},
+    {"name": "ParkingZone", "description": "Зона платной парковки с границами и параметрами", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "zoneNumber", "type": "string", "description": "номер зоны", "required": true},
+      {"name": "name", "type": "string", "description": "название или адресный ориентир", "required": false},
+      {"name": "boundary", "type": "geometry", "description": "полигон границ, SRID 4326", "required": true},
+      {"name": "hourlyRate", "type": "decimal", "description": "стоимость часа, руб.", "required": false},
+      {"name": "paidHours", "type": "string", "description": "часы платного режима", "required": false},
+      {"name": "maxDurationMinutes", "type": "int", "description": "ограничение длительности", "required": false}], "origin": "customer", "source_quote": "показывать номер и границы зоны"},
+    {"name": "VehiclePosition", "description": "Отметка местоположения автомобиля", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "vehicleId", "type": "uuid", "description": "автомобиль", "required": true},
+      {"name": "point", "type": "geometry", "description": "точка, SRID 4326", "required": true},
+      {"name": "recordedAt", "type": "datetime", "description": "время фиксации на устройстве", "required": true},
+      {"name": "accuracyM", "type": "decimal", "description": "точность, м", "required": false},
+      {"name": "zoneId", "type": "uuid", "description": "зона, вычисленная для точки", "required": false}], "origin": "customer", "source_quote": "определять местоположение автомобиля"},
+    {"name": "ParkingSession", "description": "Парковочная сессия автомобиля в зоне", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "vehicleId", "type": "uuid", "description": "автомобиль", "required": true},
+      {"name": "driverId", "type": "uuid", "description": "водитель", "required": true},
+      {"name": "zoneId", "type": "uuid", "description": "зона", "required": true},
+      {"name": "status", "type": "enum", "description": "active | expiring | expired | closed", "required": true},
+      {"name": "startedAt", "type": "datetime", "description": "начало", "required": true},
+      {"name": "paidUntil", "type": "datetime", "description": "оплачено до", "required": true},
+      {"name": "endedAt", "type": "datetime", "description": "фактическое завершение", "required": false},
+      {"name": "providerSessionId", "type": "string", "description": "идентификатор у поставщика", "required": false}], "origin": "customer", "source_quote": "хранить информацию об активной парковочной сессии"},
+    {"name": "ParkingEvent", "description": "Событие жизненного цикла: въезд, выход, смена зоны, старт, предупреждение, окончание сессии", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "type", "type": "enum", "description": "zone_entered | zone_exited | zone_changed | session_started | session_expiring | session_expired | session_closed", "required": true},
+      {"name": "vehicleId", "type": "uuid", "description": "автомобиль", "required": true},
+      {"name": "zoneId", "type": "uuid", "description": "зона", "required": false},
+      {"name": "sessionId", "type": "uuid", "description": "сессия", "required": false},
+      {"name": "occurredAt", "type": "datetime", "description": "время события", "required": true},
+      {"name": "payload", "type": "json", "description": "детали", "required": false}], "origin": "customer", "source_quote": "события отображаются в административном интерфейсе"},
+    {"name": "Notification", "description": "Уведомление водителю", "attributes": [
+      {"name": "id", "type": "uuid", "description": "идентификатор", "required": true},
+      {"name": "driverId", "type": "uuid", "description": "получатель", "required": true},
+      {"name": "eventId", "type": "uuid", "description": "событие-основание", "required": false},
+      {"name": "text", "type": "string", "description": "текст", "required": true},
+      {"name": "createdAt", "type": "datetime", "description": "время", "required": true},
+      {"name": "readAt", "type": "datetime", "description": "прочитано", "required": false}], "origin": "customer", "source_quote": "Примеры уведомлений"}
+  ],
+  "integrations": [
+    {"name": "Открытые данные о парковочных зонах Санкт-Петербурга", "purpose": "Границы, номера и параметры зон", "direction": "inbound", "mode": "file", "availability": "mock_required", "origin": "customer", "source_quote": "открытые данные о парковочных зонах Санкт-Петербурга"},
+    {"name": "GPS устройства / демонстрационный mock-маршрут", "purpose": "Координаты автомобиля", "direction": "inbound", "mode": "device", "availability": "mock_required", "origin": "customer", "source_quote": "GPS-координаты или демонстрационный mock-маршрут"},
+    {"name": "Официальный сервис парковок Санкт-Петербурга / приложения «Парковки Санкт-Петербурга», «Парковки России»", "purpose": "Оплата парковки водителем вне системы", "direction": "outbound", "mode": "deeplink", "availability": "real", "origin": "customer", "source_quote": "официальный сервис парковок Санкт-Петербурга"},
+    {"name": "Паркоматика (API)", "purpose": "Организации, автомобили, водители, зоны и парковочные сессии у поставщика", "direction": "bidirectional", "mode": "rest", "availability": "mock_required", "origin": "customer", "source_quote": "сервис и API «Паркоматика»"}
+  ],
+  "glossary": [
+    {"term": "Парковочная зона", "definition": "Территория платной парковки с номером, границами (полигон) и параметрами оплаты"},
+    {"term": "Парковочная сессия", "definition": "Период стоянки автомобиля в зоне от запуска или подтверждения до окончания оплаченного времени или закрытия"},
+    {"term": "Оплачено до (paidUntil)", "definition": "Момент окончания оплаченного периода сессии"},
+    {"term": "Mock-маршрут", "definition": "Заранее заданная последовательность координат, которую система проигрывает вместо реального GPS"},
+    {"term": "Паркоматика", "definition": "Внешний сервис парковок; в прототипе заменён mock-сервисом за адаптером"}
+  ],
+  "profile": {"needs_web_ui": true, "needs_admin_ui": true, "needs_mobile_app": true, "needs_geo": true, "needs_async_events": true, "needs_realtime_updates": true, "needs_scheduled_jobs": true, "needs_file_storage": false, "needs_user_notifications": true,
+    "external_integrations": ["Паркоматика (mock)", "Официальный сервис оплаты (deeplink)", "Открытые данные о зонах (снимок)", "GPS / mock-маршрут"],
+    "notes": ["Мобильное приложение на Kotlin прямо требуется", "PostGIS и геозоны: определение зоны по координате", "Модель событий прямо требуется: въезд, выход, смена зоны, жизненный цикл сессии", "Таймер: предупреждение за 10 минут до окончания", "Админка отображает события — нужны обновления в реальном времени"]}
+}

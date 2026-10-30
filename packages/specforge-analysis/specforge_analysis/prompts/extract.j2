@@ -1,0 +1,29 @@
+<ИСХОДНЫЕ_ТРЕБОВАНИЯ>
+{{ source }}
+</ИСХОДНЫЕ_ТРЕБОВАНИЯ>
+
+ЗАДАЧА: извлеки из требований структурированную модель.
+
+Что заполнить:
+- product_name, summary (2–3 предложения: что за система и зачем).
+- goals: цели продукта (бизнес-эффект), metric — если указан.
+- roles: все роли пользователей и внешних акторов. Если требования подразумевают администратора или оператора web-интерфейса — добавь с origin "derived".
+- functional: каждое функциональное требование отдельно. Одна функция = одно требование; составные пункты разделяй. Требования, которые следуют из сценариев, примеров уведомлений и описания компонентов, тоже включай (origin "derived", если в тексте нет прямой формулировки). actors — ключи ролей, entities — имена сущностей.
+- non_functional: качества системы (производительность, надёжность, безопасность, совместимость, наблюдаемость и т. п.), включая заданный технологический стек как constraints, а не NFR.
+- constraints: kind = technology | business | regulatory | data | integration | scope. Явные «не требуется», «вне рамок» — kind "scope".
+- entities: доменные сущности с ключевыми атрибутами (name, type: string|int|decimal|bool|datetime|date|uuid|geometry|enum|json, required).
+- integrations: внешние системы и источники данных.
+- glossary: доменные термины.
+- profile: какие части решения нужны. needs_mobile_app = true только если мобильное приложение прямо требуется; needs_async_events = true, если нужен обмен событиями между компонентами; needs_scheduled_jobs = true для таймеров, напоминаний, отложенных задач.
+
+Структура ответа:
+{"product_name": "...", "summary": "...",
+ "goals": [{"statement": "...", "metric": null, "source_quote": "..."}],
+ "roles": [{"key": "operator", "name": "...", "description": "...", "origin": "customer", "source_quote": "..."}],
+ "functional": [{"title": "...", "statement": "Система должна ...", "priority": "must", "actors": ["operator"], "entities": ["Order"], "origin": "customer", "source_quote": "..."}],
+ "non_functional": [{"category": "performance", "statement": "...", "metric": null, "origin": "customer", "source_quote": "..."}],
+ "constraints": [{"kind": "technology", "statement": "...", "origin": "customer", "source_quote": "..."}],
+ "entities": [{"name": "Order", "description": "...", "attributes": [{"name": "status", "type": "enum", "description": "...", "required": true}], "origin": "customer", "source_quote": "..."}],
+ "integrations": [{"name": "...", "purpose": "...", "direction": "outbound", "mode": "rest", "availability": "mock_required", "origin": "customer", "source_quote": "..."}],
+ "glossary": [{"term": "...", "definition": "..."}],
+ "profile": {"needs_web_ui": true, "needs_admin_ui": true, "needs_mobile_app": false, "needs_geo": false, "needs_async_events": false, "needs_realtime_updates": false, "needs_scheduled_jobs": false, "needs_file_storage": false, "needs_user_notifications": false, "external_integrations": ["..."], "notes": ["почему включены ветки"]}}

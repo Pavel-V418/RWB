@@ -1,0 +1,22 @@
+<МОДЕЛЬ_ТРЕБОВАНИЙ>
+{{ req_json }}
+</МОДЕЛЬ_ТРЕБОВАНИЙ>
+
+ЗАДАЧА: спроектируй доменную модель (будущие таблицы БД).
+
+- Начни с сущностей из модели требований; добавь недостающие, если они нужны для FR (например, учётная запись пользователя, если есть аутентификация). Справочники и журналы — тоже сущности.
+- Одна сущность учётной записи пользователя с полем роли (enum из ролей модели требований): не заводи отдельные сущности под каждую роль, если у них нет собственных данных.
+- В каждой сущности поле id (uuid). createdAt/updatedAt не добавляй — их добавит код (audit = true).
+- У каждого поля title — короткая подпись для интерфейса на языке требований («Номер заявки»). У enum-полей — enum_labels: подпись для каждого значения ({"new": "Новая"}).
+- Связи — через поля xxxId с ref. Для частых выборок укажи indexes (списки полей).
+- Жизненные циклы (статусы) опиши в state_machines: поле enum, состояния, переходы с триггером.
+- Учитывай принятые ответы и допущения из модели требований.
+
+Структура ответа:
+{"entities": [{"name": "Order", "description": "...", "audit": true, "fr": ["FR-1"], "indexes": [["customerId", "status"]],
+   "fields": [{"name": "id", "type": "uuid", "required": true, "read_only": true},
+              {"name": "number", "type": "string", "title": "Номер", "required": true, "max_length": 20, "pattern": "^[A-Z0-9-]{3,20}$", "unique": true, "description": "..."},
+              {"name": "customerId", "type": "uuid", "required": true, "ref": "Customer", "description": "..."},
+              {"name": "status", "type": "enum", "title": "Статус", "required": true, "enum_values": ["new", "done"], "enum_labels": {"new": "Новый", "done": "Выполнен"}, "default": "new", "description": "..."}]}],
+ "state_machines": [{"entity": "Order", "field": "status", "states": ["new", "done"], "transitions": [{"from_state": "new", "to_state": "done", "trigger": "..."}]}],
+ "notes": ["важные проектные решения одной строкой"]}

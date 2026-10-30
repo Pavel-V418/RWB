@@ -1,0 +1,16 @@
+:host { display: block; }
+:host ::ng-deep .sf-metrics-demo { margin-bottom: var(--sf-space-3); }
+.sf-metric { display: flex; flex-direction: column; gap: var(--sf-space-1); }
+.sf-metric-value { font-size: var(--sf-text-xl); font-weight: 700; }
+.sf-metric-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) 260px; gap: var(--sf-space-3); align-items: center; }
+.sf-metric-name { font-size: var(--sf-text-sm); }
+.sf-metric-num { font-size: var(--sf-text-xs); text-align: right; }
+:host ::ng-deep .sf-metric-bar { height: 8px; }
+@media (max-width: 1023.98px) {
+  .sf-grid > .sf-metric { grid-column: span 4; }
+}
+@media (max-width: 767.98px) {
+  .sf-grid > .sf-metric { grid-column: span 6; }
+  .sf-metric-row { grid-template-columns: 1fr; gap: var(--sf-space-1); }
+  .sf-metric-num { text-align: left; }
+}

@@ -1,0 +1,26 @@
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+actor "Водитель" as role_driver
+actor "Диспетчер" as role_dispatcher
+component "Mobile App\n[Kotlin 2.2, Jetpack Compose, Material 3]" as Mobile_App
+component "Admin Web\n[Angular 20, UI Kit, MapLibre]" as Admin_Web
+component "Backend API\n[ASP.NET Core 10, C# 14, EF Core + NetTopologySuite, SignalR]" as Backend_API
+component "Background Worker\n[.NET 10 BackgroundService]" as Background_Worker
+database "PostgreSQL + PostGIS\n[PostgreSQL 17.9, PostGIS]" as PostgreSQL___PostGIS
+queue "Kafka\n[Apache Kafka]" as Kafka
+component "Parkomatica Mock\n[ASP.NET Core minimal API]" as Parkomatica_Mock <<mock>>
+cloud "Official Payment Service\n[Сайт и приложения «Парковки Санкт-Петербурга» / «Парковки России»]" as Official_Payment_Service
+role_driver --> Mobile_App
+role_dispatcher --> Admin_Web
+Backend_API --> Kafka : публикует события
+Kafka --> Background_Worker : события
+Kafka --> Backend_API : события
+Background_Worker --> Kafka : публикует события
+Mobile_App --> Backend_API : REST /api/v1, HTTPS + JWT
+Admin_Web --> Backend_API : REST /api/v1 + обновления в реальном времени
+Backend_API --> PostgreSQL___PostGIS : SQL
+Background_Worker --> PostgreSQL___PostGIS : SQL
+Backend_API --> Parkomatica_Mock : адаптер, REST
+Mobile_App --> Official_Payment_Service : deeplink / ссылка
+@enduml

@@ -1,0 +1,680 @@
+{
+  "entities": [
+    {
+      "name": "UserAccount",
+      "description": "Учётная запись пользователя системы",
+      "audit": true,
+      "fr": [
+        "FR-15",
+        "FR-16"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "login",
+          "type": "string",
+          "required": true,
+          "max_length": 50,
+          "pattern": "^[a-z0-9._-]{3,50}$",
+          "unique": true,
+          "description": "логин",
+          "example": "ivanov.p"
+        },
+        {
+          "name": "passwordHash",
+          "type": "string",
+          "required": true,
+          "max_length": 200,
+          "internal": true,
+          "description": "хэш пароля (PBKDF2/bcrypt)"
+        },
+        {
+          "name": "role",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "driver",
+            "dispatcher"
+          ],
+          "description": "роль"
+        },
+        {
+          "name": "driverId",
+          "type": "uuid",
+          "required": false,
+          "ref": "Driver",
+          "description": "профиль водителя для роли driver"
+        },
+        {
+          "name": "isActive",
+          "type": "bool",
+          "required": true,
+          "default": "true",
+          "description": "учётная запись активна"
+        }
+      ]
+    },
+    {
+      "name": "Driver",
+      "description": "Водитель служебного автомобиля",
+      "audit": true,
+      "fr": [
+        "FR-19"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "fullName",
+          "type": "string",
+          "required": true,
+          "max_length": 150,
+          "pii": true,
+          "description": "ФИО",
+          "example": "Иванов Пётр Сергеевич"
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": false,
+          "max_length": 12,
+          "pattern": "^\\+7\\d{10}$",
+          "pii": true,
+          "description": "телефон в формате +7XXXXXXXXXX",
+          "example": "+79001234567"
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": false,
+          "ref": "Vehicle",
+          "description": "закреплённый автомобиль"
+        }
+      ]
+    },
+    {
+      "name": "Vehicle",
+      "description": "Служебный автомобиль",
+      "audit": true,
+      "fr": [
+        "FR-1",
+        "FR-15"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "plateNumber",
+          "type": "string",
+          "required": true,
+          "max_length": 9,
+          "pattern": "^[АВЕКМНОРСТУХ]\\d{3}[АВЕКМНОРСТУХ]{2}\\d{2,3}$",
+          "unique": true,
+          "description": "госномер, например А123ВС178",
+          "example": "А123ВС178",
+          "title": "Госномер"
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "max_length": 100,
+          "description": "марка и модель",
+          "example": "Lada Largus"
+        },
+        {
+          "name": "isActive",
+          "type": "bool",
+          "required": true,
+          "default": "true",
+          "description": "в эксплуатации"
+        },
+        {
+          "name": "currentZoneId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingZone",
+          "read_only": true,
+          "description": "текущая платная зона по последним координатам"
+        },
+        {
+          "name": "lastPositionAt",
+          "type": "datetime",
+          "required": false,
+          "read_only": true,
+          "description": "время последней координаты"
+        }
+      ]
+    },
+    {
+      "name": "ParkingZone",
+      "description": "Зона платной парковки",
+      "audit": true,
+      "fr": [
+        "FR-2",
+        "FR-3",
+        "FR-4",
+        "FR-21"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "zoneNumber",
+          "type": "string",
+          "required": true,
+          "max_length": 4,
+          "pattern": "^\\d{4}$",
+          "unique": true,
+          "description": "номер зоны",
+          "example": "7801"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "max_length": 200,
+          "description": "название или адресный ориентир",
+          "example": "Невский пр., 1–50"
+        },
+        {
+          "name": "boundary",
+          "type": "polygon",
+          "required": true,
+          "description": "границы зоны"
+        },
+        {
+          "name": "hourlyRate",
+          "type": "decimal",
+          "required": false,
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "стоимость часа, руб.",
+          "example": "120"
+        },
+        {
+          "name": "paidHours",
+          "type": "string",
+          "required": false,
+          "max_length": 100,
+          "description": "часы платного режима, например «пн–пт 08:00–20:00»",
+          "example": "пн–пт 08:00–20:00"
+        },
+        {
+          "name": "maxDurationMinutes",
+          "type": "int",
+          "required": false,
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "ограничение длительности стоянки"
+        },
+        {
+          "name": "dataSource",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "open_data",
+            "demo"
+          ],
+          "default": "open_data",
+          "description": "источник геоданных"
+        },
+        {
+          "name": "dataVersion",
+          "type": "string",
+          "required": false,
+          "max_length": 50,
+          "description": "версия или дата снимка данных"
+        }
+      ]
+    },
+    {
+      "name": "VehiclePosition",
+      "description": "Отметка местоположения автомобиля",
+      "audit": true,
+      "fr": [
+        "FR-1",
+        "FR-6",
+        "FR-12"
+      ],
+      "indexes": [
+        [
+          "vehicleId",
+          "recordedAt"
+        ]
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": true,
+          "ref": "Vehicle",
+          "read_only": true,
+          "description": "автомобиль (из пути запроса)"
+        },
+        {
+          "name": "point",
+          "type": "point",
+          "required": true,
+          "pii": true,
+          "description": "координата"
+        },
+        {
+          "name": "recordedAt",
+          "type": "datetime",
+          "required": true,
+          "description": "время фиксации на устройстве"
+        },
+        {
+          "name": "accuracyM",
+          "type": "decimal",
+          "required": false,
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "точность, м"
+        },
+        {
+          "name": "speedKmh",
+          "type": "decimal",
+          "required": false,
+          "minimum": 0,
+          "maximum": 300,
+          "description": "скорость, км/ч"
+        },
+        {
+          "name": "source",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "gps",
+            "mock"
+          ],
+          "default": "gps",
+          "description": "источник координаты"
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingZone",
+          "read_only": true,
+          "description": "зона, вычисленная для точки"
+        }
+      ]
+    },
+    {
+      "name": "ParkingSession",
+      "description": "Парковочная сессия автомобиля в зоне",
+      "audit": true,
+      "fr": [
+        "FR-5",
+        "FR-9",
+        "FR-14",
+        "FR-19"
+      ],
+      "indexes": [
+        [
+          "vehicleId",
+          "status"
+        ]
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": true,
+          "ref": "Vehicle",
+          "description": "автомобиль"
+        },
+        {
+          "name": "driverId",
+          "type": "uuid",
+          "required": true,
+          "ref": "Driver",
+          "read_only": true,
+          "description": "водитель (из токена)"
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "required": true,
+          "ref": "ParkingZone",
+          "description": "зона"
+        },
+        {
+          "name": "startMode",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "started",
+            "confirmed"
+          ],
+          "description": "запущена в системе или подтверждена оплаченная"
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "active",
+            "expiring",
+            "expired",
+            "closed"
+          ],
+          "default": "active",
+          "read_only": true,
+          "description": "статус",
+          "title": "Статус",
+          "enum_labels": {
+            "active": "Активна",
+            "expiring": "Скоро закончится",
+            "expired": "Истекла",
+            "closed": "Завершена"
+          }
+        },
+        {
+          "name": "startedAt",
+          "type": "datetime",
+          "required": true,
+          "read_only": true,
+          "description": "начало"
+        },
+        {
+          "name": "paidUntil",
+          "type": "datetime",
+          "required": true,
+          "read_only": true,
+          "description": "оплачено до"
+        },
+        {
+          "name": "endedAt",
+          "type": "datetime",
+          "required": false,
+          "read_only": true,
+          "description": "фактическое завершение"
+        },
+        {
+          "name": "providerSessionId",
+          "type": "string",
+          "required": false,
+          "max_length": 100,
+          "read_only": true,
+          "description": "идентификатор сессии у поставщика"
+        }
+      ]
+    },
+    {
+      "name": "ParkingEvent",
+      "description": "Событие жизненного цикла: въезд, выход, смена зоны, этапы сессии",
+      "audit": true,
+      "fr": [
+        "FR-20"
+      ],
+      "indexes": [
+        [
+          "vehicleId",
+          "occurredAt"
+        ],
+        [
+          "type"
+        ]
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "zone_entered",
+            "zone_exited",
+            "zone_changed",
+            "session_started",
+            "session_extended",
+            "session_expiring",
+            "session_expired",
+            "session_closed"
+          ],
+          "description": "тип события"
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "required": true,
+          "ref": "Vehicle",
+          "description": "автомобиль"
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingZone",
+          "description": "зона"
+        },
+        {
+          "name": "previousZoneId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingZone",
+          "description": "предыдущая зона для zone_changed"
+        },
+        {
+          "name": "sessionId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingSession",
+          "description": "сессия"
+        },
+        {
+          "name": "occurredAt",
+          "type": "datetime",
+          "required": true,
+          "description": "время события"
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": false,
+          "description": "детали"
+        }
+      ]
+    },
+    {
+      "name": "Notification",
+      "description": "Уведомление водителю",
+      "audit": true,
+      "fr": [
+        "FR-7",
+        "FR-8",
+        "FR-9",
+        "FR-10",
+        "FR-13"
+      ],
+      "indexes": [
+        [
+          "driverId",
+          "readAt"
+        ]
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "driverId",
+          "type": "uuid",
+          "required": true,
+          "ref": "Driver",
+          "description": "получатель"
+        },
+        {
+          "name": "eventId",
+          "type": "uuid",
+          "required": false,
+          "ref": "ParkingEvent",
+          "unique": true,
+          "description": "событие-основание, одно уведомление на событие"
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "enum_values": [
+            "zone_entered",
+            "zone_exited",
+            "zone_changed",
+            "session_paid_until",
+            "session_expiring",
+            "payment_required"
+          ],
+          "description": "тип уведомления"
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "max_length": 300,
+          "description": "текст, например «Вы въехали в зону платной парковки»",
+          "example": "Вы въехали в зону платной парковки"
+        },
+        {
+          "name": "readAt",
+          "type": "datetime",
+          "required": false,
+          "read_only": true,
+          "description": "прочитано"
+        }
+      ]
+    },
+    {
+      "name": "DemoRoute",
+      "description": "Демонстрационный mock-маршрут",
+      "audit": true,
+      "fr": [
+        "FR-18"
+      ],
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "read_only": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "max_length": 100,
+          "description": "название маршрута",
+          "example": "Демо: через зоны 7801 и 7802"
+        },
+        {
+          "name": "path",
+          "type": "linestring",
+          "required": true,
+          "description": "точки маршрута"
+        },
+        {
+          "name": "pointIntervalSec",
+          "type": "int",
+          "required": true,
+          "minimum": 1,
+          "maximum": 60,
+          "default": "10",
+          "description": "интервал между точками в реальном времени, с"
+        }
+      ]
+    }
+  ],
+  "state_machines": [
+    {
+      "entity": "ParkingSession",
+      "field": "status",
+      "states": [
+        "active",
+        "expiring",
+        "expired",
+        "closed"
+      ],
+      "transitions": [
+        {
+          "from_state": "active",
+          "to_state": "expiring",
+          "trigger": "до paidUntil осталось 10 минут"
+        },
+        {
+          "from_state": "expiring",
+          "to_state": "active",
+          "trigger": "водитель подтвердил продление"
+        },
+        {
+          "from_state": "expiring",
+          "to_state": "expired",
+          "trigger": "наступил paidUntil"
+        },
+        {
+          "from_state": "expired",
+          "to_state": "active",
+          "trigger": "водитель подтвердил новую оплату"
+        },
+        {
+          "from_state": "active",
+          "to_state": "closed",
+          "trigger": "водитель завершил сессию"
+        },
+        {
+          "from_state": "expiring",
+          "to_state": "closed",
+          "trigger": "водитель завершил сессию"
+        },
+        {
+          "from_state": "expired",
+          "to_state": "closed",
+          "trigger": "водитель завершил сессию или начал новую"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Зона определяется на сервере запросом ST_Contains по GIST-индексу; вход и выход фиксируются после двух подряд точек (гистерезис)",
+    "Координата с тем же vehicleId и recordedAt считается повтором и не сохраняется второй раз",
+    "Время хранится в UTC, отображается в Europe/Moscow"
+  ]
+}

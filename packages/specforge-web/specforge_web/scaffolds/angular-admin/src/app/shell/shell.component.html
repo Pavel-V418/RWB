@@ -1,0 +1,37 @@
+<p-toast position="top-right" [life]="5000" />
+<p-confirmdialog [style]="{ width: 'min(440px, 92vw)' }" />
+
+<header class="sf-header">
+  @if (isMobile()) {
+    <p-button icon="pi pi-bars" [text]="true" severity="secondary" ariaLabel="Меню" (onClick)="drawerOpen.set(true)" data-testid="shell-menu-toggle" />
+  }
+  <div class="sf-brand" [attr.title]="title"><i class="pi pi-compass" aria-hidden="true"></i><span class="sf-brand-title">{{ title }}</span></div>
+  <div class="sf-grow"></div>
+  @if (realtimeLabel()) {
+    <!-- на узком экране — только значок, подпись в title/aria -->
+    <p-tag [value]="isMobile() ? '' : realtimeLabel()" [severity]="realtimeSeverity()" icon="pi pi-wifi" [rounded]="true"
+           [attr.title]="realtimeLabel()" [attr.aria-label]="realtimeLabel()" styleClass="sf-realtime-tag" data-testid="shell-realtime" />
+  }
+  @if (auth.user()) {
+    <p-button [text]="true" severity="secondary" (onClick)="userPopup.toggle($event)" data-testid="shell-user" ariaLabel="Профиль">
+      <p-avatar [label]="initials()" shape="circle" />
+      @if (!isMobile()) { <span class="sf-user-name">{{ auth.user()?.name }}</span> }
+    </p-button>
+  }
+  <p-menu #userPopup [model]="userMenu" [popup]="true" appendTo="body" />
+</header>
+
+<div class="sf-body">
+  @if (isMobile()) {
+    <p-drawer [visible]="drawerOpen()" (visibleChange)="drawerOpen.set($event)" header="Меню" position="left" [modal]="true">
+      <p-menu [model]="menu()" styleClass="sf-nav" />
+    </p-drawer>
+  } @else {
+    <nav class="sf-sidebar" aria-label="Основное меню" data-testid="shell-nav">
+      <p-menu [model]="menu()" styleClass="sf-nav" />
+    </nav>
+  }
+  <main class="sf-main">
+    <router-outlet />
+  </main>
+</div>

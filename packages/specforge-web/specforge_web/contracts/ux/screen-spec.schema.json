@@ -1,0 +1,486 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specforge.local/contracts/ux/screen-spec.schema.json",
+  "title": "SpecForge Screen Spec",
+  "description": "Машиночитаемая спецификация интерфейса. Общая для web (Angular + PrimeNG) и Android (Compose + Material 3). Выход UX-агента, вход генераторов кода и VLM-ревьюера. Домен-независима.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specVersion", "app", "roles", "screens", "navigation"],
+  "properties": {
+    "specVersion": { "const": "1.0" },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "platform", "title", "uiKit"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebabId" },
+        "platform": { "enum": ["web", "android"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "locale": { "type": "string", "default": "ru-RU" },
+        "uiKit": { "enum": ["primeng@20", "material3"] },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required": { "type": "boolean", "default": true },
+            "loginScreen": { "$ref": "#/$defs/kebabId" },
+            "forbiddenScreen": { "$ref": "#/$defs/kebabId" }
+          }
+        }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title"],
+        "properties": {
+          "id": { "$ref": "#/$defs/kebabId" },
+          "title": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "navigation": {
+      "type": "array",
+      "description": "Пункты главного меню (web: боковое меню; android: нижняя навигация, не более 5).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["screen", "label"],
+        "properties": {
+          "screen": { "$ref": "#/$defs/kebabId" },
+          "label": { "type": "string", "maxLength": 30 },
+          "icon": { "type": "string", "description": "web: PrimeIcons (pi pi-*); android: имя Material Symbol" },
+          "group": { "type": "string" }
+        }
+      }
+    },
+    "screens": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/screen" }
+    }
+  },
+  "$defs": {
+    "kebabId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$", "maxLength": 48 },
+    "fieldPath": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$" },
+    "operationId": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" },
+    "requirementId": { "type": "string", "pattern": "^(FR|NFR)-[0-9]{1,4}$" },
+    "binding": {
+      "type": "string",
+      "description": "Источник значения параметра: route:<param>, query:<param>, filter:<field>, const:<value>, item:<field>, context:<key>",
+      "pattern": "^(route|query|filter|const|item|context):.+$"
+    },
+    "dataSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/operationId" },
+        "params": { "type": "object", "additionalProperties": { "$ref": "#/$defs/binding" } },
+        "pagination": { "enum": ["page", "none"], "default": "none" },
+        "refreshSeconds": { "type": "integer", "minimum": 0, "maximum": 3600 }
+      }
+    },
+    "valueFormat": {
+      "enum": ["text", "number", "currency", "datetime", "date", "time", "duration", "relative-time", "boolean", "status", "link", "coordinates"]
+    },
+    "statusMap": {
+      "type": "object",
+      "description": "Значение поля → подпись и цвет статуса (severity соответствует p-tag / Material).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "severity"],
+        "properties": {
+          "label": { "type": "string" },
+          "severity": { "enum": ["success", "info", "warn", "danger", "secondary", "contrast"] }
+        }
+      }
+    },
+    "displayField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "label"],
+      "properties": {
+        "field": { "$ref": "#/$defs/fieldPath" },
+        "label": { "type": "string" },
+        "format": { "$ref": "#/$defs/valueFormat", "default": "text" },
+        "statusMap": { "$ref": "#/$defs/statusMap" },
+        "linkTo": { "$ref": "#/$defs/kebabId", "description": "Экран, на который ведёт значение (format=link)" },
+        "linkParam": { "$ref": "#/$defs/fieldPath" },
+        "sortable": { "type": "boolean", "default": false },
+        "hideBelow": { "enum": ["sm", "md", "lg"], "description": "Скрывать колонку на узких экранах" },
+        "emptyText": { "type": "string", "default": "—" }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "label", "control"],
+      "properties": {
+        "field": { "$ref": "#/$defs/fieldPath" },
+        "label": { "type": "string" },
+        "control": { "enum": ["text", "select", "multiselect", "date-range", "toggle"] },
+        "param": { "type": "string", "description": "Имя query-параметра в API (по умолчанию = field)" },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "label"],
+            "properties": { "value": { "type": ["string", "number", "boolean"] }, "label": { "type": "string" } }
+          }
+        },
+        "optionsFrom": { "$ref": "#/$defs/dataSource" },
+        "optionLabel": { "$ref": "#/$defs/fieldPath" },
+        "optionValue": { "$ref": "#/$defs/fieldPath" }
+      }
+    },
+    "formField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "label", "control"],
+      "properties": {
+        "name": { "$ref": "#/$defs/fieldPath" },
+        "label": { "type": "string" },
+        "control": { "enum": ["text", "textarea", "number", "select", "multiselect", "date", "datetime", "toggle", "password"] },
+        "required": { "type": "boolean", "default": false },
+        "placeholder": { "type": "string" },
+        "hint": { "type": "string" },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pattern": { "type": "string" },
+            "patternMessage": { "type": "string" },
+            "minLength": { "type": "integer", "minimum": 0 },
+            "maxLength": { "type": "integer", "minimum": 1 },
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        },
+        "options": { "$ref": "#/$defs/filter/properties/options" },
+        "optionsFrom": { "$ref": "#/$defs/dataSource" },
+        "optionLabel": { "$ref": "#/$defs/fieldPath" },
+        "optionValue": { "$ref": "#/$defs/fieldPath" }
+      }
+    },
+    "mapLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "kind", "geometryField"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebabId" },
+        "title": { "type": "string" },
+        "source": { "type": "string", "description": "primary или ключ из data.secondary", "pattern": "^(primary|[a-z][A-Za-z0-9]*)$" },
+        "kind": { "enum": ["polygon", "point", "line"] },
+        "geometryField": { "$ref": "#/$defs/fieldPath" },
+        "labelField": { "$ref": "#/$defs/fieldPath" },
+        "colorBy": { "$ref": "#/$defs/fieldPath" },
+        "statusMap": { "$ref": "#/$defs/statusMap" },
+        "popupFields": { "type": "array", "items": { "$ref": "#/$defs/displayField" } },
+        "linkTo": { "$ref": "#/$defs/kebabId" },
+        "realtimeUpdate": { "type": "boolean", "default": false }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebabId" },
+        "label": { "type": "string", "maxLength": 40 },
+        "icon": { "type": "string" },
+        "kind": { "enum": ["primary", "secondary", "danger", "link"] },
+        "scope": { "enum": ["screen", "row"], "default": "screen" },
+        "operationId": { "$ref": "#/$defs/operationId" },
+        "params": { "type": "object", "additionalProperties": { "$ref": "#/$defs/binding" } },
+        "body": { "type": "object", "additionalProperties": { "$ref": "#/$defs/binding" } },
+        "navigateTo": { "$ref": "#/$defs/kebabId" },
+        "externalUrl": { "type": "string", "description": "Ссылка на внешний сервис (может содержать {field})" },
+        "confirm": { "type": "string", "description": "Текст подтверждения; обязателен для kind=danger" },
+        "successMessage": { "type": "string" },
+        "idempotent": { "type": "boolean", "default": false, "description": "Генератор добавит заголовок Idempotency-Key" },
+        "roles": { "type": "array", "items": { "$ref": "#/$defs/kebabId" } },
+        "visibleWhen": { "type": "string", "description": "Простое условие: <field> == <value> | <field> != <value>", "pattern": "^[A-Za-z_][A-Za-z0-9_.]* (==|!=) .+$" },
+        "requirements": { "type": "array", "items": { "$ref": "#/$defs/requirementId" }, "description": "Необязательно: требования, которые закрывает именно это действие (иначе — требования экрана)" }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "danger" } } }, "then": { "required": ["confirm"] } }
+      ]
+    },
+    "stateText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "actionId": { "$ref": "#/$defs/kebabId" }
+      }
+    },
+    "states": {
+      "type": "object",
+      "description": "Все 5 состояний обязательны: регламент требует пустые состояния, загрузку, ошибки и ограничения доступа.",
+      "additionalProperties": false,
+      "required": ["loading", "empty", "error", "forbidden", "ready"],
+      "properties": {
+        "loading": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "enum": ["skeleton", "spinner", "progress"] } }
+        },
+        "empty": { "$ref": "#/$defs/stateText" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title"],
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "retry": { "type": "boolean", "default": true }
+          }
+        },
+        "forbidden": { "$ref": "#/$defs/stateText" },
+        "ready": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "description": { "type": "string" } }
+        }
+      }
+    },
+    "slot": {
+      "type": "object",
+      "description": "Часть экрана, которую шаблон не покрывает. Её заполняет LLM (frontend-агент).",
+      "additionalProperties": false,
+      "required": ["id", "placement", "task"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebabId" },
+        "placement": { "enum": ["header", "aside", "main-top", "main-bottom", "row-expansion", "map-overlay"] },
+        "task": { "type": "string", "minLength": 20, "description": "Что должен сделать виджет, на естественном языке" },
+        "components": { "type": "array", "items": { "type": "string" }, "description": "Компоненты UI Kit, которые разрешено использовать в слоте" },
+        "requirements": { "type": "array", "items": { "$ref": "#/$defs/requirementId" } }
+      }
+    },
+    "screen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "archetype", "route", "roles", "requirements", "states"],
+      "properties": {
+        "id": { "$ref": "#/$defs/kebabId" },
+        "title": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string" },
+        "archetype": { "enum": ["list", "detail", "form", "map", "timeline", "dashboard", "login", "forbidden", "generic"] },
+        "route": { "type": "string", "pattern": "^/([a-z0-9-]+|:[a-zA-Z]+)?(/([a-z0-9-]+|:[a-zA-Z]+))*$" },
+        "roles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/kebabId" } },
+        "public": { "type": "boolean", "default": false },
+        "requirements": { "type": "array", "items": { "$ref": "#/$defs/requirementId" } },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": { "$ref": "#/$defs/dataSource" },
+            "secondary": {
+              "type": "object",
+              "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+              "additionalProperties": { "$ref": "#/$defs/dataSource" }
+            }
+          }
+        },
+        "realtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eventTypes", "mode"],
+          "properties": {
+            "eventTypes": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$" } },
+            "mode": { "enum": ["prepend", "refresh", "patch"] },
+            "notify": { "type": "boolean", "default": false, "description": "Показывать toast при событии" }
+          }
+        },
+        "list": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["columns"],
+          "properties": {
+            "columns": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/displayField" } },
+            "filters": { "type": "array", "items": { "$ref": "#/$defs/filter" } },
+            "search": { "type": "object", "additionalProperties": false, "required": ["param"], "properties": { "param": { "type": "string" }, "placeholder": { "type": "string" } } },
+            "rowLink": { "$ref": "#/$defs/kebabId" },
+            "rowLinkParam": { "$ref": "#/$defs/fieldPath", "default": "id" },
+            "pageSize": { "type": "integer", "minimum": 5, "maximum": 100, "default": 20 },
+            "tabs": {
+              "type": "array",
+              "description": "Предустановленные фильтры вкладками",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "params"],
+                "properties": { "label": { "type": "string" }, "params": { "type": "object", "additionalProperties": { "type": "string" } } }
+              }
+            }
+          }
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sections"],
+          "properties": {
+            "titleField": { "$ref": "#/$defs/fieldPath" },
+            "subtitleField": { "$ref": "#/$defs/fieldPath" },
+            "statusField": { "$ref": "#/$defs/displayField" },
+            "sections": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["title", "kind"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "kind": { "enum": ["fields", "table", "map", "timeline"] },
+                  "source": { "type": "string", "default": "primary" },
+                  "fields": { "type": "array", "items": { "$ref": "#/$defs/displayField" } },
+                  "columns": { "type": "array", "items": { "$ref": "#/$defs/displayField" } },
+                  "layers": { "type": "array", "items": { "$ref": "#/$defs/mapLayer" } },
+                  "timeline": { "$ref": "#/$defs/timelineSpec" },
+                  "emptyText": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "form": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields", "submit"],
+          "properties": {
+            "mode": { "enum": ["create", "edit"], "default": "create" },
+            "load": { "$ref": "#/$defs/dataSource" },
+            "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/formField" } },
+            "submit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["operationId", "label", "successMessage"],
+              "properties": {
+                "operationId": { "$ref": "#/$defs/operationId" },
+                "params": { "type": "object", "additionalProperties": { "$ref": "#/$defs/binding" } },
+                "label": { "type": "string" },
+                "successMessage": { "type": "string" },
+                "navigateTo": { "$ref": "#/$defs/kebabId" },
+                "idempotent": { "type": "boolean", "default": true }
+              }
+            }
+          }
+        },
+        "map": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["layers"],
+          "properties": {
+            "center": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[lon, lat]" },
+            "zoom": { "type": "number", "minimum": 1, "maximum": 20 },
+            "fitToData": { "type": "boolean", "default": true },
+            "layers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/mapLayer" } },
+            "sidePanel": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["title", "source", "kind"],
+              "properties": {
+                "title": { "type": "string" },
+                "source": { "type": "string" },
+                "kind": { "enum": ["list", "timeline"] },
+                "fields": { "type": "array", "items": { "$ref": "#/$defs/displayField" } },
+                "timeline": { "$ref": "#/$defs/timelineSpec" }
+              }
+            },
+            "playback": {
+              "type": "object",
+              "description": "Проигрывание трека (точки с отметкой времени) по шкале времени",
+              "additionalProperties": false,
+              "required": ["source", "timeField"],
+              "properties": { "source": { "type": "string" }, "timeField": { "$ref": "#/$defs/fieldPath" }, "geometryField": { "$ref": "#/$defs/fieldPath" } }
+            }
+          }
+        },
+        "timeline": { "$ref": "#/$defs/timelineSpec" },
+        "dashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["widgets"],
+          "properties": {
+            "widgets": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "kind", "title", "source"],
+                "properties": {
+                  "id": { "$ref": "#/$defs/kebabId" },
+                  "kind": { "enum": ["stat", "list", "map", "timeline"] },
+                  "title": { "type": "string" },
+                  "source": { "type": "string" },
+                  "valueField": { "$ref": "#/$defs/fieldPath" },
+                  "fields": { "type": "array", "items": { "$ref": "#/$defs/displayField" } },
+                  "layers": { "type": "array", "items": { "$ref": "#/$defs/mapLayer" } },
+                  "timeline": { "$ref": "#/$defs/timelineSpec" },
+                  "linkTo": { "$ref": "#/$defs/kebabId" },
+                  "span": { "type": "integer", "minimum": 1, "maximum": 12, "default": 4 }
+                }
+              }
+            }
+          }
+        },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+        "slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } },
+        "states": { "$ref": "#/$defs/states" },
+        "notifications": {
+          "type": "array",
+          "description": "Тексты уведомлений, которые экран показывает пользователю (toast / push).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["eventType", "text", "severity"],
+            "properties": {
+              "eventType": { "type": "string" },
+              "text": { "type": "string", "description": "Может содержать {payload.field}" },
+              "severity": { "enum": ["success", "info", "warn", "danger"] },
+              "actionId": { "$ref": "#/$defs/kebabId" }
+            }
+          }
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "archetype": { "const": "list" } } }, "then": { "required": ["list", "data"] } },
+        { "if": { "properties": { "archetype": { "const": "detail" } } }, "then": { "required": ["detail", "data"] } },
+        { "if": { "properties": { "archetype": { "const": "form" } } }, "then": { "required": ["form"] } },
+        { "if": { "properties": { "archetype": { "const": "map" } } }, "then": { "required": ["map", "data"] } },
+        { "if": { "properties": { "archetype": { "const": "timeline" } } }, "then": { "required": ["timeline", "data"] } },
+        { "if": { "properties": { "archetype": { "const": "dashboard" } } }, "then": { "required": ["dashboard", "data"] } },
+        { "if": { "properties": { "archetype": { "const": "generic" } } }, "then": { "required": ["slots"] } }
+      ]
+    },
+    "timelineSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["titleField", "timeField"],
+      "properties": {
+        "source": { "type": "string", "default": "primary" },
+        "titleField": { "$ref": "#/$defs/fieldPath" },
+        "titleMap": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Код → человекочитаемый заголовок" },
+        "timeField": { "$ref": "#/$defs/fieldPath" },
+        "descriptionField": { "$ref": "#/$defs/fieldPath" },
+        "severityField": { "$ref": "#/$defs/fieldPath" },
+        "statusMap": { "$ref": "#/$defs/statusMap" },
+        "filters": { "type": "array", "items": { "$ref": "#/$defs/filter" } },
+        "linkTo": { "$ref": "#/$defs/kebabId" },
+        "linkParam": { "$ref": "#/$defs/fieldPath" }
+      }
+    }
+  }
+}

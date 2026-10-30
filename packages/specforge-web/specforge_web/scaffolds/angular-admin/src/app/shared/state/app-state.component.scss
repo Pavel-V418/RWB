@@ -1,0 +1,6 @@
+:host { display: block; }
+.sf-state { display: flex; flex-direction: column; gap: var(--sf-space-3); align-items: flex-start; }
+.sf-state-center { align-items: center; justify-content: center; text-align: center; padding: var(--sf-space-6) var(--sf-space-4); width: 100%; box-sizing: border-box; }
+.sf-state--compact { padding: var(--sf-space-4); }
+.sf-state-icon { font-size: 2rem; color: var(--sf-text-muted); }
+.sf-state-title { font-size: var(--sf-text-lg); font-weight: 600; }

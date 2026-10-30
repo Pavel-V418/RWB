@@ -54,6 +54,8 @@ def assemble_repo(
             ):
                 continue
             placed_path = layout.place(stage, rel.as_posix())
+            if placed_path is None and layout.target(stage) is not None:
+                continue  # exclude раскладки — служебный файл этапа
             dest = target / (placed_path or f"_unmapped/{stage}/{rel.as_posix()}")
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, dest)
@@ -369,7 +371,8 @@ def check_docs(repo: Path, templates: dict[str, Template]) -> list[DocTypeCheck]
         keys = [str(x) for x in template.get("keys") or []]
         files: list[DocFile] = []
         texts: list[str] = []
-        for path in _doc_paths(repo, globs):
+        exclude = [str(x) for x in template.get("exclude") or []]
+        for path in _doc_paths(repo, globs, exclude):
             if path.suffix.lower() in DOC_SUFFIXES:
                 files.append(_doc_sections(path, repo, sections))
                 texts.append(path.read_text(encoding="utf-8", errors="replace"))
@@ -396,11 +399,13 @@ def check_docs(repo: Path, templates: dict[str, Template]) -> list[DocTypeCheck]
     return checks
 
 
-def _doc_paths(repo: Path, globs: list[str]) -> list[Path]:
+def _doc_paths(repo: Path, globs: list[str], exclude: Sequence[str] = ()) -> list[Path]:
     found: dict[Path, None] = {}
     for pattern in globs:
         for path in sorted(repo.glob(pattern)):
             rel = path.relative_to(repo)
+            if any(fnmatch.fnmatchcase(path.name, g) for g in exclude):
+                continue
             if path.is_file() and not rel.parts[0].startswith("_unmapped"):
                 found.setdefault(path, None)
     return list(found)
@@ -470,6 +475,8 @@ def check_trivy(*roots: Path) -> SecurityCheck:
 # --- трассируемость ------------------------------------------------------------------------------
 
 TRACE_NAMES = ("traceability", "трассируемость")
+ID_PREFIX = "id:"
+"""Ссылка на реализацию идентификатором (операция API, событие, экран), а не путём к файлу."""
 
 
 class Requirement(BaseModel):
@@ -488,6 +495,8 @@ class CoverageCheck(BaseModel):
 
 
 def find_matrix(repo: Path) -> Path | None:
+    """Самая заполненная матрица: больше ссылок на реализацию и тесты, затем больше строк; при
+    равенстве — последняя по пути (матрицы поздних этапов дополняют ранние)."""
     candidates = [
         p
         for p in sorted(repo.rglob("*"))
@@ -495,7 +504,17 @@ def find_matrix(repo: Path) -> Path | None:
         and any(n in p.stem.casefold() for n in TRACE_NAMES)
         and p.suffix.lower() in (".yaml", ".yml", ".json", ".md", ".csv")
     ]
-    return candidates[0] if candidates else None
+    best: tuple[int, int, int] | None = None
+    found: Path | None = None
+    for index, path in enumerate(candidates):
+        try:
+            rows = _read_matrix(path)
+        except (ValueError, yaml.YAMLError, AttributeError, TypeError):
+            continue
+        score = (sum(bool(r.code) + bool(r.tests) for r in rows), len(rows), index)
+        if rows and (best is None or score > best):
+            best, found = score, path
+    return found
 
 
 def check_coverage(repo: Path) -> CoverageCheck:
@@ -526,9 +545,15 @@ def check_coverage(repo: Path) -> CoverageCheck:
 
 
 def _exists(repo: Path, ref: str) -> bool:
+    """Путь (или glob) должен быть в репозитории; идентификатор (операция API, событие, экран,
+    имя теста — без «/» и расширения файла) по файлам не проверить — считается указанным."""
+    if ref.startswith(ID_PREFIX):
+        return bool(ref[len(ID_PREFIX) :].strip())
     ref = ref.strip().split("#", 1)[0].split("::", 1)[0].strip("/ ")
     if not ref:
         return False
+    if "/" not in ref and not re.search(r"\.[A-Za-z]{1,5}$", ref):
+        return True
     if any(ch in ref for ch in "*?["):
         return any(fnmatch.fnmatch(p.relative_to(repo).as_posix(), ref) for p in repo.rglob("*"))
     return (repo / ref).exists() or any(
@@ -541,7 +566,7 @@ def _refs(value: Any) -> list[str]:
         return []
     if isinstance(value, list):
         return [str(v).strip() for v in value if str(v).strip()]
-    return [v.strip() for v in re.split(r"[,;\n]|<br\s*/?>", str(value)) if v.strip()]
+    return [v.strip() for v in re.split(r"[,;\n ]|<br\s*/?>", str(value)) if v.strip()]
 
 
 def _read_matrix(path: Path) -> list[Requirement]:
@@ -573,7 +598,12 @@ def _table_rows(text: str, sep: str) -> list[Requirement]:
     def column(*names: str) -> int | None:
         return next((i for i, h in enumerate(header) if any(n in h for n in names)), None)
 
-    fr, code, test = column("fr", "id", "требован"), column("код", "code"), column("тест", "test")
+    fr = column("requirement", "fr", "id", "требован")
+    test = column("тест", "test")
+    explicit = column("код", "code")
+    # матрица анализа без столбца кода: реализация требования — операции API, события, экраны
+    implementation = (column("api"), column("event", "событ"), column("screen", "экран"))
+    code_cols = [explicit] if explicit is not None else [c for c in implementation if c is not None]
     if fr is None:
         return []
     rows = []
@@ -584,7 +614,12 @@ def _table_rows(text: str, sep: str) -> list[Requirement]:
         rows.append(
             Requirement(
                 id=cells[fr],
-                code=_refs(cells[code]) if code is not None and code < len(cells) else [],
+                code=[
+                    ref if explicit is not None else ID_PREFIX + ref  # API/события — не файлы
+                    for c in code_cols
+                    if c < len(cells)
+                    for ref in _refs(cells[c])
+                ],
                 tests=_refs(cells[test]) if test is not None and test < len(cells) else [],
             )
         )

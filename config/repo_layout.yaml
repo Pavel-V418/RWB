@@ -6,10 +6,37 @@
 #   {dir: <каталог>, root: [<шаблоны>]} — файлы верхнего уровня этапа, совпавшие с шаблонами
 #   (fnmatch), кладутся в корень репозитория: .gitlab-ci.yml (GitLab запускает CI только из
 #   корня), docker-compose.yml, README.md с инструкцией запуска.
+#   exclude: [<шаблоны>] — служебные файлы этапа (по пути внутри этапа), которые не публикуются.
 # Этап без записи не публикуется (событие publish_warning), у приёмщика попадает в _unmapped/;
 # `specforge doctor` показывает такие этапы. Имя ключа — AgentSpec.stage, не имя агента.
 stages:
   input: docs/tz/            # ТЗ: оригинал и извлечённый текст
+
+  # --- этапы команды (номера каталогов договорены участниками) ---
+  01_requirements: analysis/requirements/   # analyst: requirements.json, Gherkin, вопросы
+  02_system: analysis/system/               # system_architect: OpenAPI, AsyncAPI, DDL, SA-документ
+  03_ux: design/                            # ux_designer: спеки экранов, потоки, docs интерфейса
+  04_backend:                               # предположение: имя этапа backend сверить с участником 3
+    dir: backend/
+    root: [README.md]
+  05_web: web/                              # frontend_coder: web/admin — Angular-проект
+  06_android: android/
+  07_tests: reports/tests/                  # отчёты тестов и безопасности (JUnit, SARIF, Trivy)
+  08_infra:
+    dir: infra/
+    root: &team_root_files
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.*.yml
+      - compose.yml
+      - compose.*.yml
+      - .env.example
+      - Makefile
+  09_docs:                                  # tech_writer: mkdocs.yml и docs/ — в корень
+    dir: .
+    exclude: [gate_report.json, gate_result.json, gate-result.json, metrics.jsonl, docs-text.json]
+
+  # --- имена этапов по умолчанию (для агентов без номера) ---
   profile: analysis/profile/
   analysis: analysis/        # анализ требований, системный анализ
   ux: design/                # потоки, экраны, макеты и их исходники

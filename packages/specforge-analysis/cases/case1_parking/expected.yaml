@@ -1,0 +1,24 @@
+profile:
+  needs_mobile_app: true
+  needs_admin_ui: true
+  needs_geo: true
+  needs_async_events: true
+  needs_scheduled_jobs: true
+  needs_user_notifications: true
+must_cover:
+  - [местоположен]
+  - [нахожден, зон]
+  - [номер, границ]
+  - [параметр]
+  - [сесси, хран]
+  - [перемещен]
+  - [выход, зон]
+  - [другую, зон]
+  - [окончан]
+  - [нов, оплат]
+  - [сервис, оплат]
+  - [маршрут, истори]
+  - [въезд]
+  - [запуст]
+entities_range: [4, 12]
+max_questions: 5

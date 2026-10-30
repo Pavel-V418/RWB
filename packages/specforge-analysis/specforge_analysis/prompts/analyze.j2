@@ -1,0 +1,29 @@
+<ИСХОДНЫЕ_ТРЕБОВАНИЯ>
+{{ source }}
+</ИСХОДНЫЕ_ТРЕБОВАНИЯ>
+
+<МОДЕЛЬ_ТРЕБОВАНИЙ>
+{{ model_json }}
+</МОДЕЛЬ_ТРЕБОВАНИЙ>
+
+ЗАДАЧА: проведи анализ по модели требований. Ссылайся на функциональные требования только по их ID (FR-1, FR-2 …) из модели, на роли — по ключу роли.
+
+Что заполнить:
+- scenarios: пользовательские сценарии (use cases). Покрой каждое FR с priority "must" хотя бы одним сценарием. В каждом: preconditions, main_flow, alternative_flows, error_flows (исключения), postconditions (что истинно после успешного завершения), expected_result (что получает пользователь). Если в исходных требованиях есть демонстрационный или эталонный сценарий — оформи его отдельным сквозным сценарием. В каждом сценарии: main_flow (шаги «актор/система делает …»), alternative_flows и error_flows (потеря связи, неверные данные, нет прав, внешняя система недоступна) — в формате «Шаг N: условие → реакция системы».
+- acceptance: критерии приёмки Given/When/Then. Для каждого FR минимум 1 positive; для FR с вводом данных, внешними системами, временем или правами — ещё negative или edge. Then — наблюдаемый проверяемый результат (что видит пользователь, что вернул API, что сохранено, какое событие опубликовано). Конкретные значения (время, координаты, тексты уведомлений из требований) — дословно.
+- stories: пользовательская история на каждое FR (as_a — ключ роли).
+- derived_nfr: необходимые, но не названные заказчиком нефункциональные требования (производительность ключевых операций, надёжность при потере связи, наблюдаемость, хранение истории) с rationale. Числовые метрики помечай как предлагаемые.
+- security: аутентификация, авторизация по ролям, защита персональных и геоданных, аудит, валидация ввода, ограничение частоты запросов, хранение секретов. related — FR-ID.
+- ambiguities: неоднозначности и пробелы требований. impact: architecture | security | core_scenario | data | ux | other; severity: high, если разные трактовки дают разные сущности, API или пользовательский поток. Для каждой — 2–3 options и default_option (самый безопасный вариант), default_is_safe = true, если умолчание легко изменить позже.
+- assumptions: допущения, которые ты принимаешь, чтобы двигаться дальше, с причиной.
+- risks: риски реализации и эксплуатации с mitigation.
+
+Структура ответа:
+{"scenarios": [{"title": "...", "actor": "operator", "goal": "...", "preconditions": ["..."], "main_flow": ["1. ..."], "alternative_flows": ["Шаг 2: ... → ..."], "error_flows": ["Шаг 3: ... → ..."], "postconditions": ["..."], "expected_result": "...", "requirements": ["FR-1"]}],
+ "acceptance": [{"fr_id": "FR-1", "kind": "positive", "title": "...", "given": ["..."], "when": ["..."], "then": ["..."]}],
+ "stories": [{"fr_id": "FR-1", "as_a": "operator", "i_want": "...", "so_that": "..."}],
+ "derived_nfr": [{"category": "performance", "statement": "...", "metric": "...", "rationale": "..."}],
+ "security": [{"category": "authz", "statement": "...", "rationale": "...", "related": ["FR-1"]}],
+ "ambiguities": [{"topic": "...", "description": "...", "impact": "architecture", "severity": "high", "affected": ["FR-1"], "options": ["...", "..."], "default_option": "...", "default_is_safe": true}],
+ "assumptions": [{"statement": "...", "reason": "...", "affected": ["FR-1"]}],
+ "risks": [{"statement": "...", "probability": "medium", "impact": "high", "mitigation": "..."}]}

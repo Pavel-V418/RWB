@@ -1,0 +1,1 @@
+{"tool": "sample", "tests": [{"name": "FR-1 coordinate saved", "status": "passed", "suite": "api", "tags": ["FR-1", "AC-FR-1-01"]}, {"name": "AC-FR-5-02 second session conflict", "status": "failed", "suite": "api", "message": "expected 409 got 201"}, {"name": "misc smoke", "status": "passed", "suite": "e2e"}]}

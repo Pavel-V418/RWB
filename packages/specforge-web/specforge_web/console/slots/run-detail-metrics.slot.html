@@ -1,0 +1,29 @@
+<p-card header="Эффективность прогона" data-testid="run-metrics">
+  @if (simulated()) {
+    <p-message severity="warn" icon="pi pi-info-circle" styleClass="sf-metrics-demo" data-testid="run-metrics-simulated"
+               text="Демо-режим: прогон имитирован, цифры показывают формат отчёта и не являются замером" />
+  }
+  @if (!metrics()) {
+    <span class="sf-muted">Метрики появятся после первого этапа</span>
+  } @else {
+    <div class="sf-stack">
+      <div class="sf-grid">
+        @for (t of tiles(); track t.label) {
+          <div class="sf-span-2 sf-metric" [attr.data-testid]="'run-metrics-' + $index">
+            <span class="sf-stat-title">{{ t.label }}</span>
+            <span class="sf-metric-value">{{ t.value }}</span>
+          </div>
+        }
+      </div>
+      <div class="sf-stack sf-stack--sm">
+        @for (r of rows(); track r.id) {
+          <div class="sf-metric-row">
+            <span class="sf-metric-name">{{ r.title }}</span>
+            <p-progressbar [value]="r.share" [showValue]="false" styleClass="sf-metric-bar" />
+            <span class="sf-muted sf-metric-num">{{ fmt(r.tokens) }} ток. · {{ r.calls }} выз. · {{ r.attempts }} поп. · {{ dur(r.seconds) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</p-card>

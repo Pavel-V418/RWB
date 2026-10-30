@@ -1,0 +1,10 @@
+@startuml
+[*] --> active
+active --> expiring : до paidUntil осталось 10 минут
+expiring --> active : водитель подтвердил продление
+expiring --> expired : наступил paidUntil
+expired --> active : водитель подтвердил новую оплату
+active --> closed : водитель завершил сессию
+expiring --> closed : водитель завершил сессию
+expired --> closed : водитель завершил сессию или начал новую
+@enduml

@@ -1,0 +1,6 @@
+// Глобальные стили: токены → раскладка → мелкие правки поверх темы.
+@use './styles/tokens';
+@use './styles/layout';
+
+.p-toast { max-width: calc(100vw - 32px); }
+.maplibregl-popup-content { font-family: var(--sf-font); border-radius: var(--sf-radius); }

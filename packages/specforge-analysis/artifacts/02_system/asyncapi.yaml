@@ -1,0 +1,816 @@
+asyncapi: 3.0.0
+info:
+  title: 'Помощник управления платными парковками Санкт-Петербурга: события'
+  version: 1.0.0
+  description: 'Доставка at-least-once. Потребитель идемпотентен по eventId. Повторная обработка: 3 попытки с экспоненциальной
+    задержкой (1, 5, 25 с), затем сообщение уходит в топик <address>.dlq. Несовместимое изменение схемы выпускается новой
+    версией топика (.v2), старая версия поддерживается до миграции потребителей.'
+defaultContentType: application/json
+servers:
+  kafka:
+    host: kafka:9092
+    protocol: kafka
+    description: брокер в docker compose
+channels:
+  ParkingZoneEntered:
+    address: parking.zone.entered.v1
+    description: Автомобиль въехал в платную зону
+    messages:
+      ParkingZoneEntered:
+        $ref: '#/components/messages/ParkingZoneEntered'
+    x-dlq: parking.zone.entered.v1.dlq
+  ParkingZoneExited:
+    address: parking.zone.exited.v1
+    description: Автомобиль покинул платную зону
+    messages:
+      ParkingZoneExited:
+        $ref: '#/components/messages/ParkingZoneExited'
+    x-dlq: parking.zone.exited.v1.dlq
+  ParkingZoneChanged:
+    address: parking.zone.changed.v1
+    description: Автомобиль перешёл в другую платную зону
+    messages:
+      ParkingZoneChanged:
+        $ref: '#/components/messages/ParkingZoneChanged'
+    x-dlq: parking.zone.changed.v1.dlq
+  ParkingSessionStarted:
+    address: parking.session.started.v1
+    description: Сессия запущена или подтверждена
+    messages:
+      ParkingSessionStarted:
+        $ref: '#/components/messages/ParkingSessionStarted'
+    x-dlq: parking.session.started.v1.dlq
+  ParkingSessionExtended:
+    address: parking.session.extended.v1
+    description: Оплата сессии продлена
+    messages:
+      ParkingSessionExtended:
+        $ref: '#/components/messages/ParkingSessionExtended'
+    x-dlq: parking.session.extended.v1.dlq
+  ParkingSessionExpiring:
+    address: parking.session.expiring.v1
+    description: До окончания оплаты осталось 10 минут или меньше
+    messages:
+      ParkingSessionExpiring:
+        $ref: '#/components/messages/ParkingSessionExpiring'
+    x-dlq: parking.session.expiring.v1.dlq
+  ParkingSessionExpired:
+    address: parking.session.expired.v1
+    description: Оплаченный период истёк
+    messages:
+      ParkingSessionExpired:
+        $ref: '#/components/messages/ParkingSessionExpired'
+    x-dlq: parking.session.expired.v1.dlq
+  ParkingSessionClosed:
+    address: parking.session.closed.v1
+    description: Сессия завершена
+    messages:
+      ParkingSessionClosed:
+        $ref: '#/components/messages/ParkingSessionClosed'
+    x-dlq: parking.session.closed.v1.dlq
+operations:
+  publishParkingZoneEntered:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingZoneEntered'
+    messages:
+    - $ref: '#/channels/ParkingZoneEntered/messages/ParkingZoneEntered'
+    summary: Backend API публикует parking.zone.entered
+    x-producer: Backend API
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingZoneExited:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingZoneExited'
+    messages:
+    - $ref: '#/channels/ParkingZoneExited/messages/ParkingZoneExited'
+    summary: Backend API публикует parking.zone.exited
+    x-producer: Backend API
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingZoneChanged:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingZoneChanged'
+    messages:
+    - $ref: '#/channels/ParkingZoneChanged/messages/ParkingZoneChanged'
+    summary: Backend API публикует parking.zone.changed
+    x-producer: Backend API
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingSessionStarted:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingSessionStarted'
+    messages:
+    - $ref: '#/channels/ParkingSessionStarted/messages/ParkingSessionStarted'
+    summary: Backend API публикует parking.session.started
+    x-producer: Backend API
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingSessionExtended:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingSessionExtended'
+    messages:
+    - $ref: '#/channels/ParkingSessionExtended/messages/ParkingSessionExtended'
+    summary: Backend API публикует parking.session.extended
+    x-producer: Backend API
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingSessionExpiring:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingSessionExpiring'
+    messages:
+    - $ref: '#/channels/ParkingSessionExpiring/messages/ParkingSessionExpiring'
+    summary: Background Worker публикует parking.session.expiring
+    x-producer: Background Worker
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingSessionExpired:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingSessionExpired'
+    messages:
+    - $ref: '#/channels/ParkingSessionExpired/messages/ParkingSessionExpired'
+    summary: Background Worker публикует parking.session.expired
+    x-producer: Background Worker
+    x-consumers:
+    - Background Worker
+    - Backend API
+  publishParkingSessionClosed:
+    action: send
+    channel:
+      $ref: '#/channels/ParkingSessionClosed'
+    messages:
+    - $ref: '#/channels/ParkingSessionClosed/messages/ParkingSessionClosed'
+    summary: Backend API публикует parking.session.closed
+    x-producer: Backend API
+    x-consumers:
+    - Backend API
+components:
+  messages:
+    ParkingZoneEntered:
+      name: ParkingZoneEntered
+      title: parking.zone.entered
+      summary: Автомобиль въехал в платную зону
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingZoneEnteredPayload'
+      x-requirements:
+      - FR-2
+      - FR-13
+      - FR-20
+    ParkingZoneExited:
+      name: ParkingZoneExited
+      title: parking.zone.exited
+      summary: Автомобиль покинул платную зону
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingZoneExitedPayload'
+      x-requirements:
+      - FR-7
+      - FR-20
+    ParkingZoneChanged:
+      name: ParkingZoneChanged
+      title: parking.zone.changed
+      summary: Автомобиль перешёл в другую платную зону
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingZoneChangedPayload'
+      x-requirements:
+      - FR-8
+      - FR-10
+      - FR-20
+    ParkingSessionStarted:
+      name: ParkingSessionStarted
+      title: parking.session.started
+      summary: Сессия запущена или подтверждена
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingSessionStartedPayload'
+      x-requirements:
+      - FR-19
+      - FR-20
+    ParkingSessionExtended:
+      name: ParkingSessionExtended
+      title: parking.session.extended
+      summary: Оплата сессии продлена
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingSessionExtendedPayload'
+      x-requirements:
+      - FR-14
+      - FR-20
+    ParkingSessionExpiring:
+      name: ParkingSessionExpiring
+      title: parking.session.expiring
+      summary: До окончания оплаты осталось 10 минут или меньше
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingSessionExpiringPayload'
+      x-requirements:
+      - FR-9
+      - FR-20
+    ParkingSessionExpired:
+      name: ParkingSessionExpired
+      title: parking.session.expired
+      summary: Оплаченный период истёк
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingSessionExpiredPayload'
+      x-requirements:
+      - FR-9
+      - FR-10
+      - FR-20
+    ParkingSessionClosed:
+      name: ParkingSessionClosed
+      title: parking.session.closed
+      summary: Сессия завершена
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ParkingSessionClosedPayload'
+      x-requirements:
+      - FR-5
+      - FR-20
+  schemas:
+    ParkingZoneEnteredPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.zone.entered
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            occurredAt:
+              type: string
+              format: date-time
+              description: время события
+            zoneNumber:
+              type: string
+              description: номер зоны
+              maxLength: 4
+              minLength: 1
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - occurredAt
+          - zoneNumber
+    ParkingZoneExitedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.zone.exited
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            sessionId:
+              type: string
+              format: uuid
+              description: сессия
+            occurredAt:
+              type: string
+              format: date-time
+              description: время события
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - occurredAt
+    ParkingZoneChangedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.zone.changed
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            previousZoneId:
+              type: string
+              format: uuid
+              description: предыдущая зона для zone_changed
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            sessionId:
+              type: string
+              format: uuid
+              description: сессия
+            occurredAt:
+              type: string
+              format: date-time
+              description: время события
+            zoneNumber:
+              type: string
+              description: номер новой зоны
+              maxLength: 4
+              minLength: 1
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - occurredAt
+          - zoneNumber
+    ParkingSessionStartedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.session.started
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            driverId:
+              type: string
+              format: uuid
+              description: водитель (из токена)
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            startMode:
+              type: string
+              enum:
+              - started
+              - confirmed
+              description: запущена в системе или подтверждена оплаченная
+            startedAt:
+              type: string
+              format: date-time
+              description: начало
+            paidUntil:
+              type: string
+              format: date-time
+              description: оплачено до
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - driverId
+          - zoneId
+          - startMode
+          - startedAt
+          - paidUntil
+    ParkingSessionExtendedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.session.extended
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            driverId:
+              type: string
+              format: uuid
+              description: водитель (из токена)
+            paidUntil:
+              type: string
+              format: date-time
+              description: оплачено до
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - driverId
+          - paidUntil
+    ParkingSessionExpiringPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.session.expiring
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            driverId:
+              type: string
+              format: uuid
+              description: водитель (из токена)
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            paidUntil:
+              type: string
+              format: date-time
+              description: оплачено до
+            minutesLeft:
+              type: integer
+              format: int32
+              description: осталось минут
+              minimum: 0
+              maximum: 10
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - driverId
+          - zoneId
+          - paidUntil
+          - minutesLeft
+    ParkingSessionExpiredPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.session.expired
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            driverId:
+              type: string
+              format: uuid
+              description: водитель (из токена)
+            zoneId:
+              type: string
+              format: uuid
+              description: зона
+            paidUntil:
+              type: string
+              format: date-time
+              description: оплачено до
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - driverId
+          - zoneId
+          - paidUntil
+    ParkingSessionClosedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: parking.session.closed
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: vehicleId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            vehicleId:
+              type: string
+              format: uuid
+              description: автомобиль
+            driverId:
+              type: string
+              format: uuid
+              description: водитель (из токена)
+            endedAt:
+              type: string
+              format: date-time
+              description: фактическое завершение
+          additionalProperties: false
+          required:
+          - id
+          - vehicleId
+          - driverId
+    GeoJsonPoint:
+      type: object
+      description: GeoJSON Point, WGS 84 (EPSG:4326), порядок [долгота, широта]
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          prefixItems:
+          - type: number
+            minimum: -180
+            maximum: 180
+          - type: number
+            minimum: -90
+            maximum: 90
+    GeoJsonPolygon:
+      type: object
+      description: GeoJSON Polygon, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Polygon
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+    GeoJsonLineString:
+      type: object
+      description: GeoJSON LineString, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: LineString
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number

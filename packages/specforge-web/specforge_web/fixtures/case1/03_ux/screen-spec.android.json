@@ -1,0 +1,633 @@
+{
+  "specVersion": "1.0",
+  "app": {
+    "id": "driver",
+    "platform": "android",
+    "title": "Парковки",
+    "locale": "ru-RU",
+    "uiKit": "material3",
+    "auth": {
+      "required": true,
+      "loginScreen": "login"
+    }
+  },
+  "roles": [
+    {
+      "id": "driver",
+      "title": "Водитель"
+    }
+  ],
+  "navigation": [
+    {
+      "screen": "home",
+      "label": "Карта",
+      "icon": "map"
+    },
+    {
+      "screen": "session",
+      "label": "Сессия",
+      "icon": "timer"
+    },
+    {
+      "screen": "notifications",
+      "label": "Уведомления",
+      "icon": "notifications"
+    },
+    {
+      "screen": "history",
+      "label": "История",
+      "icon": "history"
+    }
+  ],
+  "screens": [
+    {
+      "id": "login",
+      "title": "Вход",
+      "archetype": "login",
+      "route": "/login",
+      "roles": [
+        "driver"
+      ],
+      "public": true,
+      "requirements": [
+        "FR-16"
+      ],
+      "form": {
+        "fields": [
+          {
+            "name": "login",
+            "label": "Логин",
+            "control": "text",
+            "required": true,
+            "validation": {
+              "minLength": 3,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "password",
+            "label": "Пароль",
+            "control": "password",
+            "required": true,
+            "validation": {
+              "minLength": 6,
+              "maxLength": 128
+            }
+          }
+        ],
+        "submit": {
+          "operationId": "login",
+          "label": "Войти",
+          "successMessage": "Вход выполнен",
+          "navigateTo": "home",
+          "idempotent": false
+        }
+      },
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "—"
+        },
+        "error": {
+          "title": "Не удалось войти",
+          "description": "Проверьте логин, пароль и подключение к сети",
+          "retry": false
+        },
+        "forbidden": {
+          "title": "Учётная запись не связана с автомобилем"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "home",
+      "title": "Карта",
+      "archetype": "map",
+      "route": "/",
+      "roles": [
+        "driver"
+      ],
+      "requirements": [
+        "FR-01",
+        "FR-02",
+        "FR-03",
+        "FR-04",
+        "FR-07",
+        "FR-08",
+        "FR-10"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingZones",
+          "params": {
+            "size": "const:100"
+          }
+        },
+        "secondary": {
+          "vehicle": {
+            "operationId": "getVehicle",
+            "params": {
+              "id": "context:vehicleId"
+            },
+            "refreshSeconds": 10
+          },
+          "session": {
+            "operationId": "listParkingSessions",
+            "params": {
+              "vehicleId": "context:vehicleId",
+              "status": "const:active",
+              "size": "const:1"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired"
+        ],
+        "mode": "refresh",
+        "notify": true
+      },
+      "map": {
+        "center": [
+          30.3351,
+          59.9343
+        ],
+        "zoom": 15,
+        "fitToData": false,
+        "layers": [
+          {
+            "id": "zones",
+            "source": "primary",
+            "kind": "polygon",
+            "geometryField": "geometry",
+            "labelField": "number",
+            "popupFields": [
+              {
+                "field": "number",
+                "label": "Зона"
+              },
+              {
+                "field": "tariffPerHour",
+                "label": "Тариф, ₽/ч",
+                "format": "currency"
+              },
+              {
+                "field": "schedule",
+                "label": "Время работы"
+              }
+            ]
+          },
+          {
+            "id": "me",
+            "source": "vehicle",
+            "kind": "point",
+            "geometryField": "lastPosition",
+            "realtimeUpdate": true
+          }
+        ]
+      },
+      "slots": [
+        {
+          "id": "current-zone-card",
+          "placement": "map-overlay",
+          "task": "Нижняя карточка поверх карты: номер текущей зоны и её параметры (тариф, время работы, бесплатные минуты) или «Вы вне платной зоны». Если активной сессии нет и автомобиль в зоне — кнопка «Начать сессию» ведёт на экран session.",
+          "components": [
+            "ElevatedCard",
+            "ListItem",
+            "Button",
+            "AssistChip"
+          ],
+          "requirements": [
+            "FR-03",
+            "FR-04",
+            "FR-14"
+          ]
+        }
+      ],
+      "notifications": [
+        {
+          "eventType": "zone.entered",
+          "text": "Вы въехали в зону платной парковки {payload.zoneNumber}",
+          "severity": "info",
+          "actionId": "open-session"
+        },
+        {
+          "eventType": "session.started",
+          "text": "Парковка оплачена до {payload.paidUntil:time}",
+          "severity": "success"
+        },
+        {
+          "eventType": "session.expiring",
+          "text": "До окончания парковки осталось 10 минут",
+          "severity": "warn",
+          "actionId": "open-payment"
+        },
+        {
+          "eventType": "zone.exited",
+          "text": "Вы покинули текущую парковочную зону",
+          "severity": "info"
+        },
+        {
+          "eventType": "zone.changed",
+          "text": "Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты",
+          "severity": "warn",
+          "actionId": "open-payment"
+        }
+      ],
+      "actions": [
+        {
+          "id": "open-session",
+          "label": "Сессия",
+          "kind": "primary",
+          "navigateTo": "session"
+        },
+        {
+          "id": "open-payment",
+          "label": "Перейти к оплате",
+          "kind": "secondary",
+          "externalUrl": "https://parking.spb.ru/"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "Нет данных о зонах",
+          "description": "Проверьте подключение к сети"
+        },
+        "error": {
+          "title": "Не удалось загрузить карту",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет разрешения на геолокацию",
+          "description": "Разрешите доступ к местоположению, чтобы определять парковочную зону"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "session",
+      "title": "Парковочная сессия",
+      "archetype": "detail",
+      "route": "/session",
+      "roles": [
+        "driver"
+      ],
+      "requirements": [
+        "FR-05",
+        "FR-09",
+        "FR-11",
+        "FR-14"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingSessions",
+          "params": {
+            "vehicleId": "context:vehicleId",
+            "status": "const:active",
+            "size": "const:1"
+          }
+        },
+        "secondary": {
+          "vehicle": {
+            "operationId": "getVehicle",
+            "params": {
+              "id": "context:vehicleId"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "session.started",
+          "session.expiring",
+          "session.expired",
+          "zone.changed"
+        ],
+        "mode": "refresh"
+      },
+      "detail": {
+        "titleField": "zoneNumber",
+        "statusField": {
+          "field": "status",
+          "label": "Статус",
+          "format": "status",
+          "statusMap": {
+            "active": {
+              "label": "Оплачено",
+              "severity": "success"
+            },
+            "expiring": {
+              "label": "Скоро истечёт",
+              "severity": "warn"
+            },
+            "expired": {
+              "label": "Время истекло",
+              "severity": "danger"
+            },
+            "finished": {
+              "label": "Завершена",
+              "severity": "secondary"
+            }
+          }
+        },
+        "sections": [
+          {
+            "title": "Сессия",
+            "kind": "fields",
+            "fields": [
+              {
+                "field": "zoneNumber",
+                "label": "Зона"
+              },
+              {
+                "field": "paidUntil",
+                "label": "Оплачено до",
+                "format": "time"
+              },
+              {
+                "field": "remainingSeconds",
+                "label": "Осталось",
+                "format": "duration"
+              }
+            ],
+            "emptyText": "Активной сессии нет"
+          }
+        ]
+      },
+      "slots": [
+        {
+          "id": "countdown",
+          "placement": "main-top",
+          "task": "Крупный обратный отсчёт до paidUntil с круговым индикатором; за 10 минут до конца цвет предупреждения, после — ошибки. Обновление каждую секунду без запросов к серверу.",
+          "components": [
+            "CircularProgressIndicator",
+            "Card"
+          ],
+          "requirements": [
+            "FR-09"
+          ]
+        },
+        {
+          "id": "start-form",
+          "placement": "main-bottom",
+          "task": "Если активной сессии нет: выбор «Оплачено до» (время) и кнопка «Подтвердить оплату», вызывающая startParkingSession с zoneId текущей зоны автомобиля и Idempotency-Key.",
+          "components": [
+            "OutlinedTextField",
+            "Button"
+          ],
+          "requirements": [
+            "FR-14"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "pay",
+          "label": "Перейти к оплате",
+          "icon": "open_in_new",
+          "kind": "primary",
+          "externalUrl": "{paymentUrl}"
+        },
+        {
+          "id": "finish",
+          "label": "Завершить",
+          "kind": "danger",
+          "operationId": "finishParkingSession",
+          "params": {
+            "id": "item:id"
+          },
+          "confirm": "Завершить парковку?",
+          "successMessage": "Сессия завершена",
+          "idempotent": true
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "Активной сессии нет",
+          "description": "Подтвердите оплату, когда припаркуетесь в платной зоне"
+        },
+        "error": {
+          "title": "Не удалось загрузить сессию",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "notifications",
+      "title": "Уведомления",
+      "archetype": "timeline",
+      "route": "/notifications",
+      "roles": [
+        "driver"
+      ],
+      "requirements": [
+        "FR-07",
+        "FR-08",
+        "FR-10"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listEvents",
+          "pagination": "page",
+          "params": {
+            "vehicleId": "context:vehicleId"
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired"
+        ],
+        "mode": "prepend"
+      },
+      "timeline": {
+        "titleField": "message",
+        "timeField": "occurredAt",
+        "severityField": "severity"
+      },
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "Уведомлений пока нет"
+        },
+        "error": {
+          "title": "Не удалось загрузить уведомления",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "history",
+      "title": "История",
+      "archetype": "list",
+      "route": "/history",
+      "roles": [
+        "driver"
+      ],
+      "requirements": [
+        "FR-12"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingSessions",
+          "pagination": "page",
+          "params": {
+            "vehicleId": "context:vehicleId",
+            "sort": "const:startedAt,desc"
+          }
+        }
+      },
+      "list": {
+        "columns": [
+          {
+            "field": "zoneNumber",
+            "label": "Зона"
+          },
+          {
+            "field": "startedAt",
+            "label": "Начало",
+            "format": "datetime"
+          },
+          {
+            "field": "paidUntil",
+            "label": "Оплачено до",
+            "format": "time"
+          },
+          {
+            "field": "status",
+            "label": "Статус",
+            "format": "status",
+            "statusMap": {
+              "active": {
+                "label": "Активна",
+                "severity": "success"
+              },
+              "expiring": {
+                "label": "Истекает",
+                "severity": "warn"
+              },
+              "expired": {
+                "label": "Истекла",
+                "severity": "danger"
+              },
+              "finished": {
+                "label": "Завершена",
+                "severity": "secondary"
+              }
+            }
+          }
+        ],
+        "rowLink": "route",
+        "rowLinkParam": "id"
+      },
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "Сессий ещё не было"
+        },
+        "error": {
+          "title": "Не удалось загрузить историю",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "route",
+      "title": "Маршрут",
+      "archetype": "map",
+      "route": "/route/:id",
+      "roles": [
+        "driver"
+      ],
+      "requirements": [
+        "FR-12"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listVehicleTrack",
+          "params": {
+            "id": "context:vehicleId",
+            "size": "const:2000"
+          }
+        },
+        "secondary": {
+          "zones": {
+            "operationId": "listParkingZones",
+            "params": {
+              "size": "const:100"
+            }
+          }
+        }
+      },
+      "map": {
+        "fitToData": true,
+        "layers": [
+          {
+            "id": "zones",
+            "source": "zones",
+            "kind": "polygon",
+            "geometryField": "geometry",
+            "labelField": "number"
+          },
+          {
+            "id": "track",
+            "source": "primary",
+            "kind": "line",
+            "geometryField": "geometry"
+          }
+        ]
+      },
+      "states": {
+        "loading": {
+          "kind": "progress"
+        },
+        "empty": {
+          "title": "Маршрут не записан"
+        },
+        "error": {
+          "title": "Не удалось загрузить маршрут",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+@startuml
+autonumber
+title Предупреждение об окончании и переход к оплате
+participant "Background Worker" as Background_Worker
+participant "PostgreSQL + PostGIS" as PostgreSQL___PostGIS
+participant "Kafka" as Kafka
+participant "Mobile App" as Mobile_App
+participant "Backend API" as Backend_API
+participant "Водитель" as ________
+participant "Official Payment Service" as Official_Payment_Service
+Background_Worker -> PostgreSQL___PostGIS : сессии с paidUntil ≤ now + 10 мин → status expiring + outbox
+Background_Worker -> Kafka : parking.session.expiring.v1
+Mobile_App -> Backend_API : GET /me/notifications?unreadOnly=true (опрос) 
+Backend_API --> Mobile_App : «До окончания парковки осталось 10 минут»
+________ -> Mobile_App : «Оплатить»
+Mobile_App -> Backend_API : GET /zones/{zoneId}/payment-link
+Backend_API --> Mobile_App : appUrl, webUrl
+Mobile_App -> Official_Payment_Service : deeplink с номером зоны
+@enduml

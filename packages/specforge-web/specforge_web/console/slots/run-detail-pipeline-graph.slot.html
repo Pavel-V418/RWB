@@ -1,0 +1,119 @@
+<p-card styleClass="sf-graph-card" data-testid="run-graph">
+  <div class="sf-stack">
+    <div class="sf-row sf-row--between">
+      <div class="sf-stack sf-stack--sm">
+        <strong>Этапы конвейера</strong>
+        <span class="sf-muted">Готово {{ progress() }}%</span>
+      </div>
+      <div class="sf-row">
+        @if (appUrl(); as url) {
+          <p-button label="Открыть прототип" icon="pi pi-external-link" size="small" [outlined]="true" (onClick)="openApp(url)" data-testid="run-graph-open-app" />
+        }
+        @if (run()?.simulated) {
+          <p-tag value="Демо-режим" severity="warn" icon="pi pi-info-circle" [rounded]="true" data-testid="run-graph-simulated" />
+        }
+        <p-tag [value]="connected() ? 'Поток событий' : 'Обновление каждые 5 с'" [severity]="connected() ? 'success' : 'secondary'" icon="pi pi-bolt" [rounded]="true" data-testid="run-graph-live" />
+      </div>
+    </div>
+    <p-progressbar [value]="progress()" [showValue]="false" styleClass="sf-graph-progress" />
+    @if (stages().length === 0) {
+      <span class="sf-muted">Этапы появятся после старта прогона</span>
+    }
+    <div class="sf-graph" role="list" aria-label="Этапы конвейера">
+      @for (col of columns(); track $index) {
+        <div class="sf-graph-col">
+          @for (s of col; track s.id) {
+            <div class="sf-node" role="listitem" tabindex="0" [attr.data-status]="s.status" [class.sf-node--selected]="selectedStage()?.id === s.id"
+                 [attr.data-testid]="'run-graph-node-' + s.id" (click)="select(s.id)" (keydown.enter)="select(s.id)">
+              <div class="sf-node-title">{{ s.title }}</div>
+              <p-tag [value]="label(s.status)" [severity]="sev(s.status)" />
+              <div class="sf-node-meta">попыток {{ s.attempts }} · {{ tokens(s) }} ток.</div>
+              @if (active(s.status)) {
+                <p-progressbar mode="indeterminate" styleClass="sf-node-progress" />
+              }
+            </div>
+          }
+        </div>
+        @if (!$last) {
+          <i class="pi pi-angle-right sf-graph-arrow" aria-hidden="true"></i>
+        }
+      }
+    </div>
+    @if (selectedStage(); as st) {
+      <div class="sf-node-detail sf-stack sf-stack--sm" data-testid="run-graph-detail">
+        <div class="sf-row sf-row--between">
+          <strong>{{ st.title }}</strong>
+          <span class="sf-muted">{{ st.gate?.name ?? '' }}</span>
+        </div>
+        @if (st.summary) {
+          <p class="sf-node-summary" data-testid="run-graph-summary">{{ st.summary }}</p>
+        }
+        @if ((st.questions ?? []).length) {
+          <div class="sf-stack sf-stack--sm" data-testid="run-graph-questions">
+            <strong class="sf-node-subtitle">Вопросы и допущения</strong>
+            @for (q of st.questions ?? []; track q.id) {
+              <div class="sf-question sf-stack sf-stack--sm" [attr.data-testid]="'run-graph-question-' + q.id">
+                <div class="sf-row">
+                  <span>{{ q.text }}</span>
+                  @if (q.blocking) {
+                    <p-tag value="Нужен ответ" severity="warn" />
+                  }
+                </div>
+                @if (q.assumption) {
+                  <span class="sf-muted">Допущение агента: {{ q.assumption }}</span>
+                }
+                @if (st.status === 'awaiting_approval') {
+                  <label class="sf-visually-hidden" [attr.for]="'q-' + q.id">Ответ: {{ q.text }}</label>
+                  <textarea pTextarea [id]="'q-' + q.id" rows="2" [ngModel]="answer(q.id)" (ngModelChange)="setAnswer(q.id, $event)"
+                            [placeholder]="q.blocking ? 'Ответ обязателен' : 'Ответ (необязательно) — иначе агент оставит допущение'"
+                            [attr.data-testid]="'run-graph-answer-' + q.id"></textarea>
+                } @else if (q.answer) {
+                  <span>Ответ: {{ q.answer }}</span>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (st.status === 'awaiting_approval') {
+          <div class="sf-stack sf-stack--sm">
+            <label for="run-graph-comment-input" class="sf-node-subtitle">Комментарий агенту</label>
+            <textarea pTextarea id="run-graph-comment-input" rows="3" maxlength="4000" [ngModel]="comment()" (ngModelChange)="comment.set($event)"
+                      placeholder="Обязателен при отклонении: что исправить" data-testid="run-graph-comment"></textarea>
+            @if (rejectTried() && !comment().trim()) {
+              <small class="sf-error" data-testid="run-graph-comment-required">Напишите, что исправить, — без комментария агенту нечего доработать</small>
+            }
+            @if (unanswered(st).length) {
+              <small class="sf-hint" data-testid="run-graph-approve-blocked">Чтобы принять этап, ответьте на вопросы с меткой «Нужен ответ» ({{ unanswered(st).length }})</small>
+            }
+          </div>
+          <div class="sf-row">
+            <p-button label="Принять" icon="pi pi-check" (onClick)="decide(st, 'approve')" [loading]="busy() === st.id" [disabled]="unanswered(st).length > 0 || busy() === st.id" data-testid="run-graph-approve" />
+            <p-button label="Отклонить" icon="pi pi-times" severity="danger" [outlined]="true" (onClick)="decide(st, 'reject')" [disabled]="busy() === st.id" data-testid="run-graph-reject" />
+          </div>
+        }
+        @for (e of st.gate?.errors ?? []; track $index) {
+          <p-message [severity]="e.severity === 'warning' ? 'warn' : 'error'" [text]="(e.file ? e.file + (e.line ? ':' + e.line : '') + ' — ' : '') + e.message" />
+        }
+        @if (st.gate?.passed && !(st.gate?.errors ?? []).length) {
+          <span class="sf-muted">Шлюз пройден без замечаний</span>
+        }
+        @if (st.skipReason) {
+          <span class="sf-muted">{{ st.skipReason }}</span>
+        }
+        @if ((st.artifacts ?? []).length) {
+          <div class="sf-stack sf-stack--sm" data-testid="run-graph-files">
+            <strong class="sf-node-subtitle">Файлы этапа ({{ (st.artifacts ?? []).length }})</strong>
+            <ul class="sf-node-files">
+              @for (f of shownFiles(st); track f) {
+                <li><code>{{ f }}</code></li>
+              }
+            </ul>
+            @if ((st.artifacts ?? []).length > shownFiles(st).length) {
+              <span class="sf-muted">и ещё {{ (st.artifacts ?? []).length - shownFiles(st).length }} — в разделе «Артефакты»</span>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+</p-card>

@@ -1,0 +1,24 @@
+{
+  "needs_web_ui": true,
+  "needs_admin_ui": true,
+  "needs_mobile_app": true,
+  "needs_geo": true,
+  "needs_async_events": true,
+  "needs_realtime_updates": true,
+  "needs_scheduled_jobs": true,
+  "needs_file_storage": false,
+  "needs_user_notifications": true,
+  "external_integrations": [
+    "Паркоматика (mock)",
+    "Официальный сервис оплаты (deeplink)",
+    "Открытые данные о зонах (снимок)",
+    "GPS / mock-маршрут"
+  ],
+  "notes": [
+    "Мобильное приложение на Kotlin прямо требуется",
+    "PostGIS и геозоны: определение зоны по координате",
+    "Модель событий прямо требуется: въезд, выход, смена зоны, жизненный цикл сессии",
+    "Таймер: предупреждение за 10 минут до окончания",
+    "Админка отображает события — нужны обновления в реальном времени"
+  ]
+}

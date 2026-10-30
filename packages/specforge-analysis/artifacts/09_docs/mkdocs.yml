@@ -1,0 +1,38 @@
+site_name: "Помощник управления платными парковками Санкт-Петербурга"
+docs_dir: docs
+theme:
+  name: material
+  language: ru
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - "О продукте": index.md
+  - "Руководство пользователя": user-guide.md
+  - "Запуск": run.md
+  - "Архитектура": architecture.md
+  - "Журнал решений (ADR)":
+    - "Список": adr/index.md
+    - "ADR-001. Где определяется платная зона": adr/ADR-001.md
+    - "ADR-002. Защита от дрожания GPS на границе зоны": adr/ADR-002.md
+    - "ADR-003. Интеграция с поставщиком парковочных услуг": adr/ADR-003.md
+    - "ADR-004. Источник времени окончания оплаты": adr/ADR-004.md
+    - "ADR-005. Доставка событий между компонентами": adr/ADR-005.md
+    - "ADR-006. Аутентификация пользователей": adr/ADR-006.md
+  - "API": api.md
+  - "Методы API": api-methods/index.md
+  - "Паспорта сервисов": services/index.md
+  - "Модель данных": data-model.md
+  - "Требования": requirements.md
+  - "Системный анализ": system-analysis.md
+  - "Трассируемость": traceability.md
+  - "Отчёт о тестировании": test-report.md
+  - "Отчёт о безопасности": security-report.md
+  - "Известные ограничения": limitations.md
+  - "Руководство разработчика": dev-guide.md
+  - "Эффективность конвейера": efficiency.md

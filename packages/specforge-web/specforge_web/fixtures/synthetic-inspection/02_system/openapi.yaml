@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info: { title: Inspection API, version: 1.0.0 }
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [login, password], properties: { login: { type: string }, password: { type: string } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { accessToken: { type: string }, expiresIn: { type: integer } } } } } } }
+  /sites:
+    get:
+      operationId: listSites
+      x-roles: [inspector, supervisor]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SitePage' } } } } }
+  /sites/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getSite
+      x-roles: [inspector, supervisor]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Site' } } } } }
+  /rounds:
+    get:
+      operationId: listRounds
+      x-roles: [inspector, supervisor]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+        - { name: state, in: query, schema: { type: string, enum: [planned, active, done] } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RoundPage' } } } } }
+  /rounds/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getRound
+      x-roles: [inspector, supervisor]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Round' } } } } }
+  /rounds/{id}/checks:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: listRoundChecks
+      x-roles: [inspector, supervisor]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Check' } } } } } }
+    post:
+      operationId: createRoundCheck
+      x-roles: [inspector]
+      x-idempotent: true
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CheckCreate' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Check' } } } } }
+  /stats/shift:
+    get:
+      operationId: getShiftStats
+      x-roles: [supervisor]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftStats' } } } } }
+components:
+  schemas:
+    Point:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { const: Point }
+        coordinates: { type: array, items: { type: number } }
+    Base:
+      type: object
+      properties:
+        id: { type: string }
+        createdAt: { type: string, format: date-time }
+    Site:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+        - type: object
+          required: [name, location]
+          properties:
+            name: { type: string }
+            address: { type: string }
+            location: { $ref: '#/components/schemas/Point' }
+            risk: { type: string, enum: [low, medium, high] }
+    SitePage:
+      type: object
+      required: [items, total]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Site' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    Round:
+      type: object
+      required: [id, title, state]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        state: { type: string, enum: [planned, active, done] }
+        inspectorName: { type: string }
+        startedAt: { type: [string, 'null'], format: date-time }
+        issues: { type: integer }
+    RoundPage:
+      type: object
+      required: [items, total]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Round' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    Check:
+      type: object
+      required: [id, checkedAt, result]
+      properties:
+        id: { type: string }
+        siteName: { type: string }
+        checkedAt: { type: string, format: date-time }
+        result: { type: string, enum: [ok, issue] }
+        comment: { type: string }
+    CheckCreate:
+      type: object
+      required: [siteId, result]
+      properties:
+        siteId: { type: string }
+        result: { type: string, enum: [ok, issue] }
+        comment: { type: string, maxLength: 2000 }
+    ShiftStats:
+      type: object
+      required: [rounds, issues]
+      properties: { rounds: { type: integer }, issues: { type: integer }, sitesChecked: { type: integer } }

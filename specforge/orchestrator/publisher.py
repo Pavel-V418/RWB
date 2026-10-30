@@ -60,6 +60,8 @@ class StageTarget(BaseModel):
 
     dir: str = "."
     root: list[str] = Field(default_factory=list)
+    exclude: list[str] = Field(default_factory=list)
+    """Служебные файлы этапа (шаблоны fnmatch по пути внутри этапа), которые не публикуются."""
 
 
 class RepoLayout(BaseModel):
@@ -86,6 +88,8 @@ class RepoLayout(BaseModel):
         """Путь файла этапа (rel — относительно artifacts/<stage>/) в репозитории."""
         target, prefix = self.target(stage), self.dir_of(stage)
         if target is None or prefix is None:
+            return None
+        if any(fnmatch.fnmatchcase(rel, g) for g in target.exclude):
             return None
         if "/" not in rel and any(fnmatch.fnmatchcase(rel, g) for g in target.root):
             return rel

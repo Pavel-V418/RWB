@@ -1,0 +1,1729 @@
+{
+  "specVersion": "1.0",
+  "app": {
+    "id": "admin",
+    "platform": "web",
+    "title": "Парковки служебного транспорта",
+    "locale": "ru-RU",
+    "uiKit": "primeng@20",
+    "auth": {
+      "required": true,
+      "loginScreen": "login",
+      "forbiddenScreen": "forbidden"
+    }
+  },
+  "roles": [
+    {
+      "id": "admin",
+      "title": "Администратор"
+    },
+    {
+      "id": "dispatcher",
+      "title": "Диспетчер"
+    }
+  ],
+  "navigation": [
+    {
+      "screen": "overview",
+      "label": "Обзор",
+      "icon": "pi pi-home"
+    },
+    {
+      "screen": "live-map",
+      "label": "Карта",
+      "icon": "pi pi-map"
+    },
+    {
+      "screen": "vehicle-list",
+      "label": "Автомобили",
+      "icon": "pi pi-car"
+    },
+    {
+      "screen": "session-list",
+      "label": "Сессии",
+      "icon": "pi pi-clock"
+    },
+    {
+      "screen": "zone-list",
+      "label": "Зоны",
+      "icon": "pi pi-th-large"
+    },
+    {
+      "screen": "event-log",
+      "label": "События",
+      "icon": "pi pi-bell"
+    }
+  ],
+  "screens": [
+    {
+      "id": "login",
+      "title": "Вход",
+      "archetype": "login",
+      "route": "/login",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "public": true,
+      "requirements": [
+        "FR-16"
+      ],
+      "form": {
+        "fields": [
+          {
+            "name": "login",
+            "label": "Логин",
+            "control": "text",
+            "required": true,
+            "validation": {
+              "minLength": 3,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "password",
+            "label": "Пароль",
+            "control": "password",
+            "required": true,
+            "validation": {
+              "minLength": 6,
+              "maxLength": 128
+            }
+          }
+        ],
+        "submit": {
+          "operationId": "login",
+          "label": "Войти",
+          "successMessage": "Добро пожаловать",
+          "navigateTo": "overview",
+          "idempotent": false
+        }
+      },
+      "states": {
+        "loading": {
+          "kind": "spinner"
+        },
+        "empty": {
+          "title": "—"
+        },
+        "error": {
+          "title": "Не удалось войти",
+          "description": "Проверьте логин и пароль",
+          "retry": false
+        },
+        "forbidden": {
+          "title": "Вход для этой учётной записи запрещён"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "forbidden",
+      "title": "Нет доступа",
+      "archetype": "forbidden",
+      "route": "/forbidden",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "public": true,
+      "requirements": [
+        "FR-16"
+      ],
+      "actions": [
+        {
+          "id": "go-home",
+          "label": "На главную",
+          "kind": "primary",
+          "navigateTo": "overview"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "spinner"
+        },
+        "empty": {
+          "title": "—"
+        },
+        "error": {
+          "title": "—",
+          "retry": false
+        },
+        "forbidden": {
+          "title": "У вас нет прав для просмотра этой страницы",
+          "description": "Обратитесь к администратору, если доступ нужен для работы",
+          "actionId": "go-home"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "overview",
+      "title": "Обзор",
+      "archetype": "dashboard",
+      "route": "/",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-02",
+        "FR-05",
+        "FR-09",
+        "FR-13",
+        "FR-15"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "getOverviewStats",
+          "refreshSeconds": 30
+        },
+        "secondary": {
+          "zones": {
+            "operationId": "listParkingZones",
+            "params": {
+              "size": "const:100"
+            }
+          },
+          "vehicles": {
+            "operationId": "listVehicles",
+            "params": {
+              "size": "const:100"
+            }
+          },
+          "events": {
+            "operationId": "listEvents",
+            "params": {
+              "size": "const:8"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired"
+        ],
+        "mode": "refresh"
+      },
+      "dashboard": {
+        "widgets": [
+          {
+            "id": "vehicles-in-zones",
+            "kind": "stat",
+            "title": "Автомобили в платных зонах",
+            "source": "primary",
+            "valueField": "vehiclesInZones",
+            "linkTo": "live-map",
+            "span": 3
+          },
+          {
+            "id": "active-sessions",
+            "kind": "stat",
+            "title": "Активные сессии",
+            "source": "primary",
+            "valueField": "activeSessions",
+            "linkTo": "session-list",
+            "span": 3
+          },
+          {
+            "id": "expiring-sessions",
+            "kind": "stat",
+            "title": "Истекают в ближайшие 10 минут",
+            "source": "primary",
+            "valueField": "expiringSessions",
+            "linkTo": "session-list",
+            "span": 3
+          },
+          {
+            "id": "events-today",
+            "kind": "stat",
+            "title": "Событий за сегодня",
+            "source": "primary",
+            "valueField": "eventsToday",
+            "linkTo": "event-log",
+            "span": 3
+          },
+          {
+            "id": "map",
+            "kind": "map",
+            "title": "Автомобили и зоны",
+            "source": "zones",
+            "span": 8,
+            "linkTo": "live-map",
+            "layers": [
+              {
+                "id": "zones",
+                "source": "zones",
+                "kind": "polygon",
+                "geometryField": "geometry",
+                "labelField": "number"
+              },
+              {
+                "id": "vehicles",
+                "source": "vehicles",
+                "kind": "point",
+                "geometryField": "lastPosition",
+                "labelField": "plateNumber",
+                "colorBy": "status",
+                "statusMap": {
+                  "moving": {
+                    "label": "В движении",
+                    "severity": "info"
+                  },
+                  "parked": {
+                    "label": "Припаркован",
+                    "severity": "success"
+                  },
+                  "offline": {
+                    "label": "Нет связи",
+                    "severity": "secondary"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "recent-events",
+            "kind": "timeline",
+            "title": "Последние события",
+            "source": "events",
+            "span": 4,
+            "linkTo": "event-log",
+            "timeline": {
+              "titleField": "type",
+              "timeField": "occurredAt",
+              "descriptionField": "message",
+              "severityField": "severity",
+              "titleMap": {
+                "zone.entered": "Въезд в зону",
+                "zone.exited": "Выезд из зоны",
+                "zone.changed": "Смена зоны",
+                "session.started": "Сессия начата",
+                "session.expiring": "Сессия истекает",
+                "session.expired": "Сессия истекла",
+                "session.finished": "Сессия завершена"
+              }
+            }
+          }
+        ]
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Данных пока нет",
+          "description": "Как только автомобили начнут передавать координаты, здесь появится сводка"
+        },
+        "error": {
+          "title": "Не удалось загрузить сводку",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Сводка доступна администраторам и диспетчерам"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "live-map",
+      "title": "Карта",
+      "archetype": "map",
+      "route": "/map",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-02",
+        "FR-03",
+        "FR-06",
+        "FR-07",
+        "FR-08",
+        "FR-13",
+        "FR-15"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingZones",
+          "params": {
+            "size": "const:100"
+          }
+        },
+        "secondary": {
+          "vehicles": {
+            "operationId": "listVehicles",
+            "params": {
+              "size": "const:100"
+            },
+            "refreshSeconds": 15
+          },
+          "events": {
+            "operationId": "listEvents",
+            "params": {
+              "size": "const:20"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "vehicle.position",
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired"
+        ],
+        "mode": "patch",
+        "notify": true
+      },
+      "map": {
+        "center": [
+          30.3351,
+          59.9343
+        ],
+        "zoom": 13,
+        "fitToData": true,
+        "layers": [
+          {
+            "id": "zones",
+            "title": "Платные зоны",
+            "source": "primary",
+            "kind": "polygon",
+            "geometryField": "geometry",
+            "labelField": "number",
+            "linkTo": "zone-detail",
+            "popupFields": [
+              {
+                "field": "number",
+                "label": "Зона"
+              },
+              {
+                "field": "name",
+                "label": "Название"
+              },
+              {
+                "field": "tariffPerHour",
+                "label": "Тариф, ₽/ч",
+                "format": "currency"
+              },
+              {
+                "field": "schedule",
+                "label": "Время работы"
+              }
+            ]
+          },
+          {
+            "id": "vehicles",
+            "title": "Автомобили",
+            "source": "vehicles",
+            "kind": "point",
+            "geometryField": "lastPosition",
+            "labelField": "plateNumber",
+            "colorBy": "status",
+            "linkTo": "vehicle-detail",
+            "realtimeUpdate": true,
+            "statusMap": {
+              "moving": {
+                "label": "В движении",
+                "severity": "info"
+              },
+              "parked": {
+                "label": "Припаркован",
+                "severity": "success"
+              },
+              "offline": {
+                "label": "Нет связи",
+                "severity": "secondary"
+              }
+            },
+            "popupFields": [
+              {
+                "field": "plateNumber",
+                "label": "Госномер"
+              },
+              {
+                "field": "driverName",
+                "label": "Водитель"
+              },
+              {
+                "field": "currentZoneNumber",
+                "label": "Зона"
+              },
+              {
+                "field": "lastSeenAt",
+                "label": "Обновлено",
+                "format": "relative-time"
+              }
+            ]
+          }
+        ],
+        "sidePanel": {
+          "title": "События",
+          "source": "events",
+          "kind": "timeline",
+          "timeline": {
+            "titleField": "type",
+            "timeField": "occurredAt",
+            "descriptionField": "message",
+            "severityField": "severity",
+            "titleMap": {
+              "zone.entered": "Въезд в зону",
+              "zone.exited": "Выезд из зоны",
+              "zone.changed": "Смена зоны",
+              "session.started": "Сессия начата",
+              "session.expiring": "Сессия истекает",
+              "session.expired": "Сессия истекла",
+              "session.finished": "Сессия завершена"
+            },
+            "linkTo": "vehicle-detail",
+            "linkParam": "vehicleId"
+          }
+        }
+      },
+      "notifications": [
+        {
+          "eventType": "zone.entered",
+          "text": "{payload.vehiclePlate}: въезд в зону {payload.zoneNumber}",
+          "severity": "info"
+        },
+        {
+          "eventType": "zone.changed",
+          "text": "{payload.vehiclePlate}: переход в зону {payload.zoneNumber}, требуется проверка оплаты",
+          "severity": "warn"
+        },
+        {
+          "eventType": "session.expiring",
+          "text": "{payload.vehiclePlate}: до окончания парковки 10 минут",
+          "severity": "warn"
+        },
+        {
+          "eventType": "session.expired",
+          "text": "{payload.vehiclePlate}: оплаченное время истекло",
+          "severity": "danger"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Зоны не загружены",
+          "description": "Справочник парковочных зон пуст — проверьте загрузку геоданных"
+        },
+        "error": {
+          "title": "Не удалось загрузить карту",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Карта доступна администраторам и диспетчерам"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "vehicle-list",
+      "title": "Автомобили",
+      "archetype": "list",
+      "route": "/vehicles",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-13",
+        "FR-02"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listVehicles",
+          "pagination": "page"
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "zone.entered",
+          "zone.exited",
+          "zone.changed"
+        ],
+        "mode": "refresh"
+      },
+      "list": {
+        "search": {
+          "param": "q",
+          "placeholder": "Госномер или водитель"
+        },
+        "filters": [
+          {
+            "field": "status",
+            "label": "Статус",
+            "control": "select",
+            "options": [
+              {
+                "value": "moving",
+                "label": "В движении"
+              },
+              {
+                "value": "parked",
+                "label": "Припаркован"
+              },
+              {
+                "value": "offline",
+                "label": "Нет связи"
+              }
+            ]
+          }
+        ],
+        "columns": [
+          {
+            "field": "plateNumber",
+            "label": "Госномер",
+            "format": "link",
+            "linkTo": "vehicle-detail",
+            "linkParam": "id",
+            "sortable": true
+          },
+          {
+            "field": "model",
+            "label": "Модель",
+            "hideBelow": "md"
+          },
+          {
+            "field": "driverName",
+            "label": "Водитель",
+            "hideBelow": "lg"
+          },
+          {
+            "field": "status",
+            "label": "Статус",
+            "format": "status",
+            "statusMap": {
+              "moving": {
+                "label": "В движении",
+                "severity": "info"
+              },
+              "parked": {
+                "label": "Припаркован",
+                "severity": "success"
+              },
+              "offline": {
+                "label": "Нет связи",
+                "severity": "secondary"
+              }
+            }
+          },
+          {
+            "field": "currentZoneNumber",
+            "label": "Зона",
+            "emptyText": "вне зон"
+          },
+          {
+            "field": "lastSeenAt",
+            "label": "Обновлено",
+            "format": "relative-time",
+            "sortable": true,
+            "hideBelow": "md"
+          }
+        ],
+        "rowLink": "vehicle-detail",
+        "rowLinkParam": "id",
+        "pageSize": 20
+      },
+      "actions": [
+        {
+          "id": "add-vehicle",
+          "label": "Добавить автомобиль",
+          "icon": "pi pi-plus",
+          "kind": "primary",
+          "navigateTo": "vehicle-create",
+          "roles": [
+            "admin"
+          ]
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Автомобилей пока нет",
+          "description": "Добавьте первый служебный автомобиль",
+          "actionId": "add-vehicle"
+        },
+        "error": {
+          "title": "Не удалось загрузить автомобили",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Список автомобилей недоступен для вашей роли"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "vehicle-create",
+      "title": "Новый автомобиль",
+      "archetype": "form",
+      "route": "/vehicles/new",
+      "roles": [
+        "admin"
+      ],
+      "requirements": [
+        "FR-17"
+      ],
+      "form": {
+        "mode": "create",
+        "fields": [
+          {
+            "name": "plateNumber",
+            "label": "Госномер",
+            "control": "text",
+            "required": true,
+            "placeholder": "А123ВС178",
+            "hint": "Кириллица, без пробелов",
+            "validation": {
+              "pattern": "^[АВЕКМНОРСТУХ][0-9]{3}[АВЕКМНОРСТУХ]{2}[0-9]{2,3}$",
+              "patternMessage": "Формат: А123ВС178"
+            }
+          },
+          {
+            "name": "model",
+            "label": "Модель",
+            "control": "text",
+            "required": true,
+            "validation": {
+              "minLength": 2,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "driverName",
+            "label": "Закреплённый водитель",
+            "control": "text",
+            "validation": {
+              "maxLength": 128
+            }
+          }
+        ],
+        "submit": {
+          "operationId": "createVehicle",
+          "label": "Сохранить",
+          "successMessage": "Автомобиль добавлен",
+          "navigateTo": "vehicle-list",
+          "idempotent": true
+        }
+      },
+      "actions": [
+        {
+          "id": "cancel",
+          "label": "Отмена",
+          "kind": "secondary",
+          "navigateTo": "vehicle-list"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "spinner"
+        },
+        "empty": {
+          "title": "—"
+        },
+        "error": {
+          "title": "Не удалось сохранить автомобиль",
+          "retry": false
+        },
+        "forbidden": {
+          "title": "Добавлять автомобили может только администратор",
+          "actionId": "cancel"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "vehicle-detail",
+      "title": "Автомобиль",
+      "archetype": "detail",
+      "route": "/vehicles/:id",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-02",
+        "FR-05",
+        "FR-06",
+        "FR-12",
+        "FR-13"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "getVehicle",
+          "params": {
+            "id": "route:id"
+          }
+        },
+        "secondary": {
+          "track": {
+            "operationId": "listVehicleTrack",
+            "params": {
+              "id": "route:id",
+              "size": "const:500"
+            }
+          },
+          "sessions": {
+            "operationId": "listParkingSessions",
+            "params": {
+              "vehicleId": "route:id",
+              "size": "const:10",
+              "sort": "const:startedAt,desc"
+            }
+          },
+          "events": {
+            "operationId": "listEvents",
+            "params": {
+              "vehicleId": "route:id",
+              "size": "const:15"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "vehicle.position",
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired"
+        ],
+        "mode": "refresh"
+      },
+      "detail": {
+        "titleField": "plateNumber",
+        "subtitleField": "model",
+        "statusField": {
+          "field": "status",
+          "label": "Статус",
+          "format": "status",
+          "statusMap": {
+            "moving": {
+              "label": "В движении",
+              "severity": "info"
+            },
+            "parked": {
+              "label": "Припаркован",
+              "severity": "success"
+            },
+            "offline": {
+              "label": "Нет связи",
+              "severity": "secondary"
+            }
+          }
+        },
+        "sections": [
+          {
+            "title": "Сведения",
+            "kind": "fields",
+            "fields": [
+              {
+                "field": "driverName",
+                "label": "Водитель"
+              },
+              {
+                "field": "currentZoneNumber",
+                "label": "Текущая зона",
+                "emptyText": "вне платных зон"
+              },
+              {
+                "field": "lastSeenAt",
+                "label": "Последняя координата",
+                "format": "datetime"
+              },
+              {
+                "field": "lastPosition",
+                "label": "Координаты",
+                "format": "coordinates"
+              }
+            ]
+          },
+          {
+            "title": "Маршрут за сегодня",
+            "kind": "map",
+            "source": "track",
+            "layers": [
+              {
+                "id": "track",
+                "source": "track",
+                "kind": "line",
+                "geometryField": "geometry"
+              },
+              {
+                "id": "position",
+                "source": "primary",
+                "kind": "point",
+                "geometryField": "lastPosition",
+                "labelField": "plateNumber"
+              }
+            ],
+            "emptyText": "Сегодня автомобиль не передавал координаты"
+          },
+          {
+            "title": "Парковочные сессии",
+            "kind": "table",
+            "source": "sessions",
+            "columns": [
+              {
+                "field": "zoneNumber",
+                "label": "Зона"
+              },
+              {
+                "field": "status",
+                "label": "Статус",
+                "format": "status",
+                "statusMap": {
+                  "active": {
+                    "label": "Активна",
+                    "severity": "success"
+                  },
+                  "expiring": {
+                    "label": "Истекает",
+                    "severity": "warn"
+                  },
+                  "expired": {
+                    "label": "Истекла",
+                    "severity": "danger"
+                  },
+                  "finished": {
+                    "label": "Завершена",
+                    "severity": "secondary"
+                  }
+                }
+              },
+              {
+                "field": "startedAt",
+                "label": "Начало",
+                "format": "datetime"
+              },
+              {
+                "field": "paidUntil",
+                "label": "Оплачено до",
+                "format": "time"
+              },
+              {
+                "field": "id",
+                "label": "",
+                "format": "link",
+                "linkTo": "session-detail",
+                "linkParam": "id"
+              }
+            ],
+            "emptyText": "Сессий ещё не было"
+          },
+          {
+            "title": "События",
+            "kind": "timeline",
+            "source": "events",
+            "timeline": {
+              "titleField": "type",
+              "timeField": "occurredAt",
+              "descriptionField": "message",
+              "severityField": "severity",
+              "titleMap": {
+                "zone.entered": "Въезд в зону",
+                "zone.exited": "Выезд из зоны",
+                "zone.changed": "Смена зоны",
+                "session.started": "Сессия начата",
+                "session.expiring": "Сессия истекает",
+                "session.expired": "Сессия истекла",
+                "session.finished": "Сессия завершена"
+              }
+            },
+            "emptyText": "Событий нет"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "id": "open-route",
+          "label": "Проиграть маршрут",
+          "icon": "pi pi-play",
+          "kind": "primary",
+          "navigateTo": "vehicle-route",
+          "params": {
+            "id": "route:id"
+          }
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Автомобиль не найден",
+          "description": "Возможно, он был удалён"
+        },
+        "error": {
+          "title": "Не удалось загрузить данные автомобиля",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа к данным автомобиля"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "vehicle-route",
+      "title": "Маршрут автомобиля",
+      "archetype": "map",
+      "route": "/vehicles/:id/route",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-06",
+        "FR-07",
+        "FR-08",
+        "FR-12"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listVehicleTrack",
+          "params": {
+            "id": "route:id",
+            "size": "const:2000"
+          }
+        },
+        "secondary": {
+          "zones": {
+            "operationId": "listParkingZones",
+            "params": {
+              "size": "const:100"
+            }
+          },
+          "events": {
+            "operationId": "listEvents",
+            "params": {
+              "vehicleId": "route:id",
+              "size": "const:50"
+            }
+          }
+        }
+      },
+      "map": {
+        "fitToData": true,
+        "layers": [
+          {
+            "id": "zones",
+            "source": "zones",
+            "kind": "polygon",
+            "geometryField": "geometry",
+            "labelField": "number"
+          },
+          {
+            "id": "track",
+            "source": "primary",
+            "kind": "line",
+            "geometryField": "geometry"
+          }
+        ],
+        "playback": {
+          "source": "primary",
+          "timeField": "recordedAt",
+          "geometryField": "geometry"
+        },
+        "sidePanel": {
+          "title": "События на маршруте",
+          "source": "events",
+          "kind": "timeline",
+          "timeline": {
+            "titleField": "type",
+            "timeField": "occurredAt",
+            "descriptionField": "message",
+            "severityField": "severity",
+            "titleMap": {
+              "zone.entered": "Въезд в зону",
+              "zone.exited": "Выезд из зоны",
+              "zone.changed": "Смена зоны",
+              "session.started": "Сессия начата",
+              "session.expiring": "Сессия истекает",
+              "session.expired": "Сессия истекла",
+              "session.finished": "Сессия завершена"
+            }
+          }
+        }
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Маршрута нет",
+          "description": "За выбранный период автомобиль не передавал координаты"
+        },
+        "error": {
+          "title": "Не удалось загрузить маршрут",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа к маршрутам"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "zone-list",
+      "title": "Парковочные зоны",
+      "archetype": "list",
+      "route": "/zones",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-03",
+        "FR-04",
+        "FR-13"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingZones",
+          "pagination": "page"
+        }
+      },
+      "list": {
+        "search": {
+          "param": "q",
+          "placeholder": "Номер или название зоны"
+        },
+        "columns": [
+          {
+            "field": "number",
+            "label": "Номер",
+            "format": "link",
+            "linkTo": "zone-detail",
+            "linkParam": "id",
+            "sortable": true
+          },
+          {
+            "field": "name",
+            "label": "Название"
+          },
+          {
+            "field": "tariffPerHour",
+            "label": "Тариф, ₽/ч",
+            "format": "currency",
+            "sortable": true
+          },
+          {
+            "field": "schedule",
+            "label": "Время работы",
+            "hideBelow": "md"
+          },
+          {
+            "field": "maxDurationMinutes",
+            "label": "Макс. время, мин",
+            "format": "number",
+            "hideBelow": "lg"
+          },
+          {
+            "field": "vehiclesInside",
+            "label": "Автомобилей в зоне",
+            "format": "number"
+          }
+        ],
+        "rowLink": "zone-detail",
+        "rowLinkParam": "id"
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Зон нет",
+          "description": "Справочник зон загружается из открытых данных при старте системы"
+        },
+        "error": {
+          "title": "Не удалось загрузить зоны",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Справочник зон недоступен для вашей роли"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "zone-detail",
+      "title": "Парковочная зона",
+      "archetype": "detail",
+      "route": "/zones/:id",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-03",
+        "FR-04",
+        "FR-05"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "getParkingZone",
+          "params": {
+            "id": "route:id"
+          }
+        },
+        "secondary": {
+          "sessions": {
+            "operationId": "listParkingSessions",
+            "params": {
+              "zoneId": "route:id",
+              "status": "const:active",
+              "size": "const:20"
+            }
+          }
+        }
+      },
+      "detail": {
+        "titleField": "number",
+        "subtitleField": "name",
+        "sections": [
+          {
+            "title": "Параметры парковки",
+            "kind": "fields",
+            "fields": [
+              {
+                "field": "tariffPerHour",
+                "label": "Тариф, ₽/ч",
+                "format": "currency"
+              },
+              {
+                "field": "schedule",
+                "label": "Время работы"
+              },
+              {
+                "field": "maxDurationMinutes",
+                "label": "Максимальное время, мин",
+                "format": "number",
+                "emptyText": "без ограничения"
+              },
+              {
+                "field": "freeMinutes",
+                "label": "Бесплатные минуты",
+                "format": "number"
+              }
+            ]
+          },
+          {
+            "title": "Границы зоны",
+            "kind": "map",
+            "layers": [
+              {
+                "id": "zone",
+                "source": "primary",
+                "kind": "polygon",
+                "geometryField": "geometry",
+                "labelField": "number"
+              }
+            ]
+          },
+          {
+            "title": "Активные сессии в зоне",
+            "kind": "table",
+            "source": "sessions",
+            "columns": [
+              {
+                "field": "vehiclePlate",
+                "label": "Госномер",
+                "format": "link",
+                "linkTo": "session-detail",
+                "linkParam": "id"
+              },
+              {
+                "field": "driverName",
+                "label": "Водитель"
+              },
+              {
+                "field": "paidUntil",
+                "label": "Оплачено до",
+                "format": "time"
+              },
+              {
+                "field": "remainingSeconds",
+                "label": "Осталось",
+                "format": "duration"
+              }
+            ],
+            "emptyText": "Сейчас в зоне нет активных сессий"
+          }
+        ]
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Зона не найдена"
+        },
+        "error": {
+          "title": "Не удалось загрузить зону",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа к данным зоны"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "session-list",
+      "title": "Парковочные сессии",
+      "archetype": "list",
+      "route": "/sessions",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-05",
+        "FR-09",
+        "FR-12",
+        "FR-13"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listParkingSessions",
+          "pagination": "page",
+          "params": {
+            "sort": "const:startedAt,desc"
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "session.started",
+          "session.expiring",
+          "session.expired",
+          "session.finished"
+        ],
+        "mode": "refresh"
+      },
+      "list": {
+        "tabs": [
+          {
+            "label": "Активные",
+            "params": {
+              "status": "active"
+            }
+          },
+          {
+            "label": "Истекают",
+            "params": {
+              "status": "expiring"
+            }
+          },
+          {
+            "label": "История",
+            "params": {}
+          }
+        ],
+        "filters": [
+          {
+            "field": "period",
+            "label": "Период",
+            "control": "date-range",
+            "param": "from,to"
+          }
+        ],
+        "columns": [
+          {
+            "field": "vehiclePlate",
+            "label": "Госномер",
+            "format": "link",
+            "linkTo": "session-detail",
+            "linkParam": "id"
+          },
+          {
+            "field": "zoneNumber",
+            "label": "Зона"
+          },
+          {
+            "field": "status",
+            "label": "Статус",
+            "format": "status",
+            "statusMap": {
+              "active": {
+                "label": "Активна",
+                "severity": "success"
+              },
+              "expiring": {
+                "label": "Истекает",
+                "severity": "warn"
+              },
+              "expired": {
+                "label": "Истекла",
+                "severity": "danger"
+              },
+              "finished": {
+                "label": "Завершена",
+                "severity": "secondary"
+              }
+            }
+          },
+          {
+            "field": "startedAt",
+            "label": "Начало",
+            "format": "datetime",
+            "sortable": true,
+            "hideBelow": "md"
+          },
+          {
+            "field": "paidUntil",
+            "label": "Оплачено до",
+            "format": "time",
+            "sortable": true
+          },
+          {
+            "field": "remainingSeconds",
+            "label": "Осталось",
+            "format": "duration"
+          },
+          {
+            "field": "driverName",
+            "label": "Водитель",
+            "hideBelow": "lg"
+          }
+        ],
+        "rowLink": "session-detail",
+        "rowLinkParam": "id"
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Сессий нет",
+          "description": "Сессия появится, когда водитель подтвердит оплату в мобильном приложении"
+        },
+        "error": {
+          "title": "Не удалось загрузить сессии",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Сессии недоступны для вашей роли"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "session-detail",
+      "title": "Парковочная сессия",
+      "archetype": "detail",
+      "route": "/sessions/:id",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-05",
+        "FR-09",
+        "FR-11",
+        "FR-12"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "getParkingSession",
+          "params": {
+            "id": "route:id"
+          }
+        },
+        "secondary": {
+          "events": {
+            "operationId": "listEvents",
+            "params": {
+              "sessionId": "route:id",
+              "size": "const:50"
+            }
+          }
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "session.expiring",
+          "session.expired",
+          "session.finished"
+        ],
+        "mode": "refresh"
+      },
+      "detail": {
+        "titleField": "vehiclePlate",
+        "subtitleField": "zoneNumber",
+        "statusField": {
+          "field": "status",
+          "label": "Статус",
+          "format": "status",
+          "statusMap": {
+            "active": {
+              "label": "Активна",
+              "severity": "success"
+            },
+            "expiring": {
+              "label": "Истекает",
+              "severity": "warn"
+            },
+            "expired": {
+              "label": "Истекла",
+              "severity": "danger"
+            },
+            "finished": {
+              "label": "Завершена",
+              "severity": "secondary"
+            }
+          }
+        },
+        "sections": [
+          {
+            "title": "Сессия",
+            "kind": "fields",
+            "fields": [
+              {
+                "field": "zoneNumber",
+                "label": "Зона",
+                "format": "link",
+                "linkTo": "zone-detail",
+                "linkParam": "zoneId"
+              },
+              {
+                "field": "driverName",
+                "label": "Водитель"
+              },
+              {
+                "field": "startedAt",
+                "label": "Начало",
+                "format": "datetime"
+              },
+              {
+                "field": "paidUntil",
+                "label": "Оплачено до",
+                "format": "datetime"
+              },
+              {
+                "field": "remainingSeconds",
+                "label": "Осталось",
+                "format": "duration"
+              },
+              {
+                "field": "finishedAt",
+                "label": "Завершена",
+                "format": "datetime",
+                "emptyText": "ещё идёт"
+              },
+              {
+                "field": "provider",
+                "label": "Поставщик"
+              }
+            ]
+          },
+          {
+            "title": "История сессии",
+            "kind": "timeline",
+            "source": "events",
+            "timeline": {
+              "titleField": "type",
+              "timeField": "occurredAt",
+              "descriptionField": "message",
+              "severityField": "severity",
+              "titleMap": {
+                "zone.entered": "Въезд в зону",
+                "zone.exited": "Выезд из зоны",
+                "zone.changed": "Смена зоны",
+                "session.started": "Сессия начата",
+                "session.expiring": "Сессия истекает",
+                "session.expired": "Сессия истекла",
+                "session.finished": "Сессия завершена"
+              }
+            },
+            "emptyText": "Событий по сессии нет"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "id": "open-payment",
+          "label": "Открыть сервис оплаты",
+          "icon": "pi pi-external-link",
+          "kind": "secondary",
+          "externalUrl": "{paymentUrl}"
+        },
+        {
+          "id": "finish-session",
+          "label": "Завершить сессию",
+          "icon": "pi pi-stop",
+          "kind": "danger",
+          "operationId": "finishParkingSession",
+          "params": {
+            "id": "route:id"
+          },
+          "confirm": "Завершить парковочную сессию? Водитель получит уведомление.",
+          "successMessage": "Сессия завершена",
+          "idempotent": true,
+          "roles": [
+            "admin"
+          ],
+          "visibleWhen": "status != finished"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Сессия не найдена"
+        },
+        "error": {
+          "title": "Не удалось загрузить сессию",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Нет доступа к сессии"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "event-log",
+      "title": "Журнал событий",
+      "archetype": "timeline",
+      "route": "/events",
+      "roles": [
+        "admin",
+        "dispatcher"
+      ],
+      "requirements": [
+        "FR-07",
+        "FR-08",
+        "FR-10",
+        "FR-13",
+        "FR-15"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listEvents",
+          "pagination": "page"
+        }
+      },
+      "realtime": {
+        "eventTypes": [
+          "zone.entered",
+          "zone.exited",
+          "zone.changed",
+          "session.started",
+          "session.expiring",
+          "session.expired",
+          "session.finished"
+        ],
+        "mode": "prepend"
+      },
+      "timeline": {
+        "titleField": "type",
+        "timeField": "occurredAt",
+        "descriptionField": "message",
+        "severityField": "severity",
+        "titleMap": {
+          "zone.entered": "Въезд в зону",
+          "zone.exited": "Выезд из зоны",
+          "zone.changed": "Смена зоны",
+          "session.started": "Сессия начата",
+          "session.expiring": "Сессия истекает",
+          "session.expired": "Сессия истекла",
+          "session.finished": "Сессия завершена"
+        },
+        "filters": [
+          {
+            "field": "type",
+            "label": "Тип события",
+            "control": "select",
+            "options": [
+              {
+                "value": "zone.entered",
+                "label": "Въезд в зону"
+              },
+              {
+                "value": "zone.exited",
+                "label": "Выезд из зоны"
+              },
+              {
+                "value": "zone.changed",
+                "label": "Смена зоны"
+              },
+              {
+                "value": "session.started",
+                "label": "Сессия начата"
+              },
+              {
+                "value": "session.expiring",
+                "label": "Сессия истекает"
+              },
+              {
+                "value": "session.expired",
+                "label": "Сессия истекла"
+              },
+              {
+                "value": "session.finished",
+                "label": "Сессия завершена"
+              }
+            ]
+          },
+          {
+            "field": "vehicleId",
+            "label": "Автомобиль",
+            "control": "select",
+            "optionsFrom": {
+              "operationId": "listVehicles",
+              "params": {
+                "size": "const:100"
+              }
+            },
+            "optionLabel": "plateNumber",
+            "optionValue": "id"
+          },
+          {
+            "field": "period",
+            "label": "Период",
+            "control": "date-range",
+            "param": "from,to"
+          }
+        ],
+        "linkTo": "vehicle-detail",
+        "linkParam": "vehicleId"
+      },
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Событий нет",
+          "description": "Измените фильтры или дождитесь новых событий — они появятся здесь автоматически"
+        },
+        "error": {
+          "title": "Не удалось загрузить журнал",
+          "retry": true
+        },
+        "forbidden": {
+          "title": "Журнал событий недоступен для вашей роли"
+        },
+        "ready": {}
+      }
+    }
+  ]
+}

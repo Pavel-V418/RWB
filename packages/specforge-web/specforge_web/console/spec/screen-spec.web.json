@@ -1,0 +1,388 @@
+{
+  "specVersion": "1.0",
+  "app": {
+    "id": "console",
+    "platform": "web",
+    "title": "SpecForge",
+    "uiKit": "primeng@20",
+    "auth": {
+      "required": false
+    }
+  },
+  "roles": [
+    {
+      "id": "operator",
+      "title": "ИИ-инженер"
+    }
+  ],
+  "navigation": [
+    {
+      "screen": "run-list",
+      "label": "Прогоны",
+      "icon": "pi pi-history"
+    },
+    {
+      "screen": "run-new",
+      "label": "Новый прогон",
+      "icon": "pi pi-play"
+    }
+  ],
+  "screens": [
+    {
+      "id": "run-list",
+      "title": "Прогоны конвейера",
+      "archetype": "list",
+      "route": "/",
+      "roles": [
+        "operator"
+      ],
+      "requirements": [
+        "FR-06"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "listRuns",
+          "pagination": "page",
+          "refreshSeconds": 5
+        }
+      },
+      "list": {
+        "columns": [
+          {
+            "field": "title",
+            "label": "Прогон",
+            "format": "link",
+            "linkTo": "run-detail",
+            "linkParam": "id"
+          },
+          {
+            "field": "status",
+            "label": "Статус",
+            "format": "status",
+            "statusMap": {
+              "queued": {
+                "label": "В очереди",
+                "severity": "secondary"
+              },
+              "running": {
+                "label": "Идёт",
+                "severity": "info"
+              },
+              "awaiting_approval": {
+                "label": "Ждёт решения",
+                "severity": "warn"
+              },
+              "passed": {
+                "label": "Готово",
+                "severity": "success"
+              },
+              "failed": {
+                "label": "Ошибка",
+                "severity": "danger"
+              },
+              "cancelled": {
+                "label": "Отменён",
+                "severity": "secondary"
+              }
+            }
+          },
+          {
+            "field": "mode",
+            "label": "Режим",
+            "format": "status",
+            "statusMap": {
+              "autopilot": {
+                "label": "Autopilot",
+                "severity": "contrast"
+              },
+              "approve": {
+                "label": "С подтверждением",
+                "severity": "info"
+              }
+            }
+          },
+          {
+            "field": "createdAt",
+            "label": "Запущен",
+            "format": "relative-time",
+            "hideBelow": "md"
+          },
+          {
+            "field": "finishedAt",
+            "label": "Завершён",
+            "format": "datetime",
+            "hideBelow": "lg",
+            "emptyText": "идёт"
+          }
+        ],
+        "rowLink": "run-detail"
+      },
+      "actions": [
+        {
+          "id": "new-run",
+          "label": "Новый прогон",
+          "icon": "pi pi-play",
+          "kind": "primary",
+          "navigateTo": "run-new"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Прогонов ещё не было",
+          "description": "Загрузите бизнес-требования — конвейер пройдёт все этапы сам",
+          "actionId": "new-run"
+        },
+        "error": {
+          "title": "Не удалось получить список прогонов",
+          "description": "Проверьте, что оркестратор запущен"
+        },
+        "forbidden": {
+          "title": "Нет доступа к консоли"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "run-new",
+      "title": "Новый прогон",
+      "archetype": "generic",
+      "route": "/runs/new",
+      "roles": [
+        "operator"
+      ],
+      "requirements": [
+        "FR-01"
+      ],
+      "slots": [
+        {
+          "id": "start-form",
+          "placement": "main-top",
+          "task": "Форма запуска: файл требований или текст, название, режим autopilot/approve; multipart POST /runs; переход на экран прогона.",
+          "components": [
+            "p-card",
+            "p-fileupload",
+            "p-selectbutton",
+            "p-button",
+            "p-message"
+          ],
+          "requirements": [
+            "FR-01"
+          ]
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "spinner"
+        },
+        "empty": {
+          "title": "—"
+        },
+        "error": {
+          "title": "Не удалось запустить прогон",
+          "retry": false
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    },
+    {
+      "id": "run-detail",
+      "title": "Прогон",
+      "archetype": "detail",
+      "route": "/runs/:id",
+      "roles": [
+        "operator"
+      ],
+      "requirements": [
+        "FR-02",
+        "FR-03",
+        "FR-04",
+        "FR-05"
+      ],
+      "data": {
+        "primary": {
+          "operationId": "getRun",
+          "params": {
+            "runId": "route:id"
+          },
+          "refreshSeconds": 5
+        },
+        "secondary": {
+          "metrics": {
+            "operationId": "getRunMetrics",
+            "params": {
+              "runId": "route:id"
+            }
+          },
+          "artifacts": {
+            "operationId": "listRunArtifacts",
+            "params": {
+              "runId": "route:id"
+            }
+          }
+        }
+      },
+      "detail": {
+        "titleField": "title",
+        "statusField": {
+          "field": "status",
+          "label": "Статус",
+          "format": "status",
+          "statusMap": {
+            "queued": {
+              "label": "В очереди",
+              "severity": "secondary"
+            },
+            "running": {
+              "label": "Идёт",
+              "severity": "info"
+            },
+            "awaiting_approval": {
+              "label": "Ждёт решения",
+              "severity": "warn"
+            },
+            "passed": {
+              "label": "Готово",
+              "severity": "success"
+            },
+            "failed": {
+              "label": "Ошибка",
+              "severity": "danger"
+            },
+            "cancelled": {
+              "label": "Отменён",
+              "severity": "secondary"
+            }
+          }
+        },
+        "sections": [
+          {
+            "title": "Прогон",
+            "kind": "fields",
+            "fields": [
+              {
+                "field": "mode",
+                "label": "Режим",
+                "format": "status",
+                "statusMap": {
+                  "autopilot": {
+                    "label": "Autopilot",
+                    "severity": "contrast"
+                  },
+                  "approve": {
+                    "label": "С подтверждением",
+                    "severity": "info"
+                  }
+                }
+              },
+              {
+                "field": "createdAt",
+                "label": "Запущен",
+                "format": "datetime"
+              },
+              {
+                "field": "finishedAt",
+                "label": "Завершён",
+                "format": "datetime",
+                "emptyText": "идёт"
+              },
+              {
+                "field": "repoUrl",
+                "label": "Репозиторий",
+                "emptyText": "появится после публикации"
+              },
+              {
+                "field": "appUrl",
+                "label": "Прототип",
+                "emptyText": "появится после развёртывания"
+              }
+            ]
+          }
+        ]
+      },
+      "slots": [
+        {
+          "id": "pipeline-graph",
+          "placement": "main-top",
+          "task": "Живой граф этапов: колонки по зависимостям, статус шлюза, попытки, токены; SSE-поток событий, fallback — опрос; кнопки «Принять/Отклонить» для awaiting_approval; ошибки шлюза выбранного этапа.",
+          "components": [
+            "p-card",
+            "p-tag",
+            "p-button",
+            "p-message",
+            "p-progressbar"
+          ],
+          "requirements": [
+            "FR-02",
+            "FR-03"
+          ]
+        },
+        {
+          "id": "metrics",
+          "placement": "main-bottom",
+          "task": "Расход токенов, время и попытки по этапам, итоги прогона и доля кода без LLM.",
+          "components": [
+            "p-card",
+            "p-progressbar",
+            "p-tag"
+          ],
+          "requirements": [
+            "FR-05"
+          ]
+        },
+        {
+          "id": "artifacts",
+          "placement": "main-bottom",
+          "task": "Артефакты прогона, сгруппированные по этапам; просмотр содержимого в диалоге (текст, JSON с форматированием, изображения) и скачивание.",
+          "components": [
+            "p-card",
+            "p-button",
+            "p-tag",
+            "p-dialog",
+            "p-message",
+            "p-progressspinner"
+          ],
+          "requirements": [
+            "FR-04"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "cancel",
+          "label": "Остановить",
+          "icon": "pi pi-stop",
+          "kind": "danger",
+          "operationId": "cancelRun",
+          "params": {
+            "runId": "route:id"
+          },
+          "confirm": "Остановить прогон? Пройденные этапы сохранятся.",
+          "successMessage": "Прогон остановлен",
+          "visibleWhen": "status == running"
+        }
+      ],
+      "states": {
+        "loading": {
+          "kind": "skeleton"
+        },
+        "empty": {
+          "title": "Прогон не найден"
+        },
+        "error": {
+          "title": "Не удалось загрузить прогон",
+          "description": "Проверьте, что оркестратор запущен"
+        },
+        "forbidden": {
+          "title": "Нет доступа"
+        },
+        "ready": {}
+      }
+    }
+  ]
+}

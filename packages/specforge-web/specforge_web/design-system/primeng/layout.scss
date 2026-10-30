@@ -1,0 +1,113 @@
+// Классы раскладки SpecForge. Используются генератором и разрешены агентам (rules.md, п. 3).
+// Брейкпоинты: sm 576 / md 768 / lg 1024 / xl 1280.
+
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--sf-font);
+  font-size: var(--sf-text-md);
+  color: var(--sf-text);
+  background: var(--sf-bg);
+}
+
+.sf-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-5);
+  padding: var(--sf-space-5);
+  max-width: var(--sf-content-max);
+  margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+.sf-page--full { max-width: none; height: calc(100vh - var(--sf-header-height)); padding: 0; gap: 0; }
+
+.sf-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sf-space-4);
+  flex-wrap: wrap;
+  h1 { font-size: var(--sf-text-2xl); font-weight: 600; margin: 0; }
+}
+
+.sf-stack { display: flex; flex-direction: column; gap: var(--sf-space-4); }
+.sf-stack--sm { gap: var(--sf-space-2); }
+.sf-row { display: flex; align-items: center; gap: var(--sf-space-3); flex-wrap: wrap; }
+.sf-row--end { justify-content: flex-end; }
+.sf-row--between { justify-content: space-between; }
+.sf-grow { flex: 1 1 auto; min-width: 0; }
+
+.sf-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--sf-space-4); }
+@for $i from 1 through 12 { .sf-span-#{$i} { grid-column: span $i; } }
+
+.sf-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sf-space-4) var(--sf-space-5);
+  margin: 0;
+  dt { font-size: var(--sf-text-sm); color: var(--sf-text-muted); margin-bottom: var(--sf-space-1); }
+  dd { margin: 0; font-weight: 500; word-break: break-word; }
+}
+
+.sf-form { display: flex; flex-direction: column; gap: var(--sf-space-4); max-width: 640px; }
+.sf-field { display: flex; flex-direction: column; gap: var(--sf-space-2);
+  label { font-weight: 500; }
+  .sf-required::after { content: ' *'; color: var(--p-red-500); }
+  > .p-select, > .p-multiselect, > .p-datepicker, > .p-inputnumber, > .p-password, > input, > textarea { width: 100%; }
+}
+.sf-hint { font-size: var(--sf-text-sm); color: var(--sf-text-muted); }
+.sf-error { font-size: var(--sf-text-sm); color: var(--p-red-500); }
+.sf-muted { color: var(--sf-text-muted); }
+.sf-mono { font-family: var(--sf-font-mono); }
+
+.sf-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  height: 100%;
+  .sf-map-aside { border-left: 1px solid var(--sf-border); background: var(--sf-surface); overflow: auto; padding: var(--sf-space-4); }
+}
+
+@media (max-width: 1023.98px) {
+  .sf-hide-below-lg { display: none !important; }
+}
+@media (max-width: 767.98px) {
+  .sf-hide-below-md { display: none !important; }
+  .sf-page { padding: var(--sf-space-4); gap: var(--sf-space-4); }
+  .sf-grid > [class*='sf-span-'] { grid-column: span 12; }
+  .sf-map-layout { grid-template-columns: 1fr; grid-template-rows: 60vh auto;
+    .sf-map-aside { border-left: 0; border-top: 1px solid var(--sf-border); } }
+}
+@media (max-width: 575.98px) {
+  .sf-hide-below-sm { display: none !important; }
+}
+
+// Ленты событий (p-timeline): контент слева, без пустой «противоположной» колонки
+.sf-timeline .p-timeline-event-opposite { flex: 0 0 0; padding: 0; }
+.sf-timeline .p-timeline-event-content { padding-bottom: var(--sf-space-4); }
+.sf-tl-item { display: flex; flex-direction: column; gap: var(--sf-space-1); }
+.sf-tl-time { font-size: var(--sf-text-sm); color: var(--sf-text-muted); white-space: nowrap; }
+
+// Плитка с числом на дашборде
+.sf-stat-value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.sf-stat-title { color: var(--sf-text-muted); font-size: var(--sf-text-sm); }
+
+// Таблицы
+.sf-clickable { cursor: pointer; }
+.sf-row-link { color: var(--p-primary-color); text-decoration: none; font-weight: 500; }
+.sf-row-link:hover { text-decoration: underline; }
+.sf-filter { min-width: 200px; }
+
+// Вход
+.sf-auth-page { min-height: 100vh; display: grid; place-items: center; padding: var(--sf-space-4); box-sizing: border-box; }
+.sf-auth-card { width: min(420px, 100%); }
+
+// Боковая панель карты
+.sf-aside-title { font-size: var(--sf-text-lg); font-weight: 600; margin: 0 0 var(--sf-space-3); }
+.sf-legend { display: flex; flex-wrap: wrap; gap: var(--sf-space-2); }
+.sf-map-overlay { position: absolute; left: var(--sf-space-4); right: var(--sf-space-4); bottom: var(--sf-space-4); z-index: 2; }
+.sf-map-wrap { position: relative; height: 100%; min-height: 320px; }
+
+.sf-fill { display: block; height: 100%; }
+
+.sf-w-full, .sf-w-full .p-button { width: 100%; }
+.sf-brand-lg { display: flex; align-items: center; gap: var(--sf-space-2); color: var(--p-primary-color); font-weight: 600; }

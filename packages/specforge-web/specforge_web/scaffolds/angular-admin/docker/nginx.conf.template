@@ -1,0 +1,38 @@
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Заголовки безопасности. CSP: скрипты только свои (без inline/eval); стили 'unsafe-inline' — темы PrimeNG
+  # и стили компонентов Angular вставляются в <style> во время работы; карта: тайлы и стиль — ${APP_MAP_ORIGINS},
+  # web worker maplibre создаётся из blob:. API и SignalR (/api, /hubs, ws) — тот же origin.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${APP_MAP_ORIGINS}; font-src 'self' data:; connect-src 'self' ${APP_MAP_ORIGINS}; worker-src 'self' blob:; child-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  add_header Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)" always;
+
+  location = /healthz { access_log off; default_type text/plain; return 200 'ok'; }
+
+  location /api/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Request-Id $request_id;
+  }
+
+  location /hubs/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 3600s;
+  }
+
+  # add_header внутри location отменяет заголовки сервера — повторяем nosniff для статики
+  location = /assets/env.js { add_header Cache-Control "no-store"; add_header X-Content-Type-Options nosniff always; }
+  location ~* \.(js|css|woff2?|svg|png)$ { expires 7d; add_header Cache-Control "public, immutable"; add_header X-Content-Type-Options nosniff always; try_files $uri =404; }
+  location / { try_files $uri $uri/ /index.html; }
+}

@@ -1,0 +1,4 @@
+{"name": "extract", "input_tokens": 1999, "output_tokens": 4920, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": true, "model": "fake"}
+{"name": "analyze", "input_tokens": 3988, "output_tokens": 9710, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": true, "model": "fake"}
+{"name": "critic", "input_tokens": 7424, "output_tokens": 270, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": true, "model": "fake"}
+{"name": "repair_acceptance_1", "input_tokens": 1777, "output_tokens": 596, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": false, "model": "fake"}

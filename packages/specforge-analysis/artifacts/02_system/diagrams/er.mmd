@@ -1,0 +1,94 @@
+erDiagram
+    UserAccount {
+        uuid id PK
+        string login UK
+        string passwordHash
+        enum role
+        uuid driverId FK
+        bool isActive
+    }
+    Driver {
+        uuid id PK
+        string fullName
+        string phone
+        uuid vehicleId FK
+    }
+    Vehicle {
+        uuid id PK
+        string plateNumber UK
+        string model
+        bool isActive
+        uuid currentZoneId FK
+        timestamptz lastPositionAt
+    }
+    ParkingZone {
+        uuid id PK
+        string zoneNumber UK
+        string name
+        polygon boundary
+        decimal hourlyRate
+        string paidHours
+        int maxDurationMinutes
+        enum dataSource
+        string dataVersion
+    }
+    VehiclePosition {
+        uuid id PK
+        uuid vehicleId FK
+        point point
+        timestamptz recordedAt
+        decimal accuracyM
+        decimal speedKmh
+        enum source
+        uuid zoneId FK
+    }
+    ParkingSession {
+        uuid id PK
+        uuid vehicleId FK
+        uuid driverId FK
+        uuid zoneId FK
+        enum startMode
+        enum status
+        timestamptz startedAt
+        timestamptz paidUntil
+        timestamptz endedAt
+        string providerSessionId
+    }
+    ParkingEvent {
+        uuid id PK
+        enum type
+        uuid vehicleId FK
+        uuid zoneId FK
+        uuid previousZoneId FK
+        uuid sessionId FK
+        timestamptz occurredAt
+        jsonb payload
+    }
+    Notification {
+        uuid id PK
+        uuid driverId FK
+        uuid eventId FK
+        enum type
+        string text
+        timestamptz readAt
+    }
+    DemoRoute {
+        uuid id PK
+        string name
+        linestring path
+        int pointIntervalSec
+    }
+    Driver |o--o{ UserAccount : "driverId"
+    Vehicle |o--o{ Driver : "vehicleId"
+    ParkingZone |o--o{ Vehicle : "currentZoneId"
+    Vehicle ||--o{ VehiclePosition : "vehicleId"
+    ParkingZone |o--o{ VehiclePosition : "zoneId"
+    Vehicle ||--o{ ParkingSession : "vehicleId"
+    Driver ||--o{ ParkingSession : "driverId"
+    ParkingZone ||--o{ ParkingSession : "zoneId"
+    Vehicle ||--o{ ParkingEvent : "vehicleId"
+    ParkingZone |o--o{ ParkingEvent : "zoneId"
+    ParkingZone |o--o{ ParkingEvent : "previousZoneId"
+    ParkingSession |o--o{ ParkingEvent : "sessionId"
+    Driver ||--o{ Notification : "driverId"
+    ParkingEvent |o--o{ Notification : "eventId"

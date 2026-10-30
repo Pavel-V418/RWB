@@ -1,0 +1,175 @@
+# specforge-analysis — блок анализа SpecForge (участник 2)
+
+Этап 1 конвейера: бизнес-требования → `artifacts/01_requirements`.
+Этап 2 (системный архитектор): `artifacts/01_requirements` → `artifacts/02_system` — OpenAPI, AsyncAPI, DDL, диаграммы, SA-документ.
+Этап документации: `artifacts/*` → `artifacts/09_docs` — сайт MkDocs со всеми документами из условия кейса.
+
+## Регламент организаторов
+
+Артефакты оформляются по присланным организаторами документам:
+
+| Документ организаторов | Что генерируется |
+| --- | --- |
+| Правила проектирования и ведения документации по системному анализу, шаблон ТЗ | `02_system/system-analysis.md`: разделы 1–4 регламента (общие положения, UseCase, диаграммы PlantUML, Frontend, Backend, интеграции, метрики, НФТ 4.1–4.5); приложения: допущения и вопросы, матрица трассировки BR → FR, соответствие разделам условия кейса. Шлюз проверяет наличие всех разделов (`E_SA_SECTION`) |
+| Шаблон API | `02_system/api-methods/<operationId>.md` — страница на каждый метод |
+| Шаблон ADR | `09_docs/docs/adr/ADR-NNN.md`: статус ПРЕДЛОЖЕНО/ПРИНЯТО/ЗАМЕНЕНО, альтернативы с плюсами и минусами, ответственные |
+| Шаблон описания сервисов | `09_docs/docs/services/<сервис>.md` — паспорт сервиса; инфраструктурные разделы берутся из `08_infra/` |
+
+Правила, которые проверяет код: требования нумеруются FR-1, FR-2…; пункты бизнес-требований — BR-n с трассировкой к FR; сценарии — UC_001; в путях API только существительные (`E_PATH_VERB`); диаграммы в PlantUML; имена полей БД — snake_case.
+
+## Быстрый старт
+
+```bash
+pip install -e . --no-build-isolation      # Python 3.11+
+
+# с моделью (vLLM / любой OpenAI-совместимый сервер)
+export LLM_BASE_URL=http://<vllm-host>:8000/v1
+export LLM_MODEL=Qwen3.8-27B
+specforge-analysis requirements --input cases/case1_parking --out artifacts/01_requirements
+
+specforge-analysis system --input artifacts/01_requirements --out artifacts/02_system
+
+# без модели — на эталонных ответах кейса 1 (для команды и отладки)
+specforge-analysis requirements --input cases/case1_parking --out artifacts/01_requirements \
+    --llm fake:golden/case1_parking/llm
+specforge-analysis system --input artifacts/01_requirements --out artifacts/02_system \
+    --llm fake:golden/case1_parking/llm
+```
+
+Для полной проверки DDL с PostGIS задайте `SPECFORGE_PG_DSN=postgresql://user:pass@localhost:5432/postgres` (контейнер `postgis/postgis` из docker compose). Без него DDL применяется к временному локальному PostgreSQL, если он установлен, а геометрия на время проверки заменяется на `bytea`.
+
+Коды выхода: `0` — шлюз пройден, `1` — не пройден, `3` — интерактивный режим ждёт `answers.yaml`.
+
+## Контракт для оркестратора
+
+```python
+from specforge_analysis import stage_requirements
+result = stage_requirements.run(input_dir, output_dir, llm, mode="auto")   # -> GateResult
+```
+
+`llm` — любой объект с методом `structured(name, messages, schema, thinking=, max_tokens=)` и полем `metrics`. Готовые реализации: `OpenAICompatLLM` (из переменных окружения) и `FakeLLM` (фикстуры). Когда появится общий `agent_loop` участника 1, достаточно адаптера с тем же методом.
+
+## Что делает этап
+
+| Шаг | Кто | Вызовов LLM | Thinking |
+| --- | --- | --- | --- |
+| Нормализация md/txt/pdf/docx | код | 0 | — |
+| Извлечение + профиль кейса | LLM | 1 | on |
+| Анализ: сценарии, критерии, истории, безопасность, неоднозначности | LLM | 1 | on |
+| Сборка модели: стабильные ID, привязка цитат к строкам, политика вопросов | код | 0 | — |
+| Шлюз: автоисправления и проверки | код | 0 | — |
+| Критик | LLM | 1 | on |
+| Точечный ремонт критериев приёмки | LLM | 0–2 | off |
+
+Итого 3–5 вызовов на кейс, число известно заранее. ID присваивает код по порядку строк исходного текста, поэтому повторный прогон даёт те же ID.
+
+## Артефакты `artifacts/01_requirements`
+
+| Файл | Для кого |
+| --- | --- |
+| `requirements.json` | все агенты: единая модель требований (FR, NFR, роли, сущности, интеграции, сценарии, критерии, допущения, вопросы) |
+| `profile.json` | оркестратор: какие ветки графа включать (mobile, geo, события, таймеры) |
+| `acceptance/FR-xxx.feature` | тест-инженер: Gherkin, теги `@FR-xxx`, `@AC-FR-xxx-yy`, `@positive/@negative/@edge` |
+| `user_stories.md`, `requirements.md` | документация, жюри |
+| `questions.md`, `answers.template.yaml` | пользователь: ≤ 5 вопросов, умолчания |
+| `traceability.csv` | все: столбцы `api`, `events`, `screens`, `tests` дописывают следующие агенты |
+| `analysis-report.md`, `gate_report.json` | покрытие, замечания шлюза и критика, расход LLM |
+| `metrics.jsonl` | отчёт об эффективности: строка на каждый вызов LLM |
+| `_prompts/` (с `--dump-prompts`) | отладка промптов |
+
+## Этап 2: системный анализ
+
+| Шаг | Кто | Вызовов LLM | Thinking |
+| --- | --- | --- | --- |
+| Доменная модель: сущности, поля, ограничения, связи, жизненные циклы | LLM | 1 | on |
+| Компоненты, REST-операции, события, диаграммы последовательности | LLM | 1 | on |
+| Автоисправления и ремонт покрытия FR (FR без операции/события) | код + LLM | 0–2 | off |
+| OpenAPI 3.1, AsyncAPI 3.0, DDL, Mermaid, SA-документ, трассируемость | код | 0 | — |
+| Пояснительный текст SA-документа | LLM | 1 | off |
+
+LLM описывает операции и события через ссылки на поля доменной модели. Тип, длину, regex и обязательность поля код берёт из модели, поэтому API, события, БД и документ согласованы.
+
+| Файл `artifacts/02_system` | Для кого |
+| --- | --- |
+| `openapi.yaml` | backend (генерация контроллеров и DTO), frontend и Android (клиенты), Prism mock, Schemathesis. В каждой операции есть `x-requirements` и `x-roles` |
+| `asyncapi.yaml` | backend и worker: топики `<событие>.v<версия>`, конверт события, DLQ, правила повтора |
+| `schema.sql` | backend и БД: PostgreSQL 17 + PostGIS, enum-типы, внешние ключи, GIST-индексы, outbox, ключи идемпотентности |
+| `domain-model.json`, `api-design.json` | источник истины для перегенерации; кодогенераторы могут читать напрямую |
+| `system-analysis.md` | жюри и документация: все 14 обязательных разделов, Mermaid-диаграммы |
+| `diagrams/*.mmd` | компоненты, ER, последовательности, жизненные циклы |
+| `traceability.csv` | столбцы `api` и `events` заполнены; `screens` и `tests` дописывают следующие этапы |
+| `gate_report.json` | результат шлюза: покрытие FR, проверка ссылок OpenAPI/AsyncAPI, JSON Schema, regex, применение DDL |
+
+Шлюз блокирует передачу дальше, если обязательное FR не покрыто операцией, событием или обоснованным `no_api`; если ссылки `$ref` не разрешаются; если regex некорректен; если DDL не применяется.
+
+## Этап документации (техписатель)
+
+```bash
+specforge-analysis docs --artifacts artifacts --llm fake:golden/case1_parking/llm   # без модели
+specforge-analysis docs --artifacts artifacts                                         # с моделью
+mkdocs serve -f artifacts/09_docs/mkdocs.yml                                          # просмотр (mkdocs-material)
+```
+
+Один вызов LLM пишет продуктовое описание, ADR и руководство пользователя по ролям. Остальные страницы собирает код: архитектура, API, модель данных, требования, SA-документ, трассируемость, отчёты, ограничения, руководство разработчика и эффективность (из `metrics.jsonl` всех этапов).
+
+Результаты других участников читаются по договорённым путям (`team_inputs.PATHS`):
+
+| Путь в `artifacts/` | Кто кладёт | Формат | Куда попадает |
+| --- | --- | --- | --- |
+| `03_ux/screens.json` | UX | `{"screens": [{id, title, platform, roles, fr, screenshot}]}` | руководство пользователя, трассируемость |
+| `05_web/screenshots/*.png`, `06_android/screenshots/*.png` | web, Android | PNG | руководство пользователя |
+| `07_tests/report.json` или `07_tests/*.xml` | QA | `{"tests": [{name, status, suite, tags, message}]}` или JUnit XML | отчёт о тестировании, трассируемость |
+| `07_tests/security.json` или `07_tests/*.sarif` | Security | `{"findings": [{tool, id, title, severity, status, cve}]}` или SARIF (Semgrep, Trivy, gitleaks) | отчёт о безопасности, ограничения |
+| `08_infra/README-run.md`, `docker-compose.yml`, `.env.example` | DevOps | как есть | инструкция по запуску |
+
+Связь теста с требованием — по ID в имени или тегах теста: `FR-005`, `AC-FR-005-02`. Пока файла нет, раздел помечается «Ожидается», шлюз даёт предупреждение, а не ошибку. Повторный запуск после появления файлов обновляет документацию.
+
+## Репетиция на других доменах
+
+Кейс 2 скрыт до оценки, поэтому конвейер проверяется на синтетических ТЗ в стиле организаторов:
+
+| Кейс | Что проверяет |
+| --- | --- |
+| `case1_parking` | проверочный кейс: мобильное приложение, геоданные, события, таймеры (есть эталонные ответы) |
+| `case2_repair_requests` | только web, без мобильного приложения и Kafka; SLA и рабочие дни, файлы, выгрузка в Excel |
+| `case3_tool_issuing` | вход в формате .docx; мобильное приложение без геоданных, события во внешнюю систему, офлайн |
+| `case4_site_inspections` | геозона-радиус вместо полигона, фото, офлайн, уведомление о срочном замечании |
+
+В `expected.yaml` каждого кейса записаны ожидаемые флаги профиля и смысловые требования, которые должны быть извлечены.
+
+```bash
+specforge-analysis rehearse --cases cases --out runs              # с моделью
+specforge-analysis rehearse --cases cases --out runs --llm fake   # без модели (только кейсы с эталоном)
+```
+
+Результат — `runs/scorecard.md`: шлюзы этапов, совпадение профиля, полнота FR, число вопросов, вызовы LLM, повторы, токены и время по каждому кейсу. Тест `tests/test_generality.py` следит, чтобы в коде и промптах не появились слова из проверочного кейса.
+
+## Происхождение требований
+
+Каждый элемент несёт `origin`: `customer` — прямо из текста (с цитатой и номером строки), `derived` — выведено, `assumption` — допущение системы, `clarification` — ответ пользователя. Если цитату модели не удалось найти в тексте, шлюз понижает `customer` до `derived` и пишет предупреждение: требования заказчика не выдумываются.
+
+## Уточняющие вопросы
+
+Не больше 5, только критичные для архитектуры, безопасности, основного сценария или данных. Остальное — допущения `ASM-xx`.
+
+- `--mode auto` (по умолчанию, для итоговой проверки): на вопросы принимаются умолчания, они видны в `questions.md` и в допущениях.
+- `--mode interactive`: этап останавливается с кодом 3; ответы кладутся в `answers.yaml` рядом с требованиями (`Q-01: ...`) и этап перезапускается. Благодаря кэшу LLM повторный прогон не тратит токены на уже сделанные вызовы.
+
+## Переменные окружения
+
+| Переменная | По умолчанию | Смысл |
+| --- | --- | --- |
+| `LLM_BASE_URL` | `http://localhost:8000/v1` | OpenAI-совместимый эндпоинт |
+| `LLM_MODEL` | `Qwen3.8-27B` | имя модели на сервере |
+| `LLM_API_KEY` | `EMPTY` | ключ |
+| `LLM_STRUCTURED` | `json_schema` | `json_schema` (vLLM ≥ 0.6), `guided_json` (старый vLLM), `prompt` (схема в промпте, для Ollama) |
+| `LLM_THINKING_PARAM` | `chat_template_kwargs` | `none`, если сервер не поддерживает `enable_thinking` |
+| `LLM_TEMPERATURE` / `LLM_SEED` | `0.1` / `42` | детерминизм |
+| `LLM_CACHE_DIR` | `.cache/llm` | пусто — без кэша (для честного замера) |
+| `SPECFORGE_PG_DSN` | — | PostgreSQL с PostGIS для проверки DDL на этапе 2 |
+
+## Тесты
+
+```bash
+python -m pytest -q
+```

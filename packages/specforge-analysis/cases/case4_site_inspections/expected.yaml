@@ -1,0 +1,18 @@
+profile:
+  needs_mobile_app: true
+  needs_admin_ui: true
+  needs_geo: true
+  needs_file_storage: true
+  needs_user_notifications: true
+must_cover:
+  - [контрольн, точ, координат]
+  - [задани, обход]
+  - [отмет, радиус]
+  - [чек-лист]
+  - [замечан, фото]
+  - [связ]
+  - [выполнен, график]
+  - [маршрут]
+  - [уведом, авари]
+entities_range: [4, 12]
+max_questions: 5

@@ -30,23 +30,21 @@ profiles:
 # Перекрывает AgentSpec.thinking и профиль; бюджет-контроллер при расходе > 70% всё равно
 # выключает thinking у оставшихся этапов. Имена должны совпадать с agents/<name>/ —
 # specforge doctor покажет записи без агента. Агент без записи — как в AgentSpec / профиле.
+# analyst, system_architect, ux_designer, frontend_coder, tech_writer — адаптеры к частям команды
+# (packages/): thinking они выбирают сами на каждый вызов (план — on, разметка — off), запись здесь
+# перекрыла бы этот выбор — поэтому их здесь нет.
 agents:
   # рассуждения окупаются: анализ, архитектура, ревью, приёмка
   profiler: {thinking: true}
-  analyst: {thinking: true}
   requirements_critic: {thinking: true}
-  system_architect: {thinking: true}
-  ux_designer: {thinking: true}
   vlm_reviewer: {thinking: true}
   security_analyst: {thinking: true}
   acceptance: {thinking: true}
   # генерация кода и текстов по готовому плану — без рассуждений
   backend_coder: {thinking: false}
-  frontend_coder: {thinking: false}
   android_coder: {thinking: false}
   test_engineer: {thinking: false}
   devops: {thinking: false}
-  tech_writer: {thinking: false}
 
 # Ремонт этапа (specforge/repair): thinking агента не наследует.
 repair:

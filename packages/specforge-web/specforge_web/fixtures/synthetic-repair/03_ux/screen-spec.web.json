@@ -1,0 +1,92 @@
+{
+  "specVersion": "1.0",
+  "app": { "id": "repair", "platform": "web", "title": "Заявки на ремонт", "uiKit": "primeng@20", "auth": { "required": true, "loginScreen": "login" } },
+  "roles": [ { "id": "manager", "title": "Руководитель" }, { "id": "engineer", "title": "Инженер" } ],
+  "navigation": [
+    { "screen": "dashboard", "label": "Сводка", "icon": "pi pi-chart-bar" },
+    { "screen": "ticket-list", "label": "Заявки", "icon": "pi pi-wrench" },
+    { "screen": "workload", "label": "Загрузка", "icon": "pi pi-users" }
+  ],
+  "screens": [
+    {
+      "id": "login", "title": "Вход", "archetype": "login", "route": "/login", "roles": ["manager", "engineer"], "public": true, "requirements": [],
+      "form": { "fields": [ { "name": "login", "label": "Логин", "control": "text", "required": true }, { "name": "password", "label": "Пароль", "control": "password", "required": true } ],
+        "submit": { "operationId": "listTickets", "label": "Войти", "successMessage": "OK", "idempotent": false } },
+      "states": { "loading": { "kind": "spinner" }, "empty": { "title": "—" }, "error": { "title": "Не удалось войти", "retry": false }, "forbidden": { "title": "Нет доступа" }, "ready": {} }
+    },
+    {
+      "id": "dashboard", "title": "Сводка", "archetype": "dashboard", "route": "/", "roles": ["manager"], "requirements": ["FR-05"],
+      "data": { "primary": { "operationId": "getTicketStats" }, "secondary": { "overdue": { "operationId": "listTickets", "params": { "status": "const:overdue", "size": "const:5" } } } },
+      "dashboard": { "widgets": [
+        { "id": "open", "kind": "stat", "title": "Открытые заявки", "source": "primary", "valueField": "open", "linkTo": "ticket-list", "span": 6 },
+        { "id": "overdue-count", "kind": "stat", "title": "Просрочены", "source": "primary", "valueField": "overdue", "span": 6 },
+        { "id": "overdue-list", "kind": "list", "title": "Просроченные", "source": "overdue", "span": 12,
+          "fields": [ { "field": "title", "label": "Заявка", "format": "link", "linkTo": "ticket-detail", "linkParam": "id" }, { "field": "dueDate", "label": "Срок", "format": "date" }, { "field": "assigneeName", "label": "Инженер" } ] }
+      ] },
+      "states": { "loading": { "kind": "skeleton" }, "empty": { "title": "Нет данных" }, "error": { "title": "Не удалось загрузить сводку" }, "forbidden": { "title": "Сводка доступна руководителю" }, "ready": {} }
+    },
+    {
+      "id": "ticket-list", "title": "Заявки", "archetype": "list", "route": "/tickets", "roles": ["manager", "engineer"], "requirements": ["FR-02", "FR-03"],
+      "data": { "primary": { "operationId": "listTickets", "pagination": "page" } },
+      "list": {
+        "tabs": [ { "label": "Все", "params": {} }, { "label": "В работе", "params": { "status": "in_progress" } }, { "label": "Просрочены", "params": { "status": "overdue" } } ],
+        "search": { "param": "q" },
+        "filters": [
+          { "field": "priority", "label": "Приоритет", "control": "select", "options": [ { "value": 1, "label": "Высокий" }, { "value": 2, "label": "Средний" }, { "value": 3, "label": "Низкий" } ] },
+          { "field": "assigneeId", "label": "Инженер", "control": "select", "optionsFrom": { "operationId": "listEngineers" }, "optionLabel": "name", "optionValue": "id" }
+        ],
+        "columns": [
+          { "field": "title", "label": "Заявка", "format": "link", "linkTo": "ticket-detail", "linkParam": "id", "sortable": true },
+          { "field": "status", "label": "Статус", "format": "status", "statusMap": { "new": { "label": "Новая", "severity": "info" }, "in_progress": { "label": "В работе", "severity": "warn" }, "done": { "label": "Готово", "severity": "success" }, "overdue": { "label": "Просрочена", "severity": "danger" } } },
+          { "field": "priority", "label": "Приоритет", "format": "number" },
+          { "field": "dueDate", "label": "Срок", "format": "date", "sortable": true, "hideBelow": "md" },
+          { "field": "urgent", "label": "Срочно", "format": "boolean", "hideBelow": "lg" }
+        ],
+        "rowLink": "ticket-detail"
+      },
+      "actions": [
+        { "id": "new", "label": "Новая заявка", "icon": "pi pi-plus", "kind": "primary", "navigateTo": "ticket-create" },
+        { "id": "close", "label": "Закрыть", "icon": "pi pi-check", "kind": "danger", "scope": "row", "operationId": "closeTicket", "params": { "id": "item:id" }, "confirm": "Закрыть заявку?", "successMessage": "Заявка закрыта", "idempotent": true, "roles": ["manager"], "visibleWhen": "status != done" }
+      ],
+      "states": { "loading": { "kind": "skeleton" }, "empty": { "title": "Заявок нет", "actionId": "new" }, "error": { "title": "Не удалось загрузить заявки" }, "forbidden": { "title": "Нет доступа" }, "ready": {} }
+    },
+    {
+      "id": "ticket-create", "title": "Новая заявка", "archetype": "form", "route": "/tickets/new", "roles": ["manager", "engineer"], "requirements": ["FR-01"],
+      "form": {
+        "fields": [
+          { "name": "title", "label": "Тема", "control": "text", "required": true, "validation": { "minLength": 5, "maxLength": 120 } },
+          { "name": "description", "label": "Описание", "control": "textarea", "validation": { "maxLength": 2000 } },
+          { "name": "priority", "label": "Приоритет", "control": "select", "required": true, "options": [ { "value": 1, "label": "Высокий" }, { "value": 2, "label": "Средний" }, { "value": 3, "label": "Низкий" } ] },
+          { "name": "dueDate", "label": "Срок", "control": "date" },
+          { "name": "assigneeId", "label": "Инженер", "control": "select", "optionsFrom": { "operationId": "listEngineers" }, "optionLabel": "name", "optionValue": "id" },
+          { "name": "estimateHours", "label": "Оценка, ч", "control": "number", "validation": { "min": 0, "max": 200 } },
+          { "name": "urgent", "label": "Срочная", "control": "toggle" }
+        ],
+        "submit": { "operationId": "createTicket", "label": "Создать", "successMessage": "Заявка создана", "navigateTo": "ticket-list" }
+      },
+      "states": { "loading": { "kind": "spinner" }, "empty": { "title": "—" }, "error": { "title": "Не удалось создать заявку", "retry": false }, "forbidden": { "title": "Нет прав" }, "ready": {} }
+    },
+    {
+      "id": "ticket-detail", "title": "Заявка", "archetype": "detail", "route": "/tickets/:id", "roles": ["manager", "engineer"], "requirements": ["FR-03", "FR-04"],
+      "data": { "primary": { "operationId": "getTicket", "params": { "id": "route:id" } }, "secondary": { "history": { "operationId": "listTicketHistory", "params": { "id": "route:id" } } } },
+      "detail": {
+        "titleField": "title",
+        "statusField": { "field": "status", "label": "Статус", "format": "status", "statusMap": { "new": { "label": "Новая", "severity": "info" }, "in_progress": { "label": "В работе", "severity": "warn" }, "done": { "label": "Готово", "severity": "success" }, "overdue": { "label": "Просрочена", "severity": "danger" } } },
+        "sections": [
+          { "title": "Параметры", "kind": "fields", "fields": [ { "field": "priority", "label": "Приоритет", "format": "number" }, { "field": "dueDate", "label": "Срок", "format": "date" }, { "field": "assigneeName", "label": "Инженер", "emptyText": "не назначен" }, { "field": "estimateHours", "label": "Оценка, ч", "format": "number" }, { "field": "description", "label": "Описание" } ] },
+          { "title": "История", "kind": "timeline", "source": "history", "timeline": { "titleField": "action", "timeField": "at", "descriptionField": "author" } }
+        ]
+      },
+      "actions": [
+        { "id": "close", "label": "Закрыть заявку", "icon": "pi pi-check", "kind": "danger", "operationId": "closeTicket", "params": { "id": "route:id" }, "confirm": "Закрыть заявку?", "successMessage": "Заявка закрыта", "idempotent": true, "roles": ["manager"], "visibleWhen": "status != done" }
+      ],
+      "states": { "loading": { "kind": "skeleton" }, "empty": { "title": "Заявка не найдена" }, "error": { "title": "Не удалось загрузить заявку" }, "forbidden": { "title": "Нет доступа" }, "ready": {} }
+    },
+    {
+      "id": "workload", "title": "Загрузка инженеров", "archetype": "generic", "route": "/workload", "roles": ["manager"], "requirements": ["FR-06"],
+      "data": { "primary": { "operationId": "listEngineers" } },
+      "slots": [ { "id": "chart", "placement": "main-top", "task": "Горизонтальные полосы: число открытых заявок на каждого инженера, по убыванию; подпись — имя и число.", "components": ["p-card", "p-progressbar", "p-tag"], "requirements": ["FR-06"] } ],
+      "states": { "loading": { "kind": "skeleton" }, "empty": { "title": "Инженеров нет" }, "error": { "title": "Не удалось загрузить" }, "forbidden": { "title": "Доступно руководителю" }, "ready": {} }
+    }
+  ]
+}

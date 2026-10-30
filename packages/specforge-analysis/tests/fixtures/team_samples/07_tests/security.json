@@ -1,0 +1,1 @@
+{"findings": [{"tool": "gitleaks", "id": "generic-api-key", "title": "секрет в тестовом файле", "severity": "high", "status": "false_positive"}]}

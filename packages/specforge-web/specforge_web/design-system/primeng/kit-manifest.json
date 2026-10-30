@@ -1,0 +1,706 @@
+{
+  "kit": "primeng@20",
+  "angular": "20.1.6",
+  "packages": {
+    "primeng": "^20.0.0",
+    "@primeuix/themes": "^1.2.0",
+    "primeicons": "^7.0.0"
+  },
+  "theme": {
+    "provider": "providePrimeNG({ theme: { preset: SpecForgePreset, options: { darkModeSelector: '.app-dark', cssLayer: false } }, ripple: true })",
+    "presetBase": "@primeuix/themes/aura",
+    "tokensFile": "src/styles/tokens.scss"
+  },
+  "verified": false,
+  "verifiedNote": "Проверяется сборкой страницы kit-showcase в каркасе (шаг 3). Пока npm закрыт — не проверено.",
+  "components": [
+    {
+      "tag": "p-button",
+      "module": "ButtonModule",
+      "from": "primeng/button",
+      "purpose": "Любая кнопка. Главное действие экрана — одна кнопка без severity; второстепенные — severity=\"secondary\" или [outlined]=\"true\"; опасные — severity=\"danger\" + подтверждение.",
+      "props": [
+        "label",
+        "icon",
+        "severity",
+        "outlined",
+        "text",
+        "rounded",
+        "loading",
+        "disabled",
+        "size",
+        "routerLink",
+        "ariaLabel"
+      ],
+      "events": [
+        "onClick"
+      ],
+      "example": "<p-button label=\"Сохранить\" icon=\"pi pi-check\" [loading]=\"saving()\" (onClick)=\"save()\" />"
+    },
+    {
+      "tag": "p-table",
+      "module": "TableModule",
+      "from": "primeng/table",
+      "purpose": "Табличные списки. Серверная пагинация через [lazy]=\"true\" и (onLazyLoad).",
+      "props": [
+        "value",
+        "lazy",
+        "paginator",
+        "rows",
+        "totalRecords",
+        "loading",
+        "dataKey",
+        "sortField",
+        "sortOrder",
+        "rowHover",
+        "responsiveLayout",
+        "scrollable",
+        "stripedRows",
+        "size"
+      ],
+      "events": [
+        "onLazyLoad",
+        "onRowSelect"
+      ],
+      "templates": [
+        "#header",
+        "#body",
+        "#emptymessage",
+        "#loadingbody"
+      ],
+      "example": "<p-table [value]=\"rows()\" [lazy]=\"true\" [paginator]=\"true\" [rows]=\"20\" [totalRecords]=\"total()\" (onLazyLoad)=\"load($event)\" dataKey=\"id\" [rowHover]=\"true\">\n  <ng-template #header><tr><th pSortableColumn=\"name\">Название <p-sortIcon field=\"name\" /></th></tr></ng-template>\n  <ng-template #body let-row><tr><td>{{ row.name }}</td></tr></ng-template>\n</p-table>"
+    },
+    {
+      "tag": "p-sortIcon",
+      "module": "TableModule",
+      "from": "primeng/table",
+      "purpose": "Иконка сортировки в заголовке p-table",
+      "props": [
+        "field"
+      ]
+    },
+    {
+      "tag": "p-tag",
+      "module": "TagModule",
+      "from": "primeng/tag",
+      "purpose": "Статусы и категории. Цвет только через severity.",
+      "props": [
+        "value",
+        "severity",
+        "icon",
+        "rounded"
+      ],
+      "example": "<p-tag value=\"Активна\" severity=\"success\" />"
+    },
+    {
+      "tag": "p-badge",
+      "module": "BadgeModule",
+      "from": "primeng/badge",
+      "purpose": "Счётчики в меню и на иконках",
+      "props": [
+        "value",
+        "severity"
+      ]
+    },
+    {
+      "tag": "p-select",
+      "module": "SelectModule",
+      "from": "primeng/select",
+      "purpose": "Выбор одного значения (фильтры, поля форм)",
+      "props": [
+        "options",
+        "optionLabel",
+        "optionValue",
+        "placeholder",
+        "showClear",
+        "filter",
+        "ngModel",
+        "formControlName",
+        "inputId"
+      ],
+      "events": [
+        "onChange"
+      ]
+    },
+    {
+      "tag": "p-multiselect",
+      "module": "MultiSelectModule",
+      "from": "primeng/multiselect",
+      "purpose": "Выбор нескольких значений",
+      "props": [
+        "options",
+        "optionLabel",
+        "optionValue",
+        "placeholder",
+        "display",
+        "showClear",
+        "ngModel",
+        "formControlName"
+      ]
+    },
+    {
+      "tag": "p-datepicker",
+      "module": "DatePickerModule",
+      "from": "primeng/datepicker",
+      "purpose": "Дата, время, период",
+      "props": [
+        "selectionMode",
+        "showTime",
+        "hourFormat",
+        "dateFormat",
+        "showIcon",
+        "showButtonBar",
+        "ngModel",
+        "formControlName",
+        "inputId"
+      ]
+    },
+    {
+      "tag": "p-inputnumber",
+      "module": "InputNumberModule",
+      "from": "primeng/inputnumber",
+      "purpose": "Числовые поля",
+      "props": [
+        "min",
+        "max",
+        "mode",
+        "currency",
+        "locale",
+        "suffix",
+        "useGrouping",
+        "formControlName",
+        "inputId"
+      ]
+    },
+    {
+      "tag": "p-password",
+      "module": "PasswordModule",
+      "from": "primeng/password",
+      "purpose": "Пароль",
+      "props": [
+        "feedback",
+        "toggleMask",
+        "formControlName",
+        "inputId"
+      ]
+    },
+    {
+      "tag": "p-toggleswitch",
+      "module": "ToggleSwitchModule",
+      "from": "primeng/toggleswitch",
+      "purpose": "Булевы настройки",
+      "props": [
+        "ngModel",
+        "formControlName",
+        "inputId"
+      ]
+    },
+    {
+      "tag": "p-selectbutton",
+      "module": "SelectButtonModule",
+      "from": "primeng/selectbutton",
+      "purpose": "Переключатель режимов из 2–4 вариантов",
+      "props": [
+        "options",
+        "optionLabel",
+        "optionValue",
+        "ngModel"
+      ]
+    },
+    {
+      "tag": "p-iconfield",
+      "module": "IconFieldModule",
+      "from": "primeng/iconfield",
+      "purpose": "Поле поиска с иконкой (вместе с p-inputicon и input pInputText)",
+      "props": [
+        "iconPosition"
+      ]
+    },
+    {
+      "tag": "p-inputicon",
+      "module": "InputIconModule",
+      "from": "primeng/inputicon",
+      "purpose": "Иконка внутри p-iconfield",
+      "props": [
+        "styleClass"
+      ]
+    },
+    {
+      "tag": "p-floatlabel",
+      "module": "FloatLabelModule",
+      "from": "primeng/floatlabel",
+      "purpose": "Не используем: подписи полей всегда над полем (label for)",
+      "deprecatedInProject": true
+    },
+    {
+      "tag": "p-card",
+      "module": "CardModule",
+      "from": "primeng/card",
+      "purpose": "Группировка блока на странице, карточки дашборда",
+      "props": [
+        "header",
+        "subheader"
+      ],
+      "templates": [
+        "#title",
+        "#subtitle",
+        "#content",
+        "#footer"
+      ]
+    },
+    {
+      "tag": "p-panel",
+      "module": "PanelModule",
+      "from": "primeng/panel",
+      "purpose": "Сворачиваемые секции карточки объекта",
+      "props": [
+        "header",
+        "toggleable",
+        "collapsed"
+      ]
+    },
+    {
+      "tag": "p-divider",
+      "module": "DividerModule",
+      "from": "primeng/divider",
+      "purpose": "Разделитель",
+      "props": [
+        "layout",
+        "align"
+      ]
+    },
+    {
+      "tag": "p-toolbar",
+      "module": "ToolbarModule",
+      "from": "primeng/toolbar",
+      "purpose": "Панель действий и фильтров над списком",
+      "templates": [
+        "#start",
+        "#center",
+        "#end"
+      ]
+    },
+    {
+      "tag": "p-breadcrumb",
+      "module": "BreadcrumbModule",
+      "from": "primeng/breadcrumb",
+      "purpose": "Навигация на экранах второго уровня",
+      "props": [
+        "model",
+        "home"
+      ]
+    },
+    {
+      "tag": "p-tabs",
+      "module": "TabsModule",
+      "from": "primeng/tabs",
+      "purpose": "Вкладки (вместе с p-tablist, p-tab, p-tabpanels, p-tabpanel)",
+      "props": [
+        "value",
+        "scrollable"
+      ]
+    },
+    {
+      "tag": "p-tablist",
+      "module": "TabsModule",
+      "from": "primeng/tabs",
+      "purpose": "Список вкладок"
+    },
+    {
+      "tag": "p-tab",
+      "module": "TabsModule",
+      "from": "primeng/tabs",
+      "purpose": "Вкладка",
+      "props": [
+        "value"
+      ]
+    },
+    {
+      "tag": "p-tabpanels",
+      "module": "TabsModule",
+      "from": "primeng/tabs",
+      "purpose": "Контейнер панелей"
+    },
+    {
+      "tag": "p-tabpanel",
+      "module": "TabsModule",
+      "from": "primeng/tabs",
+      "purpose": "Панель вкладки",
+      "props": [
+        "value"
+      ]
+    },
+    {
+      "tag": "p-menu",
+      "module": "MenuModule",
+      "from": "primeng/menu",
+      "purpose": "Боковое меню и всплывающие меню действий",
+      "props": [
+        "model",
+        "popup"
+      ]
+    },
+    {
+      "tag": "p-drawer",
+      "module": "DrawerModule",
+      "from": "primeng/drawer",
+      "purpose": "Выезжающая панель: меню на мобильных, детали без перехода",
+      "props": [
+        "visible",
+        "position",
+        "header",
+        "modal"
+      ]
+    },
+    {
+      "tag": "p-dialog",
+      "module": "DialogModule",
+      "from": "primeng/dialog",
+      "purpose": "Модальные формы",
+      "props": [
+        "visible",
+        "header",
+        "modal",
+        "draggable",
+        "breakpoints",
+        "style"
+      ]
+    },
+    {
+      "tag": "p-confirmdialog",
+      "module": "ConfirmDialogModule",
+      "from": "primeng/confirmdialog",
+      "purpose": "Подтверждение опасных действий (ConfirmationService). Один экземпляр в shell.",
+      "service": "ConfirmationService"
+    },
+    {
+      "tag": "p-toast",
+      "module": "ToastModule",
+      "from": "primeng/toast",
+      "purpose": "Обратная связь о результате действия и realtime-уведомления (MessageService). Один экземпляр в shell.",
+      "service": "MessageService",
+      "props": [
+        "position",
+        "life"
+      ]
+    },
+    {
+      "tag": "p-message",
+      "module": "MessageModule",
+      "from": "primeng/message",
+      "purpose": "Встроенные сообщения: ошибка загрузки, нет доступа, ошибки формы",
+      "props": [
+        "severity",
+        "text",
+        "icon",
+        "closable",
+        "variant"
+      ]
+    },
+    {
+      "tag": "p-skeleton",
+      "module": "SkeletonModule",
+      "from": "primeng/skeleton",
+      "purpose": "Состояние загрузки",
+      "props": [
+        "width",
+        "height",
+        "shape",
+        "borderRadius"
+      ]
+    },
+    {
+      "tag": "p-progressspinner",
+      "module": "ProgressSpinnerModule",
+      "from": "primeng/progressspinner",
+      "purpose": "Загрузка небольших блоков",
+      "props": [
+        "strokeWidth",
+        "ariaLabel"
+      ]
+    },
+    {
+      "tag": "p-progressbar",
+      "module": "ProgressBarModule",
+      "from": "primeng/progressbar",
+      "purpose": "Прогресс, оставшееся время",
+      "props": [
+        "value",
+        "mode",
+        "showValue"
+      ]
+    },
+    {
+      "tag": "p-timeline",
+      "module": "TimelineModule",
+      "from": "primeng/timeline",
+      "purpose": "Ленты событий и истории",
+      "props": [
+        "value",
+        "align",
+        "layout"
+      ],
+      "templates": [
+        "#content",
+        "#opposite",
+        "#marker"
+      ]
+    },
+    {
+      "tag": "p-paginator",
+      "module": "PaginatorModule",
+      "from": "primeng/paginator",
+      "purpose": "Пагинация вне таблиц (лента событий)",
+      "props": [
+        "rows",
+        "totalRecords",
+        "first"
+      ],
+      "events": [
+        "onPageChange"
+      ]
+    },
+    {
+      "tag": "p-avatar",
+      "module": "AvatarModule",
+      "from": "primeng/avatar",
+      "purpose": "Пользователь в шапке",
+      "props": [
+        "label",
+        "icon",
+        "shape"
+      ]
+    },
+    {
+      "tag": "p-chip",
+      "module": "ChipModule",
+      "from": "primeng/chip",
+      "purpose": "Активные фильтры",
+      "props": [
+        "label",
+        "removable",
+        "icon"
+      ]
+    },
+    {
+      "tag": "p-slider",
+      "module": "SliderModule",
+      "from": "primeng/slider",
+      "purpose": "Шкала времени проигрывания трека",
+      "props": [
+        "min",
+        "max",
+        "step",
+        "ngModel"
+      ]
+    },
+    {
+      "tag": "p-popover",
+      "module": "PopoverModule",
+      "from": "primeng/popover",
+      "purpose": "Всплывающие подробности",
+      "props": []
+    },
+    {
+      "tag": "p-fileupload",
+      "module": "FileUploadModule",
+      "from": "primeng/fileupload",
+      "purpose": "Загрузка файла",
+      "props": [
+        "mode",
+        "accept",
+        "maxFileSize",
+        "auto",
+        "chooseLabel",
+        "customUpload"
+      ],
+      "events": [
+        "uploadHandler",
+        "onSelect"
+      ]
+    }
+  ],
+  "directives": [
+    {
+      "attr": "pInputText",
+      "module": "InputTextModule",
+      "from": "primeng/inputtext",
+      "on": "input",
+      "purpose": "Текстовое поле"
+    },
+    {
+      "attr": "pTextarea",
+      "module": "TextareaModule",
+      "from": "primeng/textarea",
+      "on": "textarea",
+      "purpose": "Многострочное поле"
+    },
+    {
+      "attr": "pButton",
+      "module": "ButtonModule",
+      "from": "primeng/button",
+      "on": "button|a",
+      "purpose": "Кнопка-ссылка"
+    },
+    {
+      "attr": "pTooltip",
+      "module": "TooltipModule",
+      "from": "primeng/tooltip",
+      "on": "*",
+      "purpose": "Подсказки к иконкам-кнопкам"
+    },
+    {
+      "attr": "pSortableColumn",
+      "module": "TableModule",
+      "from": "primeng/table",
+      "on": "th",
+      "purpose": "Сортировка колонки"
+    }
+  ],
+  "deprecated": {
+    "p-dropdown": "p-select (primeng/select)",
+    "p-calendar": "p-datepicker (primeng/datepicker)",
+    "p-inputSwitch": "p-toggleswitch (primeng/toggleswitch)",
+    "p-inputswitch": "p-toggleswitch (primeng/toggleswitch)",
+    "p-sidebar": "p-drawer (primeng/drawer)",
+    "p-tabView": "p-tabs + p-tablist/p-tab/p-tabpanels/p-tabpanel (primeng/tabs)",
+    "p-tabview": "p-tabs (primeng/tabs)",
+    "p-overlayPanel": "p-popover (primeng/popover)",
+    "p-overlaypanel": "p-popover (primeng/popover)",
+    "p-tabMenu": "p-tabs (primeng/tabs)",
+    "p-messages": "p-message (primeng/message)",
+    "p-chips": "p-autocomplete multiple / p-chip",
+    "p-togglebutton": "p-selectbutton или p-toggleswitch"
+  },
+  "deprecatedImports": {
+    "primeng/dropdown": "primeng/select",
+    "primeng/calendar": "primeng/datepicker",
+    "primeng/inputswitch": "primeng/toggleswitch",
+    "primeng/sidebar": "primeng/drawer",
+    "primeng/tabview": "primeng/tabs",
+    "primeng/overlaypanel": "primeng/popover",
+    "primeng/tabmenu": "primeng/tabs",
+    "primeng/messages": "primeng/message",
+    "primeng/inputtextarea": "primeng/textarea",
+    "@primeng/themes": "@primeuix/themes",
+    "primeflex": "не используем: утилиты из src/styles/layout.scss"
+  },
+  "forbiddenElements": {
+    "button": "p-button или <button pButton>",
+    "select": "p-select",
+    "table": "p-table",
+    "dialog": "p-dialog",
+    "progress": "p-progressbar",
+    "details": "p-panel [toggleable]=\"true\""
+  },
+  "requiredAttributes": {
+    "input": {
+      "anyOf": [
+        "pInputText"
+      ],
+      "exceptTypes": [
+        "hidden"
+      ],
+      "hint": "<input pInputText> или p-inputnumber / p-datepicker / p-password"
+    },
+    "textarea": {
+      "anyOf": [
+        "pTextarea"
+      ],
+      "hint": "<textarea pTextarea>"
+    }
+  },
+  "archetypes": {
+    "list": [
+      "p-toolbar",
+      "p-iconfield",
+      "p-inputicon",
+      "p-select",
+      "p-multiselect",
+      "p-datepicker",
+      "p-table",
+      "p-sortIcon",
+      "p-tag",
+      "p-button",
+      "p-tabs",
+      "p-chip"
+    ],
+    "detail": [
+      "p-breadcrumb",
+      "p-card",
+      "p-panel",
+      "p-tag",
+      "p-button",
+      "p-table",
+      "p-timeline",
+      "p-divider"
+    ],
+    "form": [
+      "p-card",
+      "p-select",
+      "p-multiselect",
+      "p-datepicker",
+      "p-inputnumber",
+      "p-password",
+      "p-toggleswitch",
+      "p-button",
+      "p-message"
+    ],
+    "map": [
+      "p-card",
+      "p-tag",
+      "p-button",
+      "p-timeline",
+      "p-slider",
+      "p-selectbutton"
+    ],
+    "timeline": [
+      "p-toolbar",
+      "p-select",
+      "p-multiselect",
+      "p-datepicker",
+      "p-timeline",
+      "p-tag",
+      "p-paginator",
+      "p-button"
+    ],
+    "dashboard": [
+      "p-card",
+      "p-tag",
+      "p-button",
+      "p-timeline",
+      "p-table"
+    ],
+    "login": [
+      "p-card",
+      "p-password",
+      "p-button",
+      "p-message"
+    ],
+    "forbidden": [
+      "p-card",
+      "p-button"
+    ],
+    "generic": [
+      "p-card",
+      "p-button",
+      "p-table",
+      "p-message"
+    ]
+  },
+  "states": {
+    "loading": {
+      "skeleton": "p-skeleton",
+      "spinner": "p-progressspinner",
+      "progress": "p-progressbar mode=\"indeterminate\""
+    },
+    "empty": "app-state kind=\"empty\" (иконка + заголовок + описание + необязательная p-button)",
+    "error": "p-message severity=\"error\" + p-button «Повторить»",
+    "forbidden": "p-message severity=\"warn\" с текстом из спеки",
+    "ready": "контент экрана"
+  },
+  "icons": {
+    "set": "primeicons",
+    "format": "pi pi-<name>"
+  }
+}

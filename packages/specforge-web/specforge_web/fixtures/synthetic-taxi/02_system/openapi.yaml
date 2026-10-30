@@ -1,0 +1,224 @@
+openapi: 3.1.0
+info: { title: Taxi Dispatch API, version: 1.0.0 }
+tags:
+  - { name: Orders, description: Заказы }
+  - { name: Drivers, description: Водители }
+  - { name: Events, description: События }
+  - { name: Stats, description: Сводка }
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } } }
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [Orders]
+      x-roles: [dispatcher, admin]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, schema: { type: integer, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - { name: driverId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/OrderPage' } } } } }
+    post:
+      operationId: createOrder
+      summary: Новый заказ
+      tags: [Orders]
+      x-roles: [dispatcher]
+      x-idempotent: true
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrderCreate' } } } }
+      responses: { '201': { description: Создан, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } } }
+  /orders/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    get:
+      operationId: getOrder
+      tags: [Orders]
+      x-roles: [dispatcher, admin, driver]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } } }
+  /orders/{id}/assign:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      operationId: assignOrder
+      summary: Назначить водителя
+      tags: [Orders]
+      x-roles: [dispatcher]
+      x-idempotent: true
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } } }
+  /orders/{id}/cancel:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      operationId: cancelOrder
+      summary: Отменить заказ
+      tags: [Orders]
+      x-roles: [dispatcher, driver]
+      x-idempotent: true
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } } }
+  /orders/{id}/complete:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      operationId: completeOrder
+      summary: Завершить поездку
+      tags: [Orders]
+      x-roles: [driver, dispatcher]
+      x-idempotent: true
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } } }
+  /drivers:
+    get:
+      operationId: listDrivers
+      tags: [Drivers]
+      x-roles: [dispatcher, admin]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, schema: { type: integer, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/DriverStatus' } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DriverPage' } } } } }
+  /drivers/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    get:
+      operationId: getDriver
+      tags: [Drivers]
+      x-roles: [dispatcher, admin]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Driver' } } } } }
+  /events:
+    get:
+      operationId: listEvents
+      tags: [Events]
+      x-roles: [dispatcher, admin]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, schema: { type: integer, maximum: 100 } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/EventType' } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/EventPage' } } } } }
+  /stats/shift:
+    get:
+      operationId: getShiftStats
+      tags: [Stats]
+      x-roles: [dispatcher, admin]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftStats' } } } } }
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+    LoginResponse:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        expiresIn: { type: integer }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      required: [id, name, roles]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        roles: { type: array, items: { type: string, enum: [dispatcher, driver, admin] } }
+    GeoPoint:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { const: Point }
+        coordinates: { type: array, items: { type: number }, minItems: 2, maxItems: 2, examples: [[37.6176, 55.7558]] }
+    OrderStatus:
+      type: string
+      title: Статус заказа
+      enum: [new, assigned, arrived, in_progress, completed, cancelled]
+      x-enum-labels: { new: Новый, assigned: Назначен, arrived: Водитель на месте, in_progress: В пути, completed: Выполнен, cancelled: Отменён }
+    Tariff:
+      type: string
+      title: Тариф
+      enum: [economy, comfort, business, minivan]
+      x-enum-labels: { economy: Эконом, comfort: Комфорт, business: Бизнес, minivan: Минивэн }
+    DriverStatus:
+      type: string
+      title: Статус водителя
+      enum: [free, busy, offline]
+      x-enum-labels: { free: Свободен, busy: На заказе, offline: Не на линии }
+    EventType:
+      type: string
+      title: Тип события
+      enum: [order.created, order.assigned, order.arrived, order.started, order.completed, order.cancelled]
+      x-enum-labels: { order.created: Заказ создан, order.assigned: Водитель назначен, order.arrived: Водитель на месте, order.started: Поездка началась, order.completed: Поездка завершена, order.cancelled: Заказ отменён }
+    Order:
+      type: object
+      title: Заказ
+      required: [id, number, status, pickupAddress, tariff, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, title: Номер, pattern: '^Z-[0-9]{5}$', examples: ['Z-10421'] }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        passengerPhone: { type: string, title: Телефон пассажира, pattern: '^\+7[0-9]{10}$', examples: ['+79161234567'] }
+        pickupAddress: { type: string, title: Адрес подачи, maxLength: 200, examples: ['ул. Тверская, 7'] }
+        dropoffAddress: { type: [string, 'null'], title: Куда, maxLength: 200, examples: ['Ленинградский пр-т, 39'] }
+        tariff: { $ref: '#/components/schemas/Tariff' }
+        driverId: { type: [string, 'null'], format: uuid }
+        driverName: { type: [string, 'null'], title: Водитель, examples: ['Сергей Иванов'] }
+        price: { type: [number, 'null'], title: Стоимость, examples: [640] }
+        createdAt: { type: string, format: date-time, title: Создан }
+        pickupPoint: { $ref: '#/components/schemas/GeoPoint' }
+    OrderCreate:
+      type: object
+      required: [pickupAddress, tariff, passengerPhone]
+      properties:
+        passengerPhone: { type: string, title: Телефон пассажира, pattern: '^\+7[0-9]{10}$' }
+        pickupAddress: { type: string, title: Адрес подачи, minLength: 3, maxLength: 200 }
+        dropoffAddress: { type: string, title: Куда, maxLength: 200 }
+        tariff: { $ref: '#/components/schemas/Tariff' }
+        comment: { type: string, title: Комментарий для водителя, maxLength: 500 }
+    OrderPage:
+      type: object
+      required: [items, total, page, size]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Order' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    Driver:
+      type: object
+      title: Водитель
+      required: [id, fullName, status]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string, title: ФИО, examples: ['Сергей Иванов'] }
+        phone: { type: string, title: Телефон, examples: ['+79031112233'] }
+        carModel: { type: string, title: Автомобиль, examples: ['Kia Rio, белый'] }
+        carPlate: { type: string, title: Номер авто, examples: ['О123ОО77'] }
+        status: { $ref: '#/components/schemas/DriverStatus' }
+        rating: { type: number, title: Рейтинг, examples: [4.8] }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+        lastSeenAt: { type: [string, 'null'], format: date-time, title: На связи }
+    DriverPage:
+      type: object
+      required: [items, total, page, size]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Driver' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    Event:
+      type: object
+      required: [id, type, occurredAt, message]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/EventType' }
+        occurredAt: { type: string, format: date-time, title: Время }
+        message: { type: string, title: Сообщение, examples: ['Заказ Z-10421: водитель назначен'] }
+        orderId: { type: [string, 'null'], format: uuid }
+    EventPage:
+      type: object
+      required: [items, total, page, size]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Event' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    ShiftStats:
+      type: object
+      required: [orders, completed, cancelled]
+      properties:
+        orders: { type: integer, title: Заказов за смену, examples: [148] }
+        completed: { type: integer, title: Выполнено, examples: [131] }
+        cancelled: { type: integer, title: Отменено, examples: [9] }
+        driversOnline: { type: integer, title: Водителей на линии, examples: [42] }
+        revenue: { type: number, title: Выручка, examples: [96400] }

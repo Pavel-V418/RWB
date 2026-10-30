@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info: { title: Booking API, version: 1.0.0 }
+paths:
+  /equipment:
+    get:
+      operationId: listEquipment
+      x-roles: [employee, manager]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/Category' } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Equipment' } } } } } }
+  /equipment/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getEquipment
+      x-roles: [employee, manager]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Equipment' } } } } }
+  /bookings:
+    get:
+      operationId: listBookings
+      x-roles: [employee, manager]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/BookingStatus' } }
+        - { name: equipmentId, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/BookingPage' } } } } }
+    post:
+      operationId: createBooking
+      x-roles: [employee]
+      x-idempotent: true
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BookingCreate' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Booking' } } } } }
+  /bookings/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getBooking
+      x-roles: [employee, manager]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Booking' } } } } }
+  /bookings/{id}/approve:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    post:
+      operationId: approveBooking
+      x-roles: [manager]
+      x-idempotent: true
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Booking' } } } } }
+  /bookings/{id}/cancel:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    post:
+      operationId: cancelBooking
+      x-roles: [employee, manager]
+      x-idempotent: true
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Booking' } } } } }
+components:
+  schemas:
+    Category: { type: string, enum: [vehicle, tool, it, other] }
+    BookingStatus: { type: string, enum: [pending, approved, cancelled, finished] }
+    Equipment:
+      type: object
+      required: [id, name, category]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/Category' }
+        inventoryNumber: { type: string, pattern: '^INV-[0-9]{5}$' }
+        available: { type: boolean }
+        notes: { type: [string, 'null'], maxLength: 1000 }
+    Booking:
+      type: object
+      required: [id, equipmentId, startAt, endAt, status]
+      properties:
+        id: { type: string }
+        equipmentId: { type: string }
+        equipmentName: { type: string }
+        employeeName: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        purpose: { type: string }
+        status: { $ref: '#/components/schemas/BookingStatus' }
+    BookingCreate:
+      type: object
+      required: [equipmentId, startAt, endAt]
+      properties:
+        equipmentId: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        purpose: { type: string, maxLength: 500 }
+    BookingPage:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Booking' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }

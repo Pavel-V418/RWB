@@ -1,0 +1,11 @@
+{
+  "product": "Журнал обходов объектов",
+  "roles": [ { "id": "inspector", "title": "Обходчик" }, { "id": "supervisor", "title": "Начальник смены" } ],
+  "functional": [
+    { "id": "FR-01", "title": "Видеть объекты обхода на карте", "channels": ["web", "android"] },
+    { "id": "FR-02", "title": "Фиксировать результат проверки точки с комментарием", "channels": ["android"] },
+    { "id": "FR-03", "title": "Просматривать обходы и их проверки", "channels": ["web"] },
+    { "id": "FR-04", "title": "Сводка по замечаниям за смену", "channels": ["web"] },
+    { "id": "FR-05", "title": "Вход по учётной записи", "channels": ["web", "android"] }
+  ]
+}

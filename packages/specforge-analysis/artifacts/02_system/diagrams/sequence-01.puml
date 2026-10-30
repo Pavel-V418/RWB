@@ -1,0 +1,18 @@
+@startuml
+autonumber
+title Въезд в платную зону
+participant "Mobile App" as Mobile_App
+participant "Backend API" as Backend_API
+participant "PostgreSQL + PostGIS" as PostgreSQL___PostGIS
+participant "Background Worker" as Background_Worker
+participant "Kafka" as Kafka
+participant "Admin Web" as Admin_Web
+Mobile_App -> Backend_API : POST /vehicles/{id}/positions (точка, recordedAt)
+Backend_API -> PostgreSQL___PostGIS : ST_Contains: зона для точки, две последние точки
+PostgreSQL___PostGIS --> Backend_API : зона 7801
+Backend_API -> PostgreSQL___PostGIS : ParkingEvent zone_entered + outbox в одной транзакции
+Backend_API --> Mobile_App : 202 transition=entered, «Вы въехали в зону платной парковки»
+Background_Worker -> Kafka : parking.zone.entered.v1 из outbox
+Kafka -> Background_Worker : parking.zone.entered → Notification
+Backend_API -> Admin_Web : SignalR: новое событие в журнале
+@enduml

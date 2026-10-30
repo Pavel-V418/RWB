@@ -27,6 +27,7 @@
 | — вопросы, seed, логи | — | Протокол уточняющих вопросов (`questions.json` → `--ask` / допущения → `input/clarifications.*`), ручное вмешательство в отчёте; `LLM_SEED`; логи шлюзов в `docs/report/logs/` |
 | — образы песочниц | — | `infra/images/{dotnet,node,postgis,devops,android}` + `build.sh`, `pg-up`; кэш Trivy; не собирались (Docker на машине разработки не запущен) |
 | — кейс 1 и данные | — | `examples/case1/` (ТЗ + `data/spb.json`), `run --data` / API zip → `artifacts/input/data/`; e2e и репетиция берут `data/` |
+| — части команды | — | `packages/specforge-analysis` (уч. 2) и `packages/specforge-web` (уч. 4) в uv-workspace; агенты-адаптеры `analyst`, `system_architect`, `ux_designer`, `frontend_coder`, `tech_writer`; вызовы модели — через `LLMClient`; раскладка номерных этапов; шаблоны документов и матрица трассируемости — под регламент участника 2 |
 
 ## Начато и не доделано
 
@@ -40,6 +41,19 @@
 - Из STATUS 4.x: `StageResult.stopped_reason` не заполняют StructuredAgent и ремонт.
 
 ## Отклонения от промптов и TODO
+
+- **Интеграция частей команды (уч. 2, 4).** Сделано: сквозной граф на FakeLLM (эталоны анализа) — все 5 этапов
+  `passed`. Исправлено в частях: шаблон ID требований в схеме экранов веба (`FR-\d{2,3}` → `FR-\d{1,4}`,
+  анализ нумерует `FR-1` по регламенту), путь в навигации MkDocs и кодировка в тесте анализа (ломались на Windows),
+  убраны `sys.path.insert` веба, импорты веба — `specforge_web.*`. Не сделано:
+  - ответы на вопросы (`--ask`) не возвращаются в анализ — `analyst` берёт допущения; нужен перезапуск с
+    `answers.yaml` (формат части) или чтение `input/clarifications.json` частью;
+  - профиль кейса (`CaseProfile`) не берётся из `01_requirements/profile.json` — флаги CLI;
+  - UI-ревьюер веба (`vlm_reviewer`, Playwright + VLM) и консоль участника 4 не подключены; API консоли
+    участника 4 (`/console-api/v1`, свои форматы) расходится с `docs/console-api.yaml` — согласовать;
+  - имя этапа backend `04_backend` в `repo_layout.yaml` — предположение;
+  - `tech_writer` зависит от `ux_designer` и `frontend_coder`; когда появятся агенты backend / тестов / DevOps —
+    добавить их в `depends_on`, иначе документация соберётся раньше их результатов.
 
 - Этапы 7, 10, 11 просили «в отдельном worktree» — его не было, работа шла в основном checkout на `main`;
   запрет на правку `cli.py`/`api/server.py`/`graph.py` соблюдён, кроме случаев, когда пользователь разрешил явно.

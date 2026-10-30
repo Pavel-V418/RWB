@@ -1,0 +1,27 @@
+# Ожидания для репетиции. profile — флаги профиля кейса, которые должны совпасть.
+# must_cover — смысловые требования: каждое задано набором корней слов; FR считается найденным,
+# если его заголовок + формулировка содержат все корни из набора.
+profile:
+  needs_mobile_app: false
+  needs_web_ui: true
+  needs_geo: false
+  needs_async_events: false
+  needs_scheduled_jobs: true
+  needs_file_storage: true
+  needs_user_notifications: true
+must_cover:
+  - [созда, заявк]
+  - [номер]
+  - [назнач, исполнител]
+  - [приостанов]
+  - [выполн, отмет]
+  - [подтвер, выполн]
+  - [доработ]
+  - [срок]
+  - [просроч]
+  - [почт]
+  - [истори]
+  - [отчёт, sla]
+  - [excel]
+entities_range: [4, 12]      # разумное число доменных сущностей
+max_questions: 5

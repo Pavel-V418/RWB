@@ -1,0 +1,92 @@
+openapi: 3.1.0
+info: { title: Inventory API, version: 1.0.0 }
+paths:
+  /items:
+    get:
+      operationId: listItems
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+        - { name: sort, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string, enum: [furniture, electronics, consumables] } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ItemPage' } } } } }
+    post:
+      operationId: createItem
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ItemCreate' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } } } }
+  /items/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      operationId: getItem
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } } } }
+    delete:
+      operationId: deleteItem
+      responses: { '204': { description: Deleted } }
+  /items/{id}/write-off:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    post:
+      operationId: writeOffItem
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } } } }
+  /warehouses:
+    get:
+      operationId: listWarehouses
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Warehouse' } } } } } }
+  /movements:
+    get:
+      operationId: listMovements
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+        - { name: itemId, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MovementPage' } } } } }
+components:
+  schemas:
+    Item:
+      type: object
+      required: [id, title, category, quantity]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        sku: { type: string, pattern: '^[A-Z]{3}-[0-9]{4}$' }
+        category: { type: string, enum: [furniture, electronics, consumables] }
+        quantity: { type: integer, minimum: 0 }
+        price: { type: number }
+        warehouseId: { type: string }
+        warehouseName: { type: string }
+        writtenOff: { type: boolean }
+    ItemCreate:
+      type: object
+      required: [title, category, quantity, warehouseId]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 200 }
+        sku: { type: string, pattern: '^[A-Z]{3}-[0-9]{4}$' }
+        category: { type: string, enum: [furniture, electronics, consumables] }
+        quantity: { type: integer, minimum: 0, maximum: 100000 }
+        price: { type: number, minimum: 0 }
+        warehouseId: { type: string }
+        receivedOn: { type: string, format: date }
+    ItemPage:
+      type: object
+      required: [items, total]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Item' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }
+    Warehouse:
+      type: object
+      required: [id, name]
+      properties: { id: { type: string }, name: { type: string }, city: { type: string } }
+    Movement:
+      type: object
+      required: [id, occurredAt, type]
+      properties:
+        id: { type: string }
+        occurredAt: { type: string, format: date-time }
+        type: { type: string, enum: [in, out, write_off] }
+        quantity: { type: integer }
+        comment: { type: string }
+        itemId: { type: string }
+    MovementPage:
+      type: object
+      required: [items, total]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Movement' } }, total: { type: integer }, page: { type: integer }, size: { type: integer } }

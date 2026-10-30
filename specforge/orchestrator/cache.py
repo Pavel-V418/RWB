@@ -43,6 +43,11 @@ def stage_key(agent: Agent, artifacts_dir: Path) -> str:
     prompts = agent_dir(agent) / spec.prompt_dir
     for path in artifact_files(prompts):
         h.update(f"\0prompt\0{path.relative_to(prompts).as_posix()}\0{sha256_file(path)}".encode())
+    # код и промпты агента вне его каталога (адаптеры к пакетам packages/): правка — промах кэша
+    for root in getattr(agent, "cache_sources", ()):
+        for path in artifact_files(Path(root)):
+            rel = path.relative_to(root).as_posix()
+            h.update(f"\0source\0{Path(root).name}/{rel}\0{sha256_file(path)}".encode())
     for path in glob_files(artifacts_dir, input_globs(spec.inputs)):  # файл целиком
         rel = path.relative_to(artifacts_dir).as_posix()
         h.update(f"\0input\0{rel}\0{sha256_file(path)}".encode())

@@ -1,0 +1,23 @@
+flowchart LR
+    role_driver(["Водитель"])
+    role_dispatcher(["Диспетчер"])
+    Mobile_App["Mobile App<br/><small>Kotlin 2.2, Jetpack Compose, Material 3</small>"]
+    Admin_Web["Admin Web<br/><small>Angular 20, UI Kit, MapLibre</small>"]
+    Backend_API["Backend API<br/><small>ASP.NET Core 10, C#35, 14, EF Core + NetTopologySuite, SignalR</small>"]
+    Background_Worker["Background Worker<br/><small>.NET 10 BackgroundService</small>"]
+    PostgreSQL___PostGIS[("PostgreSQL + PostGIS<br/><small>PostgreSQL 17.9, PostGIS</small>")]
+    Kafka[["Kafka<br/><small>Apache Kafka</small>"]]
+    Parkomatica_Mock[/"Parkomatica Mock<br/><small>ASP.NET Core minimal API</small>"/]
+    Official_Payment_Service{{"Official Payment Service<br/><small>Сайт и приложения «Парковки Санкт-Петербурга» / «Парковки России»</small>"}}
+    role_driver --> Mobile_App
+    role_dispatcher --> Admin_Web
+    Backend_API -->|"публикует события"| Kafka
+    Kafka -->|"события"| Background_Worker
+    Kafka -->|"события"| Backend_API
+    Background_Worker -->|"публикует события"| Kafka
+    Mobile_App -->|"REST /api/v1, HTTPS + JWT"| Backend_API
+    Admin_Web -->|"REST /api/v1 + обновления в реальном времени"| Backend_API
+    Backend_API -->|"SQL"| PostgreSQL___PostGIS
+    Background_Worker -->|"SQL"| PostgreSQL___PostGIS
+    Backend_API -->|"адаптер, REST"| Parkomatica_Mock
+    Mobile_App -->|"deeplink / ссылка"| Official_Payment_Service

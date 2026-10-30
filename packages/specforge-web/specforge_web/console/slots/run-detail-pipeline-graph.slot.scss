@@ -1,0 +1,26 @@
+:host { display: block; }
+.sf-graph { display: flex; align-items: center; gap: var(--sf-space-2); overflow-x: auto; padding-bottom: var(--sf-space-2); }
+.sf-graph-col { display: flex; flex-direction: column; gap: var(--sf-space-2); min-width: 168px; }
+.sf-graph-arrow { color: var(--sf-text-muted); flex: 0 0 auto; }
+.sf-node {
+  display: flex; flex-direction: column; gap: var(--sf-space-2); padding: var(--sf-space-3);
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface);
+  cursor: pointer; outline: none; transition: border-color .15s, box-shadow .15s;
+  &:focus-visible, &.sf-node--selected { border-color: var(--p-primary-color); box-shadow: var(--sf-shadow); }
+  &[data-status='passed'] { border-left: 4px solid var(--sf-map-success); }
+  &[data-status='failed'] { border-left: 4px solid var(--sf-map-danger); }
+  &[data-status='awaiting_approval'], &[data-status='repairing'] { border-left: 4px solid var(--sf-map-warn); }
+  &[data-status='running'], &[data-status='gate'] { border-left: 4px solid var(--sf-map-info); }
+}
+.sf-node-title { font-weight: 600; font-size: var(--sf-text-sm); }
+.sf-node-meta { font-size: var(--sf-text-xs); color: var(--sf-text-muted); }
+:host ::ng-deep .sf-node-progress { height: 4px; }
+:host ::ng-deep .sf-graph-progress { height: 6px; }
+.sf-node-detail { border-top: 1px solid var(--sf-border); padding-top: var(--sf-space-3); }
+.sf-node-subtitle { font-size: var(--sf-text-sm); font-weight: 600; }
+.sf-node-summary { margin: 0; font-size: var(--sf-text-sm); }
+.sf-question { padding: var(--sf-space-2); border: 1px solid var(--sf-border); border-radius: var(--sf-radius); }
+.sf-question textarea, .sf-node-detail textarea { width: 100%; }
+.sf-node-files { margin: 0; padding-left: var(--sf-space-4); font-size: var(--sf-text-xs);
+  code { word-break: break-all; } }
+.sf-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -854,3 +854,45 @@ specforge.api.server:app`, контракт — `docs/console-api.yaml` (обн�
 reports/trivy.json .`) в корне своего этапа; backend — `/health`, `/metrics`, миграции и
 тестовые данные; технический писатель — документы по `config/doc_templates.yaml` и
 `README.md` с инструкцией запуска.
+
+---
+
+## 13. Части команды (`packages/`)
+
+Части, написанные под контракт `run(input_dir, output_dir, llm) -> GateResult`, лежат пакетами
+uv-workspace и подключаются в граф тонкими агентами-адаптерами в `agents/`:
+
+| Пакет | Агент платформы | Этап | Что вызывает |
+|---|---|---|---|
+| `packages/specforge-analysis` (участник 2) | `analyst` | `01_requirements` | `stage_requirements.run` |
+| | `system_architect` | `02_system` | `stage_system.run` |
+| | `tech_writer` | `09_docs` | `stage_docs.run` |
+| `packages/specforge-web` (участник 4) | `ux_designer` | `03_ux` | `agents.ux_designer.agent.run` |
+| | `frontend_coder` | `05_web` | `agents.frontend.agent.run` |
+
+План: `analyst → system_architect → ux_designer → frontend_coder → tech_writer → acceptance`.
+
+- **Модель — только через `LLMClient`.** Адаптеры `agents/_team/bridge.py` реализуют протоколы
+  частей поверх `ctx.llm`: `AnalysisLLM.structured(name, messages, schema, thinking,
+  max_tokens)` (профиль ANALYSIS, строки `metrics.jsonl` для страницы эффективности) и
+  `WebLLM.complete(messages, json_schema, thinking, max_tokens, temperature, tag)` (профиль
+  CODE, JSON Schema — `LLMClient.chat(response_schema=...)`). Собственные клиенты частей
+  (`OpenAICompatLLM`) в конвейере не используются — только в их автономных CLI.
+- **Шлюз.** Шлюзы частей внутренние (свои ремонты): их ошибки и предупреждения — в
+  `StageResult.gate.diagnostics` (`tool`: `requirements`, `system`, `docs`, `ux`, `frontend`).
+  Шлюз пройден — `passed`; не пройден, но артефакты есть — `degraded`; нет артефактов или
+  исключение — `failed`. Исключение: `frontend_coder` — сборку (`npm run gate`: kit-lint +
+  `ng build` + jest) проверяет шлюз платформы в `specforge/node:22`, красный чинит ремонтник.
+- **Thinking** части выбирают сами на каждый вызов, поэтому их нет в `config/profiles.yaml`.
+- **Кэш этапа** учитывает код и промпты пакета (`cache_sources` агента): правка в `packages/` —
+  промах кэша.
+- **Вопросы аналитика** (`requirements.json → questions[]`) → `01_requirements/questions.json`
+  (§11, «Уточняющие вопросы»).
+- **Стыковка анализа и веба** (`agents/_team/web.py`): платформы экранов — из
+  `01_requirements/profile.json` (`needs_web_ui` / `needs_admin_ui` → web, `needs_mobile_app` →
+  android); для документации UX-этап пишет `03_ux/screens.json`, `03_ux/traceability.json` и
+  `03_ux/docs/` (руководство и каталог экранов, в сайте — раздел «Интерфейс»).
+
+Работа над частью — в её каталоге, тесты — общим `uv run pytest` (или
+`uv run pytest packages/<пакет>/...`). Импорты веб-части — `specforge_web.<пакет>` (её
+`agents`, `tools`, `scripts` конфликтовали бы с одноимёнными пакетами платформы).

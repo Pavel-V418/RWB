@@ -1,0 +1,53 @@
+// SpecForge design tokens. ЕДИНСТВЕННОЕ место, где разрешены «сырые» значения цветов.
+// Цвета компонентов PrimeNG задаются в preset.ts; здесь — прикладные токены приложения,
+// построенные поверх CSS-переменных темы (--p-*).
+
+:root {
+  // Отступы: шкала 4/8/12/16/24/32
+  --sf-space-1: 4px;
+  --sf-space-2: 8px;
+  --sf-space-3: 12px;
+  --sf-space-4: 16px;
+  --sf-space-5: 24px;
+  --sf-space-6: 32px;
+
+  // Радиусы и тени — из темы
+  --sf-radius: var(--p-content-border-radius, 6px);
+  --sf-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+
+  // Поверхности и текст
+  --sf-bg: var(--p-surface-50);
+  --sf-surface: var(--p-content-background);
+  --sf-border: var(--p-content-border-color);
+  --sf-text: var(--p-text-color);
+  --sf-text-muted: var(--p-text-muted-color);
+
+  // Раскладка
+  --sf-sidebar-width: 248px;
+  --sf-header-height: 56px;
+  --sf-content-max: 1440px;
+
+  // Карта: цвета слоёв по severity (используются в app-map, не в шаблонах)
+  --sf-map-success: var(--p-green-500);
+  --sf-map-info: var(--p-sky-500);
+  --sf-map-warn: var(--p-amber-500);
+  --sf-map-danger: var(--p-red-500);
+  --sf-map-secondary: var(--p-slate-500);
+  --sf-map-contrast: var(--p-surface-900);
+  --sf-map-fill-opacity: 0.18;
+
+  // Типографика
+  --sf-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sf-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sf-text-xs: 12px;
+  --sf-text-sm: 13px;
+  --sf-text-md: 14px;
+  --sf-text-lg: 16px;
+  --sf-text-xl: 20px;
+  --sf-text-2xl: 24px;
+}
+
+.app-dark {
+  --sf-bg: var(--p-surface-950);
+  --sf-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}

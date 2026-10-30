@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_DOC_PENDING",
+      "severity": "warning",
+      "message": "разделов, ожидающих результатов других участников: 4",
+      "target": null
+    }
+  ],
+  "traceability": {
+    "fr_total": 21,
+    "fr_designed_pct": 100.0,
+    "fr_with_screens_pct": null,
+    "fr_with_tests_pct": null,
+    "fr_confirmed_pct": null,
+    "ac_with_tests_pct": null
+  },
+  "pending_sections": 4,
+  "team_inputs": {
+    "screens": 0,
+    "screenshots": 0,
+    "tests": 0,
+    "security_findings": 0,
+    "run_readme": false,
+    "compose_services": 0
+  },
+  "metrics": {
+    "llm_calls": 1,
+    "input_tokens": 4435,
+    "output_tokens": 3699,
+    "retries": 0,
+    "cached_calls": 1,
+    "duration_s": 0.0
+  }
+}

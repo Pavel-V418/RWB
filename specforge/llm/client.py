@@ -254,9 +254,23 @@ class LLMClient:
         temperature: float | None = None,
         thinking: bool | None = None,
         max_tokens: int | None = None,
+        response_schema: dict[str, Any] | None = None,
+        schema_name: str = "response",
     ) -> LLMResponse:
-        """Один ход диалога. temperature/thinking/max_tokens перекрывают значения профиля."""
-        request = self._request(messages, tools, profile, temperature, thinking, max_tokens)
+        """Один ход диалога. temperature/thinking/max_tokens перекрывают значения профиля.
+
+        response_schema — готовая JSON Schema ответа (guided decoding при LLM_STRUCTURED_MODE=
+        json_schema, иначе — текстом в промпте); разбор и проверку ответа делает вызывающий.
+        Для pydantic-схем — structured()."""
+        conversation = list(messages)
+        if response_schema is not None and self.config.structured_mode == "prompt":
+            conversation.append(
+                ChatMessage(role="user", content=_schema_instruction(response_schema))
+            )
+        request = self._request(conversation, tools, profile, temperature, thinking, max_tokens)
+        if response_schema is not None and self.config.structured_mode == "json_schema":
+            request.response_schema_name = schema_name
+            request.response_schema = dict(response_schema)
         return self._call(request)
 
     def structured[T: BaseModel](

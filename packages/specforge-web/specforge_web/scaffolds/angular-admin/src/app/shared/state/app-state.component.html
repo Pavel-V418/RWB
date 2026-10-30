@@ -1,0 +1,70 @@
+@switch (status()) {
+  @case ('loading') {
+    <div class="sf-state" [attr.data-testid]="testid() + '-loading'" aria-busy="true">
+      @if (loadingKind() === 'skeleton') {
+        @switch (skeleton()) {
+          @case ('map') { <p-skeleton width="100%" height="360px" /> }
+          @case ('detail') {
+            <div class="sf-stack">
+              <p-skeleton width="40%" height="2rem" />
+              <div class="sf-grid">
+                @for (r of rows(); track r) { <div class="sf-span-4 sf-stack sf-stack--sm"><p-skeleton width="50%" /><p-skeleton width="80%" height="1.25rem" /></div> }
+              </div>
+            </div>
+          }
+          @case ('cards') {
+            <div class="sf-grid">
+              @for (r of [1, 2, 3, 4]; track r) { <p-skeleton class="sf-span-3" height="6rem" /> }
+            </div>
+          }
+          @default {
+            <div class="sf-stack sf-stack--sm">
+              @for (r of rows(); track r) { <p-skeleton height="2.5rem" /> }
+            </div>
+          }
+        }
+      } @else if (loadingKind() === 'spinner') {
+        <div class="sf-state-center"><p-progressspinner strokeWidth="4" ariaLabel="Загрузка" /></div>
+      } @else {
+        <div class="sf-state-center"><p-progressspinner strokeWidth="4" ariaLabel="Загрузка" /></div>
+      }
+    </div>
+  }
+  @case ('empty') {
+    <div class="sf-state sf-state-center" [class.sf-state--compact]="compact()" [attr.data-testid]="testid() + '-empty'">
+      <i class="pi pi-inbox sf-state-icon" aria-hidden="true"></i>
+      <div class="sf-state-title">{{ emptyTitle() }}</div>
+      @if (emptyDescription()) { <div class="sf-muted">{{ emptyDescription() }}</div> }
+      @if (emptyActionLabel()) {
+        <p-button [label]="emptyActionLabel()!" icon="pi pi-plus" (onClick)="emptyAction.emit()" [attr.data-testid]="testid() + '-empty-action'" />
+      }
+    </div>
+  }
+  @case ('error') {
+    <div class="sf-state" [attr.data-testid]="testid() + '-error'">
+      <p-message severity="error" icon="pi pi-exclamation-circle">
+        <div class="sf-stack sf-stack--sm">
+          <strong>{{ errorTitle() }}</strong>
+          @if (errorText()) { <span>{{ errorText() }}</span> }
+          @if (problem()?.traceId) { <span class="sf-muted sf-mono">ID: {{ problem()!.traceId }}</span> }
+        </div>
+      </p-message>
+      @if (retryable()) {
+        <p-button label="Повторить" icon="pi pi-refresh" severity="secondary" (onClick)="retry.emit()" [attr.data-testid]="testid() + '-retry'" />
+      }
+    </div>
+  }
+  @case ('forbidden') {
+    <div class="sf-state" [attr.data-testid]="testid() + '-forbidden'">
+      <p-message severity="warn" icon="pi pi-lock">
+        <div class="sf-stack sf-stack--sm">
+          <strong>{{ forbiddenTitle() }}</strong>
+          @if (forbiddenDescription()) { <span>{{ forbiddenDescription() }}</span> }
+        </div>
+      </p-message>
+    </div>
+  }
+  @default {
+    <ng-content />
+  }
+}

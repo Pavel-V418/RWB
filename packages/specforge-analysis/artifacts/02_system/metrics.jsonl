@@ -1,0 +1,3 @@
+{"name": "domain", "input_tokens": 4686, "output_tokens": 3358, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": true, "model": "fake"}
+{"name": "api_design", "input_tokens": 8372, "output_tokens": 8209, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": true, "model": "fake"}
+{"name": "sa_prose", "input_tokens": 5716, "output_tokens": 2443, "duration_s": 0.0, "attempt": 1, "cached": true, "ok": true, "retry_reason": null, "thinking": false, "model": "fake"}

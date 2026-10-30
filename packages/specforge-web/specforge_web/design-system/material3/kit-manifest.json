@@ -1,0 +1,17 @@
+{
+  "kit": "material3",
+  "owner": "участник 5 (Android). Здесь — минимальный список, по которому шлюз UX проверяет слоты Android-экранов.",
+  "components": [
+    { "tag": "Scaffold" }, { "tag": "TopAppBar" }, { "tag": "CenterAlignedTopAppBar" },
+    { "tag": "NavigationBar" }, { "tag": "NavigationBarItem" },
+    { "tag": "Card" }, { "tag": "ElevatedCard" }, { "tag": "OutlinedCard" }, { "tag": "ListItem" },
+    { "tag": "Button" }, { "tag": "FilledTonalButton" }, { "tag": "OutlinedButton" }, { "tag": "TextButton" },
+    { "tag": "FloatingActionButton" }, { "tag": "ExtendedFloatingActionButton" }, { "tag": "IconButton" },
+    { "tag": "AssistChip" }, { "tag": "FilterChip" }, { "tag": "SuggestionChip" }, { "tag": "Badge" },
+    { "tag": "OutlinedTextField" }, { "tag": "Switch" }, { "tag": "Checkbox" }, { "tag": "SegmentedButton" },
+    { "tag": "PrimaryTabRow" }, { "tag": "Tab" },
+    { "tag": "Snackbar" }, { "tag": "AlertDialog" }, { "tag": "ModalBottomSheet" },
+    { "tag": "LinearProgressIndicator" }, { "tag": "CircularProgressIndicator" }, { "tag": "HorizontalDivider" },
+    { "tag": "MapView", "note": "обёртка MapLibre Android из каркаса участника 5" }
+  ]
+}

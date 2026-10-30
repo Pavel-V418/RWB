@@ -1,0 +1,124 @@
+@startuml
+hide circle
+skinparam linetype ortho
+entity "user_accounts" as UserAccount {
+  * id : uuid <<PK>>
+  --
+  * login : string <<UK>>
+  * password_hash : string
+  * role : enum
+    driver_id : uuid <<FK>>
+  * is_active : bool
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "drivers" as Driver {
+  * id : uuid <<PK>>
+  --
+  * full_name : string
+    phone : string
+    vehicle_id : uuid <<FK>>
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "vehicles" as Vehicle {
+  * id : uuid <<PK>>
+  --
+  * plate_number : string <<UK>>
+    model : string
+  * is_active : bool
+    current_zone_id : uuid <<FK>>
+    last_position_at : timestamptz
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "parking_zones" as ParkingZone {
+  * id : uuid <<PK>>
+  --
+  * zone_number : string <<UK>>
+    name : string
+  * boundary : polygon
+    hourly_rate : decimal
+    paid_hours : string
+    max_duration_minutes : int
+  * data_source : enum
+    data_version : string
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "vehicle_positions" as VehiclePosition {
+  * id : uuid <<PK>>
+  --
+  * vehicle_id : uuid <<FK>>
+  * point : point
+  * recorded_at : timestamptz
+    accuracy_m : decimal
+    speed_kmh : decimal
+  * source : enum
+    zone_id : uuid <<FK>>
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "parking_sessions" as ParkingSession {
+  * id : uuid <<PK>>
+  --
+  * vehicle_id : uuid <<FK>>
+  * driver_id : uuid <<FK>>
+  * zone_id : uuid <<FK>>
+  * start_mode : enum
+  * status : enum
+  * started_at : timestamptz
+  * paid_until : timestamptz
+    ended_at : timestamptz
+    provider_session_id : string
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "parking_events" as ParkingEvent {
+  * id : uuid <<PK>>
+  --
+  * type : enum
+  * vehicle_id : uuid <<FK>>
+    zone_id : uuid <<FK>>
+    previous_zone_id : uuid <<FK>>
+    session_id : uuid <<FK>>
+  * occurred_at : timestamptz
+    payload : jsonb
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "notifications" as Notification {
+  * id : uuid <<PK>>
+  --
+  * driver_id : uuid <<FK>>
+    event_id : uuid <<FK>>
+  * type : enum
+  * text : string
+    read_at : timestamptz
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "demo_routes" as DemoRoute {
+  * id : uuid <<PK>>
+  --
+  * name : string
+  * path : linestring
+  * point_interval_sec : int
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+Driver |o--o{ UserAccount : driver_id
+Vehicle |o--o{ Driver : vehicle_id
+ParkingZone |o--o{ Vehicle : current_zone_id
+Vehicle ||--o{ VehiclePosition : vehicle_id
+ParkingZone |o--o{ VehiclePosition : zone_id
+Vehicle ||--o{ ParkingSession : vehicle_id
+Driver ||--o{ ParkingSession : driver_id
+ParkingZone ||--o{ ParkingSession : zone_id
+Vehicle ||--o{ ParkingEvent : vehicle_id
+ParkingZone |o--o{ ParkingEvent : zone_id
+ParkingZone |o--o{ ParkingEvent : previous_zone_id
+ParkingSession |o--o{ ParkingEvent : session_id
+Driver ||--o{ Notification : driver_id
+ParkingEvent |o--o{ Notification : event_id
+@enduml

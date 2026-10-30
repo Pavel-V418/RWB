@@ -1,0 +1,1945 @@
+openapi: 3.1.0
+info:
+  title: Помощник управления платными парковками Санкт-Петербурга API
+  version: 1.0.0
+  description: |-
+    Мобильный помощник водителя служебного автомобиля и административный web-интерфейс. Система по координатам определяет нахождение автомобиля в зоне платной парковки, ведёт парковочную сессию, предупреждает об окончании оплаченного периода и о смене зоны и даёт переход к официальному сервису оплаты. Реальная оплата не выполняется: внешний поставщик подключается через адаптер с mock-сервисом.
+
+    Сгенерировано specforge-analysis из доменной модели и дизайна API.
+servers:
+- url: http://localhost:8080
+  description: локальный запуск (docker compose)
+tags:
+- name: Auth
+- name: Me
+- name: Positions
+- name: Vehicles
+- name: Zones
+- name: Sessions
+- name: Events
+- name: Demo
+security:
+- bearerAuth: []
+paths:
+  /api/v1/auth/tokens:
+    post:
+      operationId: createToken
+      summary: Выдать JWT по логину и паролю
+      tags:
+      - Auth
+      x-requirements:
+      - FR-15
+      - FR-16
+      x-roles:
+      - anonymous
+      description: 'Роли: anonymous. Требования: FR-15, FR-16.'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/me/status:
+    get:
+      operationId: getMyStatus
+      summary: 'Состояние для главного экрана водителя: зона, сессия, оставшееся время'
+      tags:
+      - Me
+      x-requirements:
+      - FR-3
+      - FR-9
+      - FR-14
+      - FR-16
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-3, FR-9, FR-14, FR-16.'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMyStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/vehicles/{vehicleId}/positions:
+    post:
+      operationId: submitPosition
+      summary: Передать координату автомобиля; ответ содержит определённую зону и переход
+      tags:
+      - Positions
+      x-requirements:
+      - FR-1
+      - FR-2
+      - FR-6
+      - FR-7
+      - FR-8
+      - FR-13
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-1, FR-2, FR-6, FR-7, FR-8, FR-13.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: vehicleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitPositionRequest'
+      responses:
+        '202':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitPositionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/vehicles/{vehicleId}/route:
+    get:
+      operationId: getRoute
+      summary: Маршрут автомобиля за период
+      tags:
+      - Positions
+      x-requirements:
+      - FR-6
+      - FR-12
+      - FR-15
+      x-roles:
+      - driver
+      - dispatcher
+      description: 'Роли: driver, dispatcher. Требования: FR-6, FR-12, FR-15.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: vehicleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: true
+        description: начало периода
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: true
+        description: конец периода
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRouteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/vehicles:
+    get:
+      operationId: listVehicles
+      summary: Список автомобилей с текущей зоной
+      tags:
+      - Vehicles
+      x-requirements:
+      - FR-15
+      x-roles:
+      - dispatcher
+      description: 'Роли: dispatcher. Требования: FR-15.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: plateNumber
+        in: query
+        required: false
+        description: поиск по госномеру
+        schema:
+          type: string
+          maxLength: 255
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vehicle'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/zones:
+    get:
+      operationId: listZones
+      summary: Парковочные зоны с границами и параметрами
+      tags:
+      - Zones
+      x-requirements:
+      - FR-3
+      - FR-4
+      - FR-15
+      x-roles:
+      - driver
+      - dispatcher
+      description: 'Роли: driver, dispatcher. Требования: FR-3, FR-4, FR-15.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: zoneNumber
+        in: query
+        required: false
+        description: фильтр по номеру
+        schema:
+          type: string
+          maxLength: 255
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParkingZone'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/zones/{zoneId}:
+    get:
+      operationId: getZone
+      summary: Карточка зоны
+      tags:
+      - Zones
+      x-requirements:
+      - FR-3
+      - FR-4
+      x-roles:
+      - driver
+      - dispatcher
+      description: 'Роли: driver, dispatcher. Требования: FR-3, FR-4.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingZone'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/zones/{zoneId}/payment-link:
+    get:
+      operationId: getPaymentLink
+      summary: Ссылки на официальный сервис оплаты с номером зоны
+      tags:
+      - Zones
+      x-requirements:
+      - FR-11
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-11.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetPaymentLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/zone-imports:
+    post:
+      operationId: createZoneImport
+      summary: Загрузить зоны из GeoJSON (снимок открытых данных или демо-набор)
+      tags:
+      - Zones
+      x-requirements:
+      - FR-21
+      x-roles:
+      - dispatcher
+      description: 'Роли: dispatcher. Требования: FR-21.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateZoneImportRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateZoneImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/sessions:
+    post:
+      operationId: startSession
+      summary: Запустить новую сессию или подтвердить оплаченную
+      tags:
+      - Sessions
+      x-requirements:
+      - FR-5
+      - FR-14
+      - FR-17
+      - FR-19
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-5, FR-14, FR-17, FR-19.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      operationId: listSessions
+      summary: История парковочных сессий
+      tags:
+      - Sessions
+      x-requirements:
+      - FR-12
+      - FR-15
+      x-roles:
+      - driver
+      - dispatcher
+      description: 'Роли: driver, dispatcher. Требования: FR-12, FR-15.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: vehicleId
+        in: query
+        required: false
+        description: автомобиль; для водителя — только свой
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        required: false
+        description: статус
+        schema:
+          type: string
+          enum:
+          - active
+          - expiring
+          - expired
+          - closed
+      - name: from
+        in: query
+        required: false
+        description: начало периода
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        description: конец периода
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ParkingSession'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/vehicles/{vehicleId}/sessions/active:
+    get:
+      operationId: getActiveSession
+      summary: Активная сессия автомобиля
+      tags:
+      - Sessions
+      x-requirements:
+      - FR-5
+      x-roles:
+      - driver
+      - dispatcher
+      description: 'Роли: driver, dispatcher. Требования: FR-5.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: vehicleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/sessions/{sessionId}/extensions:
+    post:
+      operationId: createSessionExtension
+      summary: Подтвердить продление оплаты
+      tags:
+      - Sessions
+      x-requirements:
+      - FR-10
+      - FR-14
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-10, FR-14.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionExtensionRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/sessions/{sessionId}:
+    patch:
+      operationId: updateSession
+      summary: Завершить сессию (status = closed)
+      tags:
+      - Sessions
+      x-requirements:
+      - FR-5
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-5.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      summary: Журнал событий
+      tags:
+      - Events
+      x-requirements:
+      - FR-15
+      - FR-20
+      x-roles:
+      - dispatcher
+      description: 'Роли: dispatcher. Требования: FR-15, FR-20.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: vehicleId
+        in: query
+        required: false
+        description: автомобиль
+        schema:
+          type: string
+          format: uuid
+      - name: type
+        in: query
+        required: false
+        description: тип
+        schema:
+          type: string
+          enum:
+          - zone_entered
+          - zone_exited
+          - zone_changed
+          - session_started
+          - session_extended
+          - session_expiring
+          - session_expired
+          - session_closed
+      - name: from
+        in: query
+        required: false
+        description: начало периода
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        description: конец периода
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ParkingEvent'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/me/notifications:
+    get:
+      operationId: listMyNotifications
+      summary: Уведомления водителя
+      tags:
+      - Me
+      x-requirements:
+      - FR-7
+      - FR-8
+      - FR-9
+      - FR-10
+      - FR-13
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-7, FR-8, FR-9, FR-10, FR-13.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: unreadOnly
+        in: query
+        required: false
+        description: только непрочитанные
+        schema:
+          type: boolean
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/me/notifications/{notificationId}:
+    patch:
+      operationId: updateMyNotification
+      summary: Отметить уведомление прочитанным
+      tags:
+      - Me
+      x-requirements:
+      - FR-16
+      x-roles:
+      - driver
+      description: 'Роли: driver. Требования: FR-16.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMyNotificationRequest'
+      responses:
+        '204':
+          description: Успешно
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/demo/routes:
+    get:
+      operationId: listDemoRoutes
+      summary: Демонстрационные маршруты
+      tags:
+      - Demo
+      x-requirements:
+      - FR-18
+      x-roles:
+      - dispatcher
+      description: 'Роли: dispatcher. Требования: FR-18.'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DemoRoute'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/demo/routes/{routeId}/runs:
+    post:
+      operationId: createDemoRouteRun
+      summary: Запустить проигрывание маршрута для автомобиля
+      tags:
+      - Demo
+      x-requirements:
+      - FR-18
+      x-roles:
+      - dispatcher
+      description: 'Роли: dispatcher. Требования: FR-18.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: routeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDemoRouteRunRequest'
+      responses:
+        '202':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDemoRouteRunResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: ключ идемпотентности; повтор с тем же ключом возвращает первый результат
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+  responses:
+    BadRequest:
+      description: Ошибка валидации запроса
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Нет или истёк токен доступа
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Недостаточно прав для операции
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Конфликт состояния ресурса
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Нарушено бизнес-правило
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Превышен лимит запросов
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+      headers:
+        Retry-After:
+          description: через сколько секунд повторить
+          schema:
+            type: integer
+    InternalError:
+      description: Внутренняя ошибка
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: Внешний сервис недоступен
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    UserAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        login:
+          type: string
+          description: логин
+          maxLength: 50
+          minLength: 1
+          pattern: ^[a-z0-9._-]{3,50}$
+        role:
+          type: string
+          enum:
+          - driver
+          - dispatcher
+          description: роль
+        driverId:
+          type: string
+          format: uuid
+          description: профиль водителя для роли driver
+        isActive:
+          type: boolean
+          description: учётная запись активна
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - login
+      - role
+      - isActive
+      - createdAt
+      - updatedAt
+      description: Учётная запись пользователя системы
+    Driver:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        fullName:
+          type: string
+          description: ФИО
+          maxLength: 150
+          minLength: 1
+        phone:
+          type: string
+          description: телефон в формате +7XXXXXXXXXX
+          maxLength: 12
+          pattern: ^\+7\d{10}$
+        vehicleId:
+          type: string
+          format: uuid
+          description: закреплённый автомобиль
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - fullName
+      - createdAt
+      - updatedAt
+      description: Водитель служебного автомобиля
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        plateNumber:
+          type: string
+          description: госномер, например А123ВС178
+          maxLength: 9
+          minLength: 1
+          pattern: ^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$
+        model:
+          type: string
+          description: марка и модель
+          maxLength: 100
+        isActive:
+          type: boolean
+          description: в эксплуатации
+          default: true
+        currentZoneId:
+          type: string
+          format: uuid
+          description: текущая платная зона по последним координатам
+          readOnly: true
+        lastPositionAt:
+          type: string
+          format: date-time
+          description: время последней координаты
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - plateNumber
+      - isActive
+      - createdAt
+      - updatedAt
+      description: Служебный автомобиль
+    ParkingZone:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        zoneNumber:
+          type: string
+          description: номер зоны
+          maxLength: 4
+          minLength: 1
+          pattern: ^\d{4}$
+        name:
+          type: string
+          description: название или адресный ориентир
+          maxLength: 200
+        boundary:
+          allOf:
+          - $ref: '#/components/schemas/GeoJsonPolygon'
+          description: границы зоны
+        hourlyRate:
+          type: number
+          description: стоимость часа, руб.
+          minimum: 0
+          maximum: 10000
+        paidHours:
+          type: string
+          description: часы платного режима, например «пн–пт 08:00–20:00»
+          maxLength: 100
+        maxDurationMinutes:
+          type: integer
+          format: int32
+          description: ограничение длительности стоянки
+          minimum: 1
+          maximum: 1440
+        dataSource:
+          type: string
+          enum:
+          - open_data
+          - demo
+          description: источник геоданных
+          default: open_data
+        dataVersion:
+          type: string
+          description: версия или дата снимка данных
+          maxLength: 50
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - zoneNumber
+      - boundary
+      - dataSource
+      - createdAt
+      - updatedAt
+      description: Зона платной парковки
+    VehiclePosition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        vehicleId:
+          type: string
+          format: uuid
+          description: автомобиль (из пути запроса)
+          readOnly: true
+        point:
+          allOf:
+          - $ref: '#/components/schemas/GeoJsonPoint'
+          description: координата
+        recordedAt:
+          type: string
+          format: date-time
+          description: время фиксации на устройстве
+        accuracyM:
+          type: number
+          description: точность, м
+          minimum: 0
+          maximum: 10000
+        speedKmh:
+          type: number
+          description: скорость, км/ч
+          minimum: 0
+          maximum: 300
+        source:
+          type: string
+          enum:
+          - gps
+          - mock
+          description: источник координаты
+          default: gps
+        zoneId:
+          type: string
+          format: uuid
+          description: зона, вычисленная для точки
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - vehicleId
+      - point
+      - recordedAt
+      - source
+      - createdAt
+      - updatedAt
+      description: Отметка местоположения автомобиля
+    ParkingSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        vehicleId:
+          type: string
+          format: uuid
+          description: автомобиль
+        driverId:
+          type: string
+          format: uuid
+          description: водитель (из токена)
+          readOnly: true
+        zoneId:
+          type: string
+          format: uuid
+          description: зона
+        startMode:
+          type: string
+          enum:
+          - started
+          - confirmed
+          description: запущена в системе или подтверждена оплаченная
+        status:
+          type: string
+          enum:
+          - active
+          - expiring
+          - expired
+          - closed
+          description: статус
+          readOnly: true
+          default: active
+        startedAt:
+          type: string
+          format: date-time
+          description: начало
+          readOnly: true
+        paidUntil:
+          type: string
+          format: date-time
+          description: оплачено до
+          readOnly: true
+        endedAt:
+          type: string
+          format: date-time
+          description: фактическое завершение
+          readOnly: true
+        providerSessionId:
+          type: string
+          description: идентификатор сессии у поставщика
+          maxLength: 100
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - vehicleId
+      - driverId
+      - zoneId
+      - startMode
+      - status
+      - startedAt
+      - paidUntil
+      - createdAt
+      - updatedAt
+      description: Парковочная сессия автомобиля в зоне
+    ParkingEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        type:
+          type: string
+          enum:
+          - zone_entered
+          - zone_exited
+          - zone_changed
+          - session_started
+          - session_extended
+          - session_expiring
+          - session_expired
+          - session_closed
+          description: тип события
+        vehicleId:
+          type: string
+          format: uuid
+          description: автомобиль
+        zoneId:
+          type: string
+          format: uuid
+          description: зона
+        previousZoneId:
+          type: string
+          format: uuid
+          description: предыдущая зона для zone_changed
+        sessionId:
+          type: string
+          format: uuid
+          description: сессия
+        occurredAt:
+          type: string
+          format: date-time
+          description: время события
+        payload:
+          type: object
+          additionalProperties: true
+          description: детали
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - type
+      - vehicleId
+      - occurredAt
+      - createdAt
+      - updatedAt
+      description: 'Событие жизненного цикла: въезд, выход, смена зоны, этапы сессии'
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        driverId:
+          type: string
+          format: uuid
+          description: получатель
+        eventId:
+          type: string
+          format: uuid
+          description: событие-основание, одно уведомление на событие
+        type:
+          type: string
+          enum:
+          - zone_entered
+          - zone_exited
+          - zone_changed
+          - session_paid_until
+          - session_expiring
+          - payment_required
+          description: тип уведомления
+        text:
+          type: string
+          description: текст, например «Вы въехали в зону платной парковки»
+          maxLength: 300
+          minLength: 1
+        readAt:
+          type: string
+          format: date-time
+          description: прочитано
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - driverId
+      - type
+      - text
+      - createdAt
+      - updatedAt
+      description: Уведомление водителю
+    DemoRoute:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          description: название маршрута
+          maxLength: 100
+          minLength: 1
+        path:
+          allOf:
+          - $ref: '#/components/schemas/GeoJsonLineString'
+          description: точки маршрута
+        pointIntervalSec:
+          type: integer
+          format: int32
+          description: интервал между точками в реальном времени, с
+          minimum: 1
+          maximum: 60
+          default: 10
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - path
+      - pointIntervalSec
+      - createdAt
+      - updatedAt
+      description: Демонстрационный mock-маршрут
+    GeoJsonPoint:
+      type: object
+      description: GeoJSON Point, WGS 84 (EPSG:4326), порядок [долгота, широта]
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          prefixItems:
+          - type: number
+            minimum: -180
+            maximum: 180
+          - type: number
+            minimum: -90
+            maximum: 90
+    GeoJsonPolygon:
+      type: object
+      description: GeoJSON Polygon, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Polygon
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+    GeoJsonLineString:
+      type: object
+      description: GeoJSON LineString, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: LineString
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+    Problem:
+      type: object
+      description: Единый формат ошибок, RFC 9457 (application/problem+json)
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          example: /errors/validation
+        title:
+          type: string
+          maxLength: 200
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          maxLength: 2000
+        instance:
+          type: string
+        code:
+          type: string
+          description: машиночитаемый код бизнес-ошибки
+        traceId:
+          type: string
+          description: идентификатор трассировки для поиска в логах
+        errors:
+          type: array
+          description: ошибки валидации по полям
+          items:
+            type: object
+            required:
+            - field
+            - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    CreateTokenRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          description: логин
+          maxLength: 50
+          minLength: 1
+          pattern: ^[a-z0-9._-]{3,50}$
+        password:
+          type: string
+          description: пароль
+          maxLength: 128
+          minLength: 1
+      additionalProperties: false
+      required:
+      - login
+      - password
+    CreateTokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT
+          maxLength: 4000
+          minLength: 1
+        expiresAt:
+          type: string
+          format: date-time
+          description: срок действия токена
+        role:
+          type: string
+          enum:
+          - driver
+          - dispatcher
+          description: роль
+      additionalProperties: false
+      required:
+      - accessToken
+      - expiresAt
+      - role
+    GetMyStatusResponse:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: закреплённый автомобиль
+        plateNumber:
+          type: string
+          description: госномер
+          maxLength: 9
+          minLength: 1
+        zoneId:
+          type: string
+          format: uuid
+          description: текущая зона
+        zoneNumber:
+          type: string
+          description: номер текущей зоны
+          maxLength: 4
+        sessionId:
+          type: string
+          format: uuid
+          description: активная сессия
+        sessionStatus:
+          type: string
+          enum:
+          - active
+          - expiring
+          - expired
+          - closed
+          description: статус сессии
+        paidUntil:
+          type: string
+          format: date-time
+          description: оплачено до
+        remainingMinutes:
+          type: integer
+          format: int32
+          description: осталось минут
+          minimum: 0
+        lastPositionAt:
+          type: string
+          format: date-time
+          description: время последней координаты
+      additionalProperties: false
+      required:
+      - vehicleId
+      - plateNumber
+    SubmitPositionRequest:
+      type: object
+      properties:
+        point:
+          allOf:
+          - $ref: '#/components/schemas/GeoJsonPoint'
+          description: координата
+        recordedAt:
+          type: string
+          format: date-time
+          description: время фиксации на устройстве
+        accuracyM:
+          type: number
+          description: точность, м
+          minimum: 0
+          maximum: 10000
+        speedKmh:
+          type: number
+          description: скорость, км/ч
+          minimum: 0
+          maximum: 300
+        source:
+          type: string
+          enum:
+          - gps
+          - mock
+          description: источник координаты
+          default: gps
+      additionalProperties: false
+      required:
+      - point
+      - recordedAt
+      - source
+    SubmitPositionResponse:
+      type: object
+      properties:
+        zoneId:
+          type: string
+          format: uuid
+          description: текущая зона после обработки точки
+        zoneNumber:
+          type: string
+          description: номер зоны
+          maxLength: 4
+        transition:
+          type: string
+          enum:
+          - none
+          - entered
+          - exited
+          - changed
+          description: изменение зоны
+        notification:
+          type: string
+          description: текст уведомления для немедленного показа
+          maxLength: 300
+      additionalProperties: false
+      required:
+      - transition
+    GetRouteResponse:
+      type: object
+      properties:
+        path:
+          allOf:
+          - $ref: '#/components/schemas/GeoJsonLineString'
+          description: маршрут; отсутствует, если точек меньше двух
+        pointsCount:
+          type: integer
+          format: int32
+          description: число точек
+          minimum: 0
+      additionalProperties: false
+      required:
+      - pointsCount
+    GetPaymentLinkResponse:
+      type: object
+      properties:
+        appUrl:
+          type: string
+          description: deeplink в приложение оплаты
+          maxLength: 500
+          minLength: 1
+        webUrl:
+          type: string
+          description: веб-версия сервиса оплаты
+          maxLength: 500
+          minLength: 1
+      additionalProperties: false
+      required:
+      - appUrl
+      - webUrl
+    CreateZoneImportRequest:
+      type: object
+      properties:
+        dataSource:
+          type: string
+          enum:
+          - open_data
+          - demo
+          description: источник геоданных
+          default: open_data
+        dataVersion:
+          type: string
+          description: версия или дата снимка данных
+          maxLength: 50
+        featureCollection:
+          type: object
+          additionalProperties: true
+          description: GeoJSON FeatureCollection зон
+      additionalProperties: false
+      required:
+      - dataSource
+      - featureCollection
+    CreateZoneImportResponse:
+      type: object
+      properties:
+        imported:
+          type: integer
+          format: int32
+          description: загружено зон
+          minimum: 0
+        skipped:
+          type: integer
+          format: int32
+          description: пропущено зон
+          minimum: 0
+        errors:
+          type: object
+          additionalProperties: true
+          description: ошибки по номерам зон
+      additionalProperties: false
+      required:
+      - imported
+      - skipped
+    StartSessionRequest:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: автомобиль
+        zoneId:
+          type: string
+          format: uuid
+          description: зона
+        startMode:
+          type: string
+          enum:
+          - started
+          - confirmed
+          description: запущена в системе или подтверждена оплаченная
+        durationMinutes:
+          type: integer
+          format: int32
+          description: длительность для режима started
+          minimum: 15
+          maximum: 1440
+        confirmedPaidUntil:
+          type: string
+          format: date-time
+          description: оплачено до, для режима confirmed
+      additionalProperties: false
+      required:
+      - vehicleId
+      - zoneId
+      - startMode
+    CreateSessionExtensionRequest:
+      type: object
+      properties:
+        paidUntil:
+          type: string
+          format: date-time
+          description: новое время окончания оплаты
+      additionalProperties: false
+      required:
+      - paidUntil
+    UpdateSessionRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - closed
+          description: новый статус
+      additionalProperties: false
+      required:
+      - status
+    UpdateMyNotificationRequest:
+      type: object
+      properties:
+        isRead:
+          type: boolean
+          description: true — прочитано
+      additionalProperties: false
+      required:
+      - isRead
+    CreateDemoRouteRunRequest:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: автомобиль
+        speedFactor:
+          type: number
+          description: ускорение времени
+          minimum: 1
+          maximum: 100
+          default: 10
+      additionalProperties: false
+      required:
+      - vehicleId
+    CreateDemoRouteRunResponse:
+      type: object
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: идентификатор проигрывания
+        pointsTotal:
+          type: integer
+          format: int32
+          description: число точек
+          minimum: 2
+      additionalProperties: false
+      required:
+      - runId
+      - pointsTotal

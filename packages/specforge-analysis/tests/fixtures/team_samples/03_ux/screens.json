@@ -1,0 +1,1 @@
+{"screens": [{"id": "web-sessions", "title": "Активные сессии", "platform": "web", "roles": ["dispatcher"], "fr": ["FR-15", "FR-20"], "screenshot": "05_web/screenshots/sessions.png"}, {"id": "mobile-home", "title": "Главный экран", "platform": "android", "roles": ["driver"], "fr": ["FR-16", "FR-14", "FR-3"]}]}

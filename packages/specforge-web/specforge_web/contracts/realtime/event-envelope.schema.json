@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specforge.local/contracts/realtime/event-envelope.schema.json",
+  "title": "Domain event envelope",
+  "description": "Единый конверт доменного события. Используется в Kafka (value сообщения), в SignalR (аргумент метода `event`) и в журнале событий REST. Payload описывается в AsyncAPI (участник 5 / архитектор).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "version", "occurredAt", "source", "payload"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "Уникальный ID события; ключ дедупликации при повторной обработке" },
+    "type": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$", "description": "<сущность>.<что_произошло>, например thing.created" },
+    "version": { "type": "integer", "minimum": 1, "description": "Версия схемы payload" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "description": "Сервис-источник" },
+    "correlationId": { "type": "string", "description": "Связывает цепочку событий одного процесса" },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "id"],
+      "properties": {
+        "entity": { "type": "string" },
+        "id": { "type": "string" }
+      },
+      "description": "Главная сущность события — по ней клиент обновляет нужную строку/маркер"
+    },
+    "payload": { "type": "object" }
+  }
+}

@@ -1,0 +1,228 @@
+[
+  {
+    "id": "mock-01",
+    "type": "vehicle.position",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 1500,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.309,
+          59.939
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": null
+    }
+  },
+  {
+    "id": "mock-02",
+    "type": "vehicle.position",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.315,
+          59.937
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": null
+    }
+  },
+  {
+    "id": "mock-03",
+    "type": "zone.entered",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.32,
+          59.936
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": "7801",
+      "zoneNumber": "7801",
+      "message": "Въезд в зону 7801",
+      "severity": "info"
+    }
+  },
+  {
+    "id": "mock-04",
+    "type": "session.started",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2500,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.3205,
+          59.9358
+        ]
+      },
+      "status": "parked",
+      "currentZoneNumber": "7801",
+      "zoneNumber": "7801",
+      "sessionId": "3c4d5e6f-0000-4000-8000-000000000001",
+      "paidUntil": "2026-10-30T12:20:00Z",
+      "message": "Парковка оплачена до 15:20",
+      "severity": "success"
+    }
+  },
+  {
+    "id": "mock-05",
+    "type": "session.expiring",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 4000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "zoneNumber": "7801",
+      "sessionId": "3c4d5e6f-0000-4000-8000-000000000001",
+      "message": "До окончания парковки осталось 10 минут",
+      "severity": "warn"
+    }
+  },
+  {
+    "id": "mock-06",
+    "type": "vehicle.position",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.329,
+          59.935
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": "7801"
+    }
+  },
+  {
+    "id": "mock-07",
+    "type": "zone.changed",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.338,
+          59.934
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": "7802",
+      "zoneNumber": "7802",
+      "previousZoneNumber": "7801",
+      "message": "Переход в зону 7802: проверьте необходимость новой оплаты",
+      "severity": "warn"
+    }
+  },
+  {
+    "id": "mock-08",
+    "type": "vehicle.position",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.348,
+          59.933
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": "7802"
+    }
+  },
+  {
+    "id": "mock-09",
+    "type": "zone.exited",
+    "version": 1,
+    "source": "mock",
+    "delayMs": 2000,
+    "subject": {
+      "entity": "vehicle",
+      "id": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001"
+    },
+    "payload": {
+      "vehicleId": "5a1c6f0e-7a2b-4c1d-8e3f-000000000001",
+      "vehiclePlate": "А123ВС178",
+      "lastPosition": {
+        "type": "Point",
+        "coordinates": [
+          30.36,
+          59.932
+        ]
+      },
+      "status": "moving",
+      "currentZoneNumber": null,
+      "zoneNumber": "7802",
+      "message": "Выезд из зоны 7802",
+      "severity": "info"
+    }
+  }
+]

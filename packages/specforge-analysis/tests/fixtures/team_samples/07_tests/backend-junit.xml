@@ -1,0 +1,2 @@
+<testsuite name="backend"><testcase classname="Sessions" name="FR-19 start session [AC-FR-19-01]" time="0.2"/>
+<testcase classname="Sessions" name="FR-19 skipped case" time="0"><skipped/></testcase></testsuite>

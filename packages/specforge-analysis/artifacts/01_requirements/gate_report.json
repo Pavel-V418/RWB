@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_NO_ACTOR",
+      "severity": "warning",
+      "message": "не указана роль",
+      "target": "FR-17"
+    },
+    {
+      "code": "W_NFR_NO_METRIC",
+      "severity": "warning",
+      "message": "нет измеримой метрики",
+      "target": "NFR-5"
+    },
+    {
+      "code": "W_BR_UNCOVERED",
+      "severity": "warning",
+      "message": "пункты бизнес-требований без ссылок из модели: строки 36, 37, 38, 52, 53, 54, 64, 66, 78, 79, 81, 82, 83, 84",
+      "target": null
+    }
+  ],
+  "coverage": {
+    "functional": 21,
+    "by_origin": {
+      "customer": 20,
+      "derived": 1,
+      "assumption": 0
+    },
+    "fr_with_acceptance_pct": 100.0,
+    "must_fr_with_scenario_pct": 100.0,
+    "fr_with_story_pct": 100.0,
+    "fr_with_source_line_pct": 100.0,
+    "acceptance_total": 50,
+    "acceptance_negative_or_edge": 26,
+    "scenarios": 8,
+    "questions": 5,
+    "assumptions": 11,
+    "security": 7,
+    "risks": 4
+  },
+  "metrics": {
+    "llm_calls": 4,
+    "input_tokens": 15188,
+    "output_tokens": 15496,
+    "retries": 0,
+    "cached_calls": 4,
+    "duration_s": 0.0
+  }
+}

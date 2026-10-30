@@ -1,0 +1,66 @@
+{
+  "stage": "01_requirements",
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_NO_ACTOR",
+      "severity": "warning",
+      "message": "не указана роль",
+      "target": "FR-17"
+    },
+    {
+      "code": "W_NFR_NO_METRIC",
+      "severity": "warning",
+      "message": "нет измеримой метрики",
+      "target": "NFR-5"
+    },
+    {
+      "code": "W_BR_UNCOVERED",
+      "severity": "warning",
+      "message": "пункты бизнес-требований без ссылок из модели: строки 36, 37, 38, 52, 53, 54, 64, 66, 78, 79, 81, 82, 83, 84",
+      "target": null
+    }
+  ],
+  "tokens": {
+    "input": 15188,
+    "output": 15496
+  },
+  "attempts": 4,
+  "llm_calls": 4,
+  "duration_s": 0.03,
+  "artifacts": [
+    "acceptance/FR-1.feature",
+    "acceptance/FR-10.feature",
+    "acceptance/FR-11.feature",
+    "acceptance/FR-12.feature",
+    "acceptance/FR-13.feature",
+    "acceptance/FR-14.feature",
+    "acceptance/FR-15.feature",
+    "acceptance/FR-16.feature",
+    "acceptance/FR-17.feature",
+    "acceptance/FR-18.feature",
+    "acceptance/FR-19.feature",
+    "acceptance/FR-2.feature",
+    "acceptance/FR-20.feature",
+    "acceptance/FR-21.feature",
+    "acceptance/FR-3.feature",
+    "acceptance/FR-4.feature",
+    "acceptance/FR-5.feature",
+    "acceptance/FR-6.feature",
+    "acceptance/FR-7.feature",
+    "acceptance/FR-8.feature",
+    "acceptance/FR-9.feature",
+    "analysis-report.md",
+    "answers.template.yaml",
+    "critic.json",
+    "gate_report.json",
+    "normalized.md",
+    "profile.json",
+    "questions.md",
+    "requirements.json",
+    "requirements.md",
+    "traceability.csv",
+    "user_stories.md"
+  ]
+}

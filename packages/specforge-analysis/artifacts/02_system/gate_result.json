@@ -1,0 +1,68 @@
+{
+  "stage": "02_system",
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_ENTITY_NO_API",
+      "severity": "warning",
+      "message": "сущность не видна ни в API, ни в событиях",
+      "target": "Driver"
+    },
+    {
+      "code": "W_DDL_NO_POSTGIS",
+      "severity": "warning",
+      "message": "DDL проверен во временном PostgreSQL без PostGIS (геометрия заменена на bytea); для полной проверки задайте SPECFORGE_PG_DSN",
+      "target": null
+    }
+  ],
+  "tokens": {
+    "input": 18774,
+    "output": 14010
+  },
+  "attempts": 3,
+  "llm_calls": 3,
+  "duration_s": 1.28,
+  "artifacts": [
+    "api-design.json",
+    "api-methods/createDemoRouteRun.md",
+    "api-methods/createSessionExtension.md",
+    "api-methods/createToken.md",
+    "api-methods/createZoneImport.md",
+    "api-methods/getActiveSession.md",
+    "api-methods/getMyStatus.md",
+    "api-methods/getPaymentLink.md",
+    "api-methods/getRoute.md",
+    "api-methods/getZone.md",
+    "api-methods/listDemoRoutes.md",
+    "api-methods/listEvents.md",
+    "api-methods/listMyNotifications.md",
+    "api-methods/listSessions.md",
+    "api-methods/listVehicles.md",
+    "api-methods/listZones.md",
+    "api-methods/startSession.md",
+    "api-methods/submitPosition.md",
+    "api-methods/updateMyNotification.md",
+    "api-methods/updateSession.md",
+    "asyncapi.yaml",
+    "diagrams/components.mmd",
+    "diagrams/components.puml",
+    "diagrams/er.mmd",
+    "diagrams/er.puml",
+    "diagrams/sequence-01.mmd",
+    "diagrams/sequence-01.puml",
+    "diagrams/sequence-02.mmd",
+    "diagrams/sequence-02.puml",
+    "diagrams/sequence-03.mmd",
+    "diagrams/sequence-03.puml",
+    "diagrams/state-parking_session.mmd",
+    "diagrams/state-parking_session.puml",
+    "domain-model.json",
+    "gate_report.json",
+    "openapi.yaml",
+    "sa-prose.json",
+    "schema.sql",
+    "system-analysis.md",
+    "traceability.csv"
+  ]
+}
