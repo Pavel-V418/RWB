@@ -26,6 +26,15 @@ class LLMUnavailableError(LLMError):
     """Эндпоинт не ответил после всех повторов."""
 
 
+class LLMEndpointDownError(LLMTransientError):
+    """Эндпоинт лежит (нет соединения, 502/503/504): после повторов LLMClient ждёт его
+    до LLM_WAIT_MAX_S."""
+
+
+class LLMWaitExhaustedError(LLMUnavailableError):
+    """Эндпоинт не поднялся за LLM_WAIT_MAX_S — этап failed (stopped_reason=llm_unavailable)."""
+
+
 class StructuredOutputError(LLMError):
     """Модель не вернула JSON, валидный по схеме, и после повтора с текстом ошибки."""
 

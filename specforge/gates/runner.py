@@ -21,6 +21,7 @@ from urllib.parse import unquote, urlparse
 import structlog
 
 from specforge.core.contracts import AgentSpec, Diagnostic, GateResult
+from specforge.gates.infra import classify_failure
 from specforge.gates.parsers import PARSERS, ParseContext, select_parser
 from specforge.sandbox.base import WORKDIR, ExecResult, Sandbox
 
@@ -62,6 +63,7 @@ class GateRunner:
         started = time.monotonic()
         diagnostics: list[Diagnostic] = []
         failed_index: int | None = None
+        infra: str | None = None
         with log_path.open("w", encoding="utf-8") as gate_log:
             for index, (command, parser) in enumerate(
                 zip(spec.gate_commands, parsers, strict=True)
@@ -87,6 +89,7 @@ class GateRunner:
                 )
                 if result.exit_code != 0:
                     failed_index = index
+                    infra = classify_failure(result.exit_code, result.duration_s, result.output)
                     break
 
         selected, total_errors = prioritize(
@@ -99,6 +102,7 @@ class GateRunner:
             total_errors=total_errors,
             log_path=str(log_path),
             duration_s=time.monotonic() - started,
+            infra_error=infra,
         )
 
     def _parse(self, parser: str, result: ExecResult, ctx: ParseContext) -> list[Diagnostic]:

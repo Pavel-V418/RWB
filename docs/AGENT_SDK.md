@@ -690,3 +690,46 @@ specforge.api.server:app`, контракт — `docs/console-api.yaml` (обн�
 - `$input_dir` / `$output_dir` в `task.md` — стабильные метки `artifacts` и `/work`, а не пути хоста;
   результат инструмента `run` — без длительности и абсолютного пути лога (стабильный префикс).
 - Селекторы входов `<glob>#<JSONPath | заголовок>` — см. §4 «Селекторы входов».
+
+### Не ломает совместимость: устойчивость и приёмка (этап 12)
+
+- `AgentSpec.timeout_s` (по умолчанию `None` → `SPECFORGE_STAGE_TIMEOUT_S`, 3600 с) — лимит этапа
+  (агент + шлюз + ремонт). `AgentContext.deadline` — момент остановки: `agent_loop` и ремонт
+  проверяют его между шагами (`StopReason` `"timeout"`). По таймауту — откат к последнему зелёному
+  снимку `specforge-green-<agent>`, статус `degraded`, если артефакты есть, иначе `failed`,
+  событие `stage_timeout`.
+- `GateResult.infra_error` — команда шлюза упала из-за инфраструктуры (код 137 за секунды, pull /
+  registry, упавший контейнер, нет места на диске), а не кода. Такой этап повторяется целиком без
+  ремонта, не больше 2 раз (событие `stage_retry`); ошибки компиляции и тестов идут в ремонт.
+- LLM недоступна (нет соединения, 502/503/504): после обычных повторов `LLMClient` ждёт её
+  с экспоненциальной паузой до `LLM_WAIT_MAX_S` (900 с), событие `llm_unavailable` на каждую паузу.
+  Не дождалась — `failed` только текущего этапа (`stopped_reason="llm_unavailable"`), прогон идёт
+  дальше, а `specforge resume <run_id>` начинает с этого этапа.
+- Этап `stage="acceptance"` (агент `agents/acceptance`) всегда идёт последним шагом перед finalize;
+  зависеть от него нельзя. Перед каждым этапом в `runs/<id>/stage_results.json` пишутся результаты
+  и spec этапов на этот момент.
+
+## 12. Приёмка (`agents/acceptance`)
+
+Приёмщик проверяет итоговый репозиторий, а не доверяет состоянию конвейера:
+
+1. Собирает репозиторий из `artifacts/` по `config/repo_layout.yaml` (поздние этапы перекрывают
+   файлы ранних) и заново выполняет шлюзы всех passed/degraded этапов — каждый в своей копии
+   каталога и своей песочнице, параллельно. Был passed, стал красный — «регрессия».
+2. `docker compose up --wait` (compose-файл в корне, `infra/` или `deploy/`): у собранных из
+   репозитория backend-сервисов `/health` отвечает Healthy / Degraded / Unhealthy, `/metrics` — в
+   формате Prometheus; e2e/демо-сценарий `e2e/run.sh` (или `tests/e2e/run.sh`, `scripts/e2e.sh`),
+   если тест-инженер его сгенерировал.
+3. Документация `docs/{tz,adr,api,services}` — доля обязательных разделов из
+   `config/doc_templates.yaml` (заменить на разделы шаблонов организаторов).
+4. Отчёты Trivy `trivy*.json`: уязвимость HIGH или CRITICAL — «не готово».
+5. Матрица трассируемости `traceability.{md,csv,yaml,json}` (FR → код → тест): требование покрыто,
+   если указаны и код, и тест и эти пути есть в репозитории.
+
+Результат — `artifacts/acceptance/verdict.json` (`ready`, `blockers`, `regressions`, `not_done`,
+`risks`, документация, покрытие, уязвимости, перепроверка шлюзов) и `summary.md` — резюме через
+LLM (профиль REVIEW). Этап `passed`, если готово, иначе `degraded`.
+
+Что ждёт приёмщик от команды: тест-инженер — `e2e/run.sh` и матрицу `docs/traceability.md`
+(колонки FR | Код | Тест), DevOps — compose-файл и отчёт Trivy в JSON (`trivy fs --format json
+-o reports/trivy.json .`), backend — `/health` и `/metrics`.

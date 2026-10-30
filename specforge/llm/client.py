@@ -32,9 +32,10 @@ from openai.types.chat import (
     ChatCompletionToolMessageParam,
     ChatCompletionUserMessageParam,
 )
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 from specforge.core.contracts import ProfileName, Usage, safe_thinking_temperature
+from specforge.core.events import Event
 from specforge.llm.profiles import (
     DEFAULT_PROFILES,
     AgentLLMSettings,
@@ -51,11 +52,13 @@ from specforge.llm.tool_parsing import (
 from specforge.llm.types import (
     ChatMessage,
     LLMConfigError,
+    LLMEndpointDownError,
     LLMError,
     LLMRequest,
     LLMResponse,
     LLMTransientError,
     LLMUnavailableError,
+    LLMWaitExhaustedError,
     RawCompletion,
     RawToolCall,
     StructuredOutputError,
@@ -66,6 +69,7 @@ from specforge.llm.usage import LLMCallRecord, OnCallHook, UsageKey, UsageMeter,
 log = structlog.get_logger(__name__)
 
 _ERROR_FEEDBACK_CHARS = 2000
+ENDPOINT_DOWN_STATUSES = frozenset({502, 503, 504})
 
 StructuredMode = Literal["json_schema", "prompt"]
 ProfileRef = Profile | str
@@ -80,6 +84,9 @@ class LLMConfig(BaseModel):
     """Повторы при сетевых ошибках, 5xx и 429 (всего попыток = max_retries + 1)."""
     retry_backoff_s: float = Field(default=1.0, ge=0)
     retry_backoff_max_s: float = Field(default=30.0, ge=0)
+    wait_max_s: float = Field(default=900.0, ge=0)
+    """Эндпоинт лежит (нет соединения, 502/503/504) — ждать его суммарно до стольких секунд
+    с экспоненциальной паузой (событие llm_unavailable), потом — failed только текущего этапа."""
     max_concurrency: int = Field(default=4, ge=1)
     """Одновременных запросов к эндпоинту из процесса."""
     structured_mode: StructuredMode = "json_schema"
@@ -103,6 +110,7 @@ class LLMConfig(BaseModel):
             "max_retries": "LLM_MAX_RETRIES",
             "retry_backoff_s": "LLM_RETRY_BACKOFF_S",
             "retry_backoff_max_s": "LLM_RETRY_BACKOFF_MAX_S",
+            "wait_max_s": "LLM_WAIT_MAX_S",
             "max_concurrency": "LLM_MAX_CONCURRENCY",
             "structured_mode": "LLM_STRUCTURED_MODE",
             "structured_attempts": "LLM_STRUCTURED_ATTEMPTS",
@@ -144,6 +152,8 @@ class LLMClient:
         self.forced_thinking: bool | None = None
         """Если не None — thinking всех вызовов, что бы ни передали агент или профиль."""
         self.thinking_off = False
+        self._emit: Callable[[Event], None] | None = None
+        self._stage_status = _StageStatus()
         """Жёсткий запрет thinking (бюджет): сильнее forced_thinking."""
         self._shared = _SharedOpenAI(openai_client)
         self._dedup = _DedupCache()
@@ -378,17 +388,90 @@ class LLMClient:
             try:
                 with self._semaphore:
                     return self._transport(request), attempt
+            except LLMEndpointDownError as exc:
+                if attempt == attempts_total:
+                    return self._wait_for_endpoint(request, exc, attempt)
+                self._retry_pause(attempt, exc)
             except LLMTransientError as exc:
                 if attempt == attempts_total:
                     raise LLMUnavailableError(
                         f"{self.config.base_url}: нет ответа после {attempts_total} попыток: {exc}"
                     ) from exc
-                delay = self._backoff(attempt)
-                log.warning(
-                    "llm.retry", attempt=attempt, delay_s=round(delay, 2), error=str(exc)[:200]
-                )
-                self._sleep(delay)
+                self._retry_pause(attempt, exc)
         raise AssertionError("unreachable")
+
+    def _retry_pause(self, attempt: int, exc: LLMError) -> None:
+        delay = self._backoff(attempt)
+        log.warning("llm.retry", attempt=attempt, delay_s=round(delay, 2), error=str(exc)[:200])
+        self._sleep(delay)
+
+    def _wait_for_endpoint(
+        self, request: LLMRequest, error: LLMError, attempts: int
+    ) -> tuple[RawCompletion, int]:
+        """Эндпоинт лежит: ждать с экспоненциальной паузой суммарно до wait_max_s (каждая пауза —
+        событие llm_unavailable), потом LLMWaitExhaustedError — этап failed, прогон идёт дальше."""
+        waited = 0.0
+        step = 0
+        while waited < self.config.wait_max_s:
+            step += 1
+            delay = min(
+                self.config.wait_max_s - waited,
+                max(self.config.retry_backoff_max_s, 1.0),
+                max(self.config.retry_backoff_s, 1.0) * 2.0 ** (step - 1),
+            )
+            self._emit_event(
+                "llm_unavailable",
+                f"LLM недоступна, жду {delay:.0f} с (всего {waited:.0f} из "
+                f"{self.config.wait_max_s:.0f} с): {str(error)[:200]}",
+                waited_s=round(waited, 1),
+                delay_s=round(delay, 1),
+                max_s=self.config.wait_max_s,
+            )
+            self._sleep(delay)
+            waited += delay
+            attempts += 1
+            try:
+                with self._semaphore:
+                    raw = self._transport(request)
+            except LLMEndpointDownError as exc:
+                error = exc
+                continue
+            self._emit_event("llm_available", f"LLM снова доступна через {waited:.0f} с")
+            return raw, attempts
+        self._stage_status.llm_unavailable = True
+        raise LLMWaitExhaustedError(
+            f"{self.config.base_url}: LLM недоступна {waited:.0f} с "
+            f"(LLM_WAIT_MAX_S={self.config.wait_max_s:.0f}): {error}"
+        ) from error
+
+    def with_emit(self, emit: Callable[[Event], None]) -> "LLMClient":
+        """Копия, которая шлёт события LLM (llm_unavailable) в шину этапа и отмечает недоступность
+        LLM в статусе этапа (llm_unavailable_exhausted)."""
+        staged = copy.copy(self)
+        staged._emit = emit
+        staged._stage_status = _StageStatus()
+        staged._meters = []
+        return staged
+
+    @property
+    def llm_unavailable_exhausted(self) -> bool:
+        """LLM не ответила за LLM_WAIT_MAX_S в этом этапе (with_emit)."""
+        return self._stage_status.llm_unavailable
+
+    def _emit_event(self, kind: str, message: str, **data: JsonValue) -> None:
+        log.warning(kind, message=message, **data)
+        if self._emit is None:
+            return
+        self._emit(
+            Event(
+                kind=kind,
+                run_id=self.labels.run_id,
+                stage=self.labels.stage,
+                agent=self.labels.agent,
+                message=message,
+                data=data,
+            )
+        )
 
     def _backoff(self, attempt: int) -> float:
         base = self.config.retry_backoff_s * 2.0 ** (attempt - 1)
@@ -504,9 +587,13 @@ class LLMClient:
                 ),
                 extra_body=extra_body or None,
             )
-        except (openai.APIConnectionError, openai.RateLimitError, openai.InternalServerError) as e:
-            raise LLMTransientError(_describe(e)) from e
-        except openai.APIStatusError as e:
+        except openai.APIConnectionError as e:
+            raise LLMEndpointDownError(_describe(e)) from e
+        except (openai.RateLimitError, openai.InternalServerError, openai.APIStatusError) as e:
+            if e.status_code in ENDPOINT_DOWN_STATUSES:
+                raise LLMEndpointDownError(_describe(e)) from e
+            if isinstance(e, openai.RateLimitError | openai.InternalServerError):
+                raise LLMTransientError(_describe(e)) from e
             if e.status_code >= 500:
                 raise LLMTransientError(_describe(e)) from e
             raise LLMError(f"{self.config.base_url}: {_describe(e)}") from e
@@ -562,6 +649,13 @@ class _SharedOpenAI:
     def __init__(self, client: OpenAI | None) -> None:
         self.client = client
         self.lock = threading.Lock()
+
+
+class _StageStatus:
+    """Состояние этапа, общее для копий клиента этапа (with_emit)."""
+
+    def __init__(self) -> None:
+        self.llm_unavailable = False
 
 
 class _DedupCache:

@@ -44,8 +44,10 @@ class SnapshotError(Exception):
 
 
 class Snapshotter:
-    def __init__(self, sandbox: Sandbox) -> None:
+    def __init__(self, sandbox: Sandbox, agent: str | None = None) -> None:
         self.sandbox = sandbox
+        self.green_tag = f"{GREEN_TAG}-{agent}" if agent else GREEN_TAG
+        """specforge-green-<agent>: у агентов одного каталога этапа — свои зелёные снимки."""
         self._ready: bool | None = None
 
     @property
@@ -84,14 +86,14 @@ class Snapshotter:
     def mark_green(self) -> str:
         """Снимок текущего (зелёного) состояния с меткой GREEN_TAG."""
         sha = self.snapshot("green")
-        self._git(f"tag -f {GREEN_TAG} {sha}")
+        self._git(f"tag -f {self.green_tag} {sha}")
         return sha
 
     def green(self) -> str | None:
         """sha последнего зелёного снимка, если он был."""
         if not self.available:
             return None
-        result = self.sandbox.exec(f"{_GIT} rev-parse -q --verify {GREEN_TAG}", timeout_s=60)
+        result = self.sandbox.exec(f"{_GIT} rev-parse -q --verify {self.green_tag}", timeout_s=60)
         if result.exit_code != 0:
             return None
         return result.stdout.strip() or None

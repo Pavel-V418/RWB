@@ -66,6 +66,9 @@ class AgentContext:
     """Файлы, которые инструментам запрещено менять (AgentSpec.protected_globs)."""
     allowed_commands: Sequence[str] | None = None
     """Если задано — инструмент run выполняет только эти команды (ремонт: команды шлюза)."""
+    deadline: float | None = None
+    """time.monotonic(), после которого этап должен остановиться (AgentSpec.timeout_s):
+    agent_loop и ремонт проверяют его между шагами."""
 
 
 @runtime_checkable

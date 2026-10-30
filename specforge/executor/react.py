@@ -11,6 +11,7 @@ LOOP_REPEATS раза подряд или ответы без вызовов MAX
 """
 
 import os
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -126,6 +127,9 @@ class _Loop:
         text_only = 0
         with self.ctx.llm.track() as meter:
             for step in range(1, max_steps + 1):
+                if self.ctx.deadline is not None and time.monotonic() >= self.ctx.deadline:
+                    reason, summary = "timeout", "истёк лимит времени этапа"
+                    break
                 if meter.usage.total_tokens >= self.ctx.budget_tokens:
                     reason = "token_budget"
                     used, budget = meter.usage.total_tokens, self.ctx.budget_tokens

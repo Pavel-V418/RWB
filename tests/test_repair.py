@@ -155,7 +155,7 @@ def test_degraded_restores_last_green_snapshot(setup: Any, events: list[Event]) 
     assert ctx.sandbox is not None
     good = CALC.replace("a - b", "a + b")
     (ctx.output_dir / "calc.py").write_text(good, "utf-8")
-    Snapshotter(ctx.sandbox).mark_green()
+    Snapshotter(ctx.sandbox, "coder").mark_green()
     (ctx.output_dir / "calc.py").write_text(CALC, "utf-8")  # этап сломал код
     (ctx.output_dir / "junk.py").write_text("broken = (\n", "utf-8")
     gate = GateRunner(logs_dir=ctx.workdir / "logs").run(spec, ctx.sandbox, ctx.run_id)
@@ -289,4 +289,4 @@ def test_execute_stage_repairs_red_gate(make_ctx: MakeCtx) -> None:
     assert "ремонт: починено" in result.summary
     # зелёное состояние запомнено для будущих откатов
     sandbox = LocalSandbox(ctx.output_dir)
-    assert Snapshotter(sandbox).green() is not None
+    assert Snapshotter(sandbox, "coder").green() is not None

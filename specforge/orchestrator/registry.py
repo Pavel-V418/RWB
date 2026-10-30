@@ -24,6 +24,8 @@ from specforge.core.contracts import AgentSpec
 
 AGENTS_PACKAGE = "agents"
 PROFILE_STAGE = "profile"
+ACCEPTANCE_STAGE = "acceptance"
+"""Этап приёмщика: всегда последний шаг перед finalize, после всех остальных этапов."""
 """Этап агента, который строит CaseProfile; его узел графа — `profile`."""
 RESERVED_NODES = frozenset({PROFILE_STAGE, "finalize"})
 STAGE_PATTERN = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
@@ -102,10 +104,12 @@ class Registry:
 
     @cached_property
     def steps(self) -> list[Step]:
-        """Шаги после узла profile, в порядке выполнения."""
+        """Шаги после узла profile, в порядке выполнения; приёмщик — последним шагом."""
         profile = self.profile_agent
         done = {profile.spec.name} if profile else set()
-        return plan_steps(self.specs, done)
+        acceptance = [n for n, s in self.specs.items() if s.stage == ACCEPTANCE_STAGE]
+        steps = plan_steps(self.specs, done | set(acceptance))
+        return [*steps, tuple(acceptance)] if acceptance else steps
 
     def closure(self, targets: list[str]) -> set[str]:
         """Агенты по именам агентов или этапов плюс все их зависимости."""
@@ -154,19 +158,32 @@ def validate(specs: dict[str, AgentSpec]) -> list[str]:
         if spec.enabled_if == "extra":
             problems.append(f"{name}: enabled_if='extra' — не флаг CaseProfile")
 
-    profiles = [n for n, s in specs.items() if s.stage == PROFILE_STAGE]
-    if len(profiles) > 1:
-        problems.append(f"несколько агентов этапа profile: {', '.join(profiles)}")
-    for name in profiles:
-        if specs[name].depends_on:
-            problems.append(f"{name}: агент этапа profile идёт первым и не может иметь depends_on")
-
+    problems += _special_stage_problems(specs)
     cycle = find_cycle(specs)
     if cycle:
         problems.append("цикл зависимостей: " + " → ".join(cycle))
     problems += _output_conflicts(specs)
     if not cycle:
         problems += _group_conflicts(specs)
+    return problems
+
+
+def _special_stage_problems(specs: dict[str, AgentSpec]) -> list[str]:
+    """profile — первым и без зависимостей; acceptance — последним, от него никто не зависит."""
+    problems = []
+    acceptance = [n for n, s in specs.items() if s.stage == ACCEPTANCE_STAGE]
+    if len(acceptance) > 1:
+        problems.append(f"несколько агентов этапа acceptance: {', '.join(acceptance)}")
+    for name, spec in specs.items():
+        late = [d for d in spec.depends_on if d in acceptance]
+        if late:
+            problems.append(f"{name}: зависит от приёмщика {late[0]}, а он идёт последним")
+    profiles = [n for n, s in specs.items() if s.stage == PROFILE_STAGE]
+    if len(profiles) > 1:
+        problems.append(f"несколько агентов этапа profile: {', '.join(profiles)}")
+    for name in profiles:
+        if specs[name].depends_on:
+            problems.append(f"{name}: агент этапа profile идёт первым и не может иметь depends_on")
     return problems
 
 

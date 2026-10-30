@@ -1,0 +1,33 @@
+# Обязательные разделы документации по шаблонам (проверка приёмщика, agents/acceptance).
+# Ключ — каталог в итоговом репозитории (docs/<тип>/); sections — заголовки, которые должны
+# быть в каждом .md файле (совпадение по вхождению, без учёта регистра; варианты — через |).
+# Для api в каталоге может лежать OpenAPI (.yaml/.json): тогда проверяются keys верхнего уровня.
+# Замените списки на разделы из шаблонов организаторов (infra/docs-corpus/org-standards/).
+templates:
+  tz:
+    sections:
+      - Цел|Назначение|Goal
+      - Функциональные требования|Functional requirements
+      - Нефункциональные требования|Non-functional requirements
+      - Ограничения|Constraints
+      - Глоссарий|Термин|Glossary
+  adr:
+    sections:
+      - Контекст|Context
+      - Решение|Decision
+      - Последствия|Consequences
+      - Статус|Status
+  api:
+    sections:
+      - Описание|Overview
+      - Аутентификац|Authentication
+      - Эндпоинт|Ресурс|Endpoints|Resources
+      - Ошибки|Коды ответов|Errors
+    keys: [openapi, info, paths, components]
+  services:
+    sections:
+      - Назначение|Purpose|Overview
+      - Зависимости|Dependencies
+      - Конфигурац|Configuration
+      - Запуск|Running|Deployment
+      - Мониторинг|Health|Метрики|Metrics

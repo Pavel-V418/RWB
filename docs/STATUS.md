@@ -78,6 +78,18 @@
   --save-baseline`, `E2E_SAVE_BASELINE=1`).
 - НЕ сделано: baseline e2e кейса 1 и bench/concurrency.md — нет ТЗ (examples/case1.md), vLLM, Docker и агентов.
 
+## Приёмка и устойчивость (этап 12)
+- `agents/acceptance` — последний шаг графа: итоговый репозиторий по repo_layout, повтор шлюзов (регрессии), compose +
+  /health + /metrics + e2e, docs по config/doc_templates.yaml, Trivy HIGH+, матрица трассируемости; verdict.json и
+  summary.md (REVIEW). Docker/compose, HTTP и Trivy вживую не запускались — тесты на подделках.
+- Таймаут этапа (AgentSpec.timeout_s / SPECFORGE_STAGE_TIMEOUT_S) с откатом к specforge-green-<agent>; инфраструктурные
+  сбои (gates/infra.py) — повтор без ремонта (≤ 2, stage_retry); LLM недоступна — ожидание до LLM_WAIT_MAX_S,
+  failed этапа (llm_unavailable), resume продолжает с него.
+- Зависший агент после таймаута продолжает работать в брошенном потоке (Python не убивает потоки): agent_loop и ремонт
+  останавливаются по deadline между шагами, но один долгий вызов LLM или команда доработают до своего таймаута.
+- Словарь доменной утечки заполнен словами кейса 1 (раньше был пуст — тест ничего не проверял).
+- Шаблоны документации (config/doc_templates.yaml) и имена агентов в profiles.yaml — заглушки до шаблонов организаторов.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).

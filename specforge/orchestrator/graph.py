@@ -42,7 +42,7 @@ from specforge.core.events import Event, EventType
 from specforge.llm import LLMClient
 from specforge.orchestrator.budget import BudgetController, BudgetLimits
 from specforge.orchestrator.cache import StageCache
-from specforge.orchestrator.nodes import GraphState, PipelineNodes
+from specforge.orchestrator.nodes import LLM_UNAVAILABLE, GraphState, PipelineNodes
 from specforge.orchestrator.registry import PROFILE_STAGE, Registry, RegistryError
 from specforge.tools.docs import DocumentError, extract_text
 
@@ -229,6 +229,8 @@ def resume_run(
             f"нет чекпойнта запуска {run_id!r} (чекпойнты между процессами — в Postgres: "
             "SPECFORGE_PG_DSN)"
         )
+    if from_stage is None and not snapshot.next:
+        from_stage = _llm_unavailable_stage(registry, snapshot.values)
     if from_stage is not None:
         try:
             node = registry.node_of(from_stage)
@@ -245,6 +247,19 @@ def resume_run(
         log.info("resume.already_finished", run_id=run_id)
         return cast(GraphState, snapshot.values)
     return _invoke(graph, None, cfg, config)
+
+
+def _llm_unavailable_stage(registry: Registry, values: dict[str, Any]) -> str | None:
+    """Первый по плану этап, упавший из-за недоступной LLM: resume начинает с него."""
+    results = values.get("stage_results", {})
+    order = [PROFILE_STAGE, *(name for step in registry.steps for name in step)]
+    profile = registry.profile_agent
+    for node in order:
+        agent = profile.spec.name if node == PROFILE_STAGE and profile else node
+        result = results.get(agent)
+        if result is not None and result.stopped_reason == LLM_UNAVAILABLE:
+            return agent if node != PROFILE_STAGE else PROFILE_STAGE
+    return None
 
 
 def pending_approval(

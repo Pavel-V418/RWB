@@ -80,6 +80,9 @@ class GateResult(_Contract):
     """Индекс упавшей команды в AgentSpec.gate_commands; None — все прошли."""
     tests_executed: int | None = None
     """Сколько тестов реально выполнилось (None — неизвестно)."""
+    infra_error: str | None = None
+    """Команда упала из-за инфраструктуры (OOM-kill, registry, диск, контейнер), а не кода:
+    этап повторяется без ремонта (gates.infra)."""
 
 
 # --- Описание агента -----------------------------------------------------------------------
@@ -122,6 +125,9 @@ class AgentSpec(_Contract):
     max_steps: int = Field(default=30, ge=1)
     token_budget: int = Field(default=200_000, ge=1)
     max_repairs: int = Field(default=2, ge=0)
+    timeout_s: float | None = Field(default=None, gt=0)
+    """Лимит времени этапа (агент + шлюз + ремонт); None — SPECFORGE_STAGE_TIMEOUT_S. По таймауту —
+    откат к последнему зелёному снимку, degraded (есть артефакты) или failed."""
     depends_on: list[str] = Field(default_factory=list)
     enabled_if: str | None = None
     """Имя флага CaseProfile; если флаг ложен — этап пропускается (skipped)."""
@@ -217,7 +223,7 @@ class RunConfig(_Contract):
     max_concurrency: int = Field(default=2, ge=1)
 
 
-StopReason = Literal["finish", "max_steps", "token_budget", "loop", "error"]
+StopReason = Literal["finish", "max_steps", "token_budget", "loop", "error", "timeout"]
 
 
 class AgentOutcome(_Contract):
@@ -230,7 +236,8 @@ class AgentOutcome(_Contract):
     usage: Usage = Field(default_factory=Usage)
     stopped_reason: StopReason = "finish"
     """finish — модель вызвала finish; max_steps / token_budget — исчерпан лимит;
-    loop — зацикливание; error — LLM недоступна или неверный набор инструментов."""
+    loop — зацикливание; error — LLM недоступна или неверный набор инструментов;
+    timeout — истёк лимит времени этапа (AgentContext.deadline)."""
     changed_files: list[str] = Field(default_factory=list)
     """Файлы, созданные или изменённые инструментами (относительно /work)."""
 

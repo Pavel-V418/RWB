@@ -436,6 +436,11 @@ components:
           - type: integer
           - type: 'null'
           title: Tests Executed
+        infra_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Infra Error
       additionalProperties: false
       type: object
       required:

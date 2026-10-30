@@ -93,7 +93,7 @@ class _Repair:
         self.current = gate
         self.memory = memory or fix_memory_from_env()
         self.runner = runner or GateRunner(logs_dir=ctx.workdir / "logs")
-        self.snaps = snapshots or Snapshotter(ctx.sandbox)
+        self.snaps = snapshots or Snapshotter(ctx.sandbox, spec.name)
         self.protected = [*spec.protected_globs, f"{STATE_DIR}/**"]
         self.repair_ctx = dataclasses.replace(
             ctx,
@@ -113,6 +113,9 @@ class _Repair:
         attempts = 0
 
         for attempt in range(1, self.spec.max_repairs + 1):
+            if self.ctx.deadline is not None and time.monotonic() >= self.ctx.deadline:
+                reason = "истёк лимит времени этапа"
+                break
             remaining = self.ctx.budget_tokens - self.ctx.llm.usage.total_tokens
             if remaining <= 0:
                 reason = "исчерпан бюджет токенов этапа"

@@ -6,6 +6,7 @@ profile / этапы / finalize с проверкой зависимостей, 
 
 import dataclasses
 import os
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -16,7 +17,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field, JsonValue
 
 from specforge.core.agent_api import Agent, AgentContext, EmitFn
-from specforge.core.artifacts import RunWorkspace
+from specforge.core.artifacts import RunWorkspace, glob_files
 from specforge.core.contracts import (
     AgentSpec,
     CaseProfile,
@@ -26,6 +27,7 @@ from specforge.core.contracts import (
     Usage,
 )
 from specforge.core.events import Event, EventType
+from specforge.gates.infra import INFRA_MAX_RETRIES
 from specforge.gates.runner import GateConfigError, GateRunner
 from specforge.llm import LLMClient, NullLLM
 from specforge.orchestrator.budget import BudgetController, active_seconds
@@ -82,7 +84,9 @@ def execute_stage(
     # Токены этапа учитываются с метками run/stage/agent в общем UsageTracker.
     ctx = dataclasses.replace(
         ctx,
-        llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name).for_agent(spec.name),
+        llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name)
+        .for_agent(spec.name)
+        .with_emit(ctx.emit),
         protected_globs=[*ctx.protected_globs, *spec.protected_globs],
     )
     ctx.emit(
@@ -94,25 +98,37 @@ def execute_stage(
         )
     )
 
-    own_sandbox: BaseSandbox | None = None
-    try:
-        if ctx.sandbox is None and (spec.kind == "tool" or spec.gate_commands):
-            own_sandbox = create_sandbox(spec, ctx.output_dir, ctx.workdir / "logs")
-            ctx = dataclasses.replace(ctx, sandbox=own_sandbox)
-        result = _run_agent_and_gate(agent, spec, ctx, started)
-    except SandboxError as exc:
-        result = StageResult(
-            agent=spec.name,
-            status=StageStatus.failed,
-            duration_s=time.monotonic() - started,
-            summary=f"песочница: {exc}",
+    timeout = spec.timeout_s or stage_timeout_s()
+    deadline = started + timeout
+    ctx = dataclasses.replace(ctx, deadline=deadline)
+    retries = 0
+    while True:
+        result, infra = _attempt(agent, spec, ctx, started)
+        if infra is None or retries >= INFRA_MAX_RETRIES or time.monotonic() >= deadline:
+            break
+        retries += 1
+        ctx.emit(
+            Event(
+                kind="stage_retry",
+                run_id=ctx.run_id,
+                stage=spec.stage,
+                agent=spec.name,
+                message=f"инфраструктурный сбой, повтор {retries}/{INFRA_MAX_RETRIES}: {infra}",
+                data={"retry": retries, "reason": infra},
+            )
         )
-    finally:
-        if own_sandbox is not None:
-            try:
-                own_sandbox.close()
-            except SandboxError:
-                log.exception("sandbox.close_failed", agent=spec.name)
+    if infra is not None:
+        result = result.model_copy(
+            update={"stopped_reason": "infra", "summary": f"инфраструктура: {infra}"[:1000]}
+        )
+    if ctx.llm.llm_unavailable_exhausted:
+        result = result.model_copy(
+            update={
+                "status": StageStatus.failed,
+                "stopped_reason": LLM_UNAVAILABLE,
+                "summary": f"LLM недоступна дольше LLM_WAIT_MAX_S: {result.summary}"[:1000],
+            }
+        )
 
     ctx.emit(
         Event(
@@ -125,6 +141,121 @@ def execute_stage(
         )
     )
     return result
+
+
+LLM_UNAVAILABLE = "llm_unavailable"
+"""stopped_reason этапа, на котором LLM не ответила за LLM_WAIT_MAX_S: resume начнёт с него."""
+DEFAULT_STAGE_TIMEOUT_S = 3600.0
+DEFAULT_TIMEOUT_GRACE_S = 30.0
+
+
+def stage_timeout_s() -> float:
+    return float(os.environ.get("SPECFORGE_STAGE_TIMEOUT_S", DEFAULT_STAGE_TIMEOUT_S))
+
+
+def timeout_grace_s() -> float:
+    """Сколько ждать агента после дедлайна: agent_loop и ремонт останавливаются сами между шагами,
+    сторожевой поток — на случай зависшего вызова."""
+    return float(os.environ.get("SPECFORGE_STAGE_TIMEOUT_GRACE_S", DEFAULT_TIMEOUT_GRACE_S))
+
+
+def _attempt(
+    agent: Agent, spec: AgentSpec, ctx: AgentContext, started: float
+) -> tuple[StageResult, str | None]:
+    """Одна попытка этапа в своей песочнице: (результат, причина инфраструктурного сбоя | None).
+
+    Агент, шлюз и ремонт идут в сторожевом потоке: истёк дедлайн (+ grace) — откат к последнему
+    зелёному снимку и degraded / failed по наличию артефактов.
+    """
+    own_sandbox: BaseSandbox | None = None
+    try:
+        if ctx.sandbox is None and (spec.kind == "tool" or spec.gate_commands):
+            own_sandbox = create_sandbox(spec, ctx.output_dir, ctx.workdir / "logs")
+            ctx = dataclasses.replace(ctx, sandbox=own_sandbox)
+        results: list[StageResult] = []
+        errors: list[BaseException] = []
+
+        def work() -> None:
+            try:
+                results.append(_run_agent_and_gate(agent, spec, ctx, started))
+            except BaseException as exc:  # переносится в поток этапа
+                errors.append(exc)
+
+        worker = threading.Thread(target=work, name=f"stage-{spec.name}", daemon=True)
+        worker.start()
+        assert ctx.deadline is not None
+        worker.join(max(ctx.deadline - time.monotonic(), 0.0) + timeout_grace_s())
+        if worker.is_alive():
+            log.error("stage.timeout_abandoned", agent=spec.name)
+            return _timed_out(spec, ctx, started), None
+        if errors:
+            raise errors[0]
+        result = results[0]
+        if result.stopped_reason == "timeout" or (
+            time.monotonic() >= ctx.deadline and result.status != StageStatus.passed
+        ):
+            return _timed_out(spec, ctx, started, result), None
+        infra = result.gate.infra_error if result.gate is not None else None
+        return result, infra
+    except SandboxError as exc:
+        result = StageResult(
+            agent=spec.name,
+            status=StageStatus.failed,
+            duration_s=time.monotonic() - started,
+            summary=f"песочница: {exc}",
+        )
+        return result, f"песочница: {exc}"[:300]
+    finally:
+        if own_sandbox is not None:
+            try:
+                own_sandbox.close()
+            except SandboxError:
+                log.exception("sandbox.close_failed", agent=spec.name)
+
+
+def _timed_out(
+    spec: AgentSpec, ctx: AgentContext, started: float, partial: StageResult | None = None
+) -> StageResult:
+    """Таймаут этапа: откат к specforge-green-<agent>, если он есть; degraded, если после отката
+    есть артефакты, иначе failed."""
+    restored = False
+    if ctx.sandbox is not None:
+        snapshots = Snapshotter(ctx.sandbox, spec.name)
+        try:
+            green = snapshots.green() if snapshots.available else None
+            if green:
+                snapshots.restore(green)
+                restored = True
+        except SnapshotError as exc:
+            log.warning("stage.timeout_restore_failed", agent=spec.name, error=str(exc))
+    artifacts = [
+        p.relative_to(ctx.output_dir).as_posix() for p in glob_files(ctx.output_dir, spec.outputs)
+    ]
+    timeout = (ctx.deadline or started) - started
+    summary = f"таймаут этапа {timeout:.0f} с" + (
+        "; откат к последнему зелёному снимку" if restored else ""
+    )
+    ctx.emit(
+        Event(
+            kind="stage_timeout",
+            run_id=ctx.run_id,
+            stage=spec.stage,
+            agent=spec.name,
+            message=summary,
+            data={"timeout_s": round(timeout, 1), "restored_green": restored},
+        )
+    )
+    return StageResult(
+        agent=spec.name,
+        status=StageStatus.degraded if artifacts else StageStatus.failed,
+        attempts=partial.attempts if partial else 1,
+        usage=partial.usage if partial else ctx.llm.usage,
+        duration_s=time.monotonic() - started,
+        gate=partial.gate if partial else None,
+        artifacts=artifacts,
+        summary=summary,
+        stopped_reason="timeout",
+    )
 
 
 def _run_agent_and_gate(
@@ -151,7 +282,7 @@ def _run_agent_and_gate(
         return result.model_copy(update={"status": StageStatus.failed, "summary": f"шлюз: {exc}"})
 
     if gate.passed:
-        _mark_green(ctx.sandbox)
+        _mark_green(ctx.sandbox, spec.name)
         return result.model_copy(update={"gate": gate})
     ctx.emit(
         Event(
@@ -166,12 +297,13 @@ def _run_agent_and_gate(
             },
         )
     )
-    if spec.max_repairs == 0:
+    # ремонт инфраструктуру не починит — этап повторит execute_stage (stage_retry)
+    if spec.max_repairs == 0 or gate.infra_error:
         return result.model_copy(update={"gate": gate, "status": StageStatus.failed})
 
     repaired = repair_loop(spec, ctx, gate)
     if repaired.status == StageStatus.passed:
-        _mark_green(ctx.sandbox)
+        _mark_green(ctx.sandbox, spec.name)
     return result.model_copy(
         update={
             "status": repaired.status,
@@ -183,9 +315,10 @@ def _run_agent_and_gate(
     )
 
 
-def _mark_green(sandbox: Sandbox) -> None:
-    """Запомнить зелёное состояние workspace — к нему откатится будущий неудачный ремонт."""
-    snapshots = Snapshotter(sandbox)
+def _mark_green(sandbox: Sandbox, agent: str) -> None:
+    """Запомнить зелёное состояние workspace (specforge-green-<agent>) — к нему откатятся
+    неудачный ремонт и этап по таймауту."""
+    snapshots = Snapshotter(sandbox, agent)
     try:
         if snapshots.available:
             snapshots.mark_green()
@@ -226,6 +359,16 @@ NodeUpdate = dict[str, Any]
 PROFILE_FILE = "case_profile.json"
 """Файл, который агент этапа profile пишет в свой output_dir (CaseProfile в JSON)."""
 PIPELINE_FILE = "pipeline.json"
+STAGE_SNAPSHOT_FILE = "stage_results.json"
+
+
+class StageSnapshot(BaseModel):
+    """Результаты этапов на момент запуска очередного этапа (runs/<id>/stage_results.json)."""
+
+    results: dict[str, StageResult]
+    specs: dict[str, AgentSpec]
+    order: list[str]
+    """Порядок этапов по плану (шаги графа)."""
 
 
 class PipelineSummary(BaseModel):
@@ -405,6 +548,7 @@ class PipelineNodes:
                 return result
 
         output_dir = ws.clean_outputs(spec.stage, spec.outputs)
+        self._write_snapshot(state)
         llm: LLMClient = NullLLM() if spec.llm_free else self.llm
         if decision.thinking_off:
             llm = llm.without_thinking()
@@ -424,6 +568,17 @@ class PipelineNodes:
         if self.cache is not None and key is not None:
             self.cache.store(agent, key, result, output_dir)
         return result
+
+    def _write_snapshot(self, state: GraphState) -> None:
+        """runs/<id>/stage_results.json: результаты и spec этапов на момент запуска этапа —
+        приёмщик сверяет с ними итоговый репозиторий."""
+        snapshot = StageSnapshot(
+            results=state["stage_results"],
+            specs={name: agent.spec for name, agent in self.registry.agents.items()},
+            order=[name for step in self.registry.steps for name in step],
+        )
+        path = _workspace(state).root / STAGE_SNAPSHOT_FILE
+        path.write_text(snapshot.model_dump_json(indent=2), encoding="utf-8")
 
     def _update(self, spec: AgentSpec, result: StageResult, started: float) -> NodeUpdate:
         return {
