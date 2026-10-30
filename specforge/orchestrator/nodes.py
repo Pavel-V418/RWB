@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 import structlog
 from langgraph.types import interrupt
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, Field, JsonValue
 
 from specforge.core.agent_api import Agent, AgentContext, EmitFn
 from specforge.core.artifacts import RunWorkspace
@@ -237,6 +237,10 @@ class PipelineSummary(BaseModel):
     usage: Usage
     active_s: float
     stages: dict[str, StageResult]
+    clock: dict[str, list[float]] = Field(default_factory=dict)
+    """[начало, конец] этапов (unix time) — для диаграммы Ганта в отчёте."""
+    llm_free: list[str] = Field(default_factory=list)
+    """Агенты с AgentSpec.llm_free=True."""
 
 
 class PipelineNodes:
@@ -432,6 +436,7 @@ class PipelineNodes:
 
     def finalize(self, state: GraphState) -> NodeUpdate:
         summary = summarize(state)
+        summary.llm_free = [n for n, s in self.registry.specs.items() if s.llm_free]
         path = _workspace(state).root / PIPELINE_FILE
         path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
         data: dict[str, JsonValue] = {
@@ -471,6 +476,7 @@ def summarize(state: GraphState) -> PipelineSummary:
         usage=state["usage_total"],
         active_s=active_seconds(state.get("stage_clock", {}).values()),
         stages=results,
+        clock=dict(state.get("stage_clock", {})),
     )
 
 

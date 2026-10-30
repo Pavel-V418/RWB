@@ -383,6 +383,9 @@ def open_service(
     time_limit: float | None = None,
 ) -> Iterator[RunService]:
     """RunService по окружению: реестр agents/, LLM_*, SPECFORGE_* и чекпойнты Postgres."""
+    from specforge.telemetry.langfuse import install_langfuse  # noqa: PLC0415 — нет цикла импорта
+    from specforge.telemetry.metrics import CallLog  # noqa: PLC0415
+
     registry = registry_factory()
     llm = llm_factory()
     run = run_config_from_env(llm)
@@ -393,6 +396,8 @@ def open_service(
         updates["wall_clock_limit_s"] = time_limit
     run = run.model_copy(update=updates)
     runs_dir = Path(os.environ.get("SPECFORGE_RUNS_DIR", "runs"))
+    llm.add_hook(CallLog(runs_dir))  # повторы и вызовы для отчёта
+    langfuse = install_langfuse(llm)
     bus = EventBus(event_store_from_env(runs_dir))
     with open_checkpointer() as checkpointer:
         config = GraphConfig(
@@ -403,4 +408,8 @@ def open_service(
             checkpointer=checkpointer,
             use_cache=use_cache and os.environ.get("SPECFORGE_STAGE_CACHE", "true") != "false",
         )
-        yield RunService(registry, config, bus)
+        try:
+            yield RunService(registry, config, bus)
+        finally:
+            if langfuse is not None:
+                langfuse.flush()

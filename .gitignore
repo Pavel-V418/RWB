@@ -9,4 +9,4 @@ build/
 *.egg-info/
 .idea/
 .env
-runs/
+/runs/

@@ -1,0 +1,14 @@
+{
+  "stage": "assembly",
+  "agents": [
+    "assembler"
+  ],
+  "files": [
+    {
+      "path": "assembler.txt",
+      "sha256": "8910a70c8d391e7f0eff17424bc27a53c6556b9c973f43e61eddb0dd968ce3a9",
+      "size": 22
+    }
+  ],
+  "created_at": "2026-10-30T16:46:56.921597Z"
+}

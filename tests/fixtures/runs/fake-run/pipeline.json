@@ -1,0 +1,217 @@
+{
+  "run_id": "fake-run",
+  "profile": {
+    "has_mobile": false,
+    "has_web": true,
+    "has_backend": true,
+    "has_geo": false,
+    "has_events": false,
+    "has_integrations": false,
+    "extra": {}
+  },
+  "counts": {
+    "passed": 4,
+    "failed": 0,
+    "degraded": 1,
+    "skipped": 1
+  },
+  "usage": {
+    "prompt_tokens": 46200,
+    "completion_tokens": 11800,
+    "cached_tokens": 23200,
+    "calls": 8
+  },
+  "active_s": 268.0,
+  "stages": {
+    "analyst": {
+      "agent": "analyst",
+      "status": "passed",
+      "attempts": 1,
+      "usage": {
+        "prompt_tokens": 13000,
+        "completion_tokens": 2700,
+        "cached_tokens": 5200,
+        "calls": 2
+      },
+      "duration_s": 40.0,
+      "gate": null,
+      "artifacts": [
+        "analyst.txt"
+      ],
+      "summary": "готово",
+      "stopped_reason": null
+    },
+    "api_designer": {
+      "agent": "api_designer",
+      "status": "passed",
+      "attempts": 1,
+      "usage": {
+        "prompt_tokens": 5000,
+        "completion_tokens": 1500,
+        "cached_tokens": 3000,
+        "calls": 1
+      },
+      "duration_s": 35.0,
+      "gate": {
+        "passed": true,
+        "diagnostics": [],
+        "total_errors": 0,
+        "log_path": null,
+        "duration_s": 0.0,
+        "failed_command_index": null,
+        "tests_executed": null
+      },
+      "artifacts": [
+        "api_designer.txt"
+      ],
+      "summary": "готово",
+      "stopped_reason": null
+    },
+    "backend_coder": {
+      "agent": "backend_coder",
+      "status": "degraded",
+      "attempts": 3,
+      "usage": {
+        "prompt_tokens": 17200,
+        "completion_tokens": 4500,
+        "cached_tokens": 9500,
+        "calls": 3
+      },
+      "duration_s": 185.0,
+      "gate": {
+        "passed": false,
+        "diagnostics": [
+          {
+            "tool": "dotnet",
+            "file": "src/Api/Program.cs",
+            "line": 12,
+            "column": null,
+            "severity": "error",
+            "code": "CS0246",
+            "message": "The type or namespace name 'Foo' could not be found",
+            "code_window": null,
+            "category": "compile"
+          },
+          {
+            "tool": "dotnet",
+            "file": "src/Api/Startup.cs",
+            "line": 40,
+            "column": null,
+            "severity": "error",
+            "code": "CS1002",
+            "message": "; expected",
+            "code_window": null,
+            "category": "compile"
+          }
+        ],
+        "total_errors": 2,
+        "log_path": null,
+        "duration_s": 0.0,
+        "failed_command_index": 0,
+        "tests_executed": null
+      },
+      "artifacts": [
+        "backend_coder.txt"
+      ],
+      "summary": "degraded: ремонты исчерпаны (2)",
+      "stopped_reason": null
+    },
+    "web_coder": {
+      "agent": "web_coder",
+      "status": "passed",
+      "attempts": 2,
+      "usage": {
+        "prompt_tokens": 11000,
+        "completion_tokens": 3100,
+        "cached_tokens": 5500,
+        "calls": 2
+      },
+      "duration_s": 112.0,
+      "gate": {
+        "passed": true,
+        "diagnostics": [],
+        "total_errors": 0,
+        "log_path": null,
+        "duration_s": 0.0,
+        "failed_command_index": null,
+        "tests_executed": null
+      },
+      "artifacts": [
+        "web_coder.txt"
+      ],
+      "summary": "ремонт: починено",
+      "stopped_reason": null
+    },
+    "mobile_coder": {
+      "agent": "mobile_coder",
+      "status": "skipped",
+      "attempts": 0,
+      "usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0,
+        "calls": 0
+      },
+      "duration_s": 0.0,
+      "gate": null,
+      "artifacts": [],
+      "summary": "has_mobile = false в профиле кейса",
+      "stopped_reason": "enabled_if"
+    },
+    "assembler": {
+      "agent": "assembler",
+      "status": "passed",
+      "attempts": 1,
+      "usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0,
+        "calls": 0
+      },
+      "duration_s": 8.0,
+      "gate": {
+        "passed": true,
+        "diagnostics": [],
+        "total_errors": 0,
+        "log_path": null,
+        "duration_s": 0.0,
+        "failed_command_index": null,
+        "tests_executed": null
+      },
+      "artifacts": [
+        "assembler.txt"
+      ],
+      "summary": "готово",
+      "stopped_reason": null
+    }
+  },
+  "clock": {
+    "analyst": [
+      1760000000.0,
+      1760000040.0
+    ],
+    "api_designer": [
+      1760000040.0,
+      1760000075.0
+    ],
+    "backend_coder": [
+      1760000075.0,
+      1760000260.0
+    ],
+    "web_coder": [
+      1760000078.0,
+      1760000190.0
+    ],
+    "mobile_coder": [
+      1760000075.0,
+      1760000075.0
+    ],
+    "assembler": [
+      1760000260.0,
+      1760000268.0
+    ]
+  },
+  "llm_free": [
+    "assembler"
+  ]
+}

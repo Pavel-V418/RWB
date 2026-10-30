@@ -1,0 +1,9 @@
+{"kind":"run_started","run_id":"fake-run","stage":null,"agent":null,"message":"","data":{},"ts":"2025-10-09T08:53:20Z"}
+{"kind":"gate_failed","run_id":"fake-run","stage":"web","agent":"web_coder","message":"","data":{"total_errors":3,"failed_command_index":0},"ts":"2025-10-09T08:55:20Z"}
+{"kind":"repair_attempt","run_id":"fake-run","stage":"web","agent":"web_coder","message":"","data":{"attempt":1,"errors":3},"ts":"2025-10-09T08:55:21Z"}
+{"kind":"gate_failed","run_id":"fake-run","stage":"backend","agent":"backend_coder","message":"","data":{"total_errors":5,"failed_command_index":0},"ts":"2025-10-09T08:55:40Z"}
+{"kind":"repair_attempt","run_id":"fake-run","stage":"backend","agent":"backend_coder","message":"","data":{"attempt":1,"errors":5},"ts":"2025-10-09T08:55:41Z"}
+{"kind":"repair_attempt","run_id":"fake-run","stage":"backend","agent":"backend_coder","message":"","data":{"attempt":2,"errors":3},"ts":"2025-10-09T08:56:40Z"}
+{"kind":"escalation","run_id":"fake-run","stage":"backend","agent":"backend_coder","message":"","data":{"reason":"ремонты исчерпаны (2)","errors":2,"restored_green":false},"ts":"2025-10-09T08:57:39Z"}
+{"kind":"budget_warning","run_id":"fake-run","stage":"backend","agent":"backend_coder","message":"","data":{"decision":"thinking_off","ratio":0.72},"ts":"2025-10-09T08:57:35Z"}
+{"kind":"run_finished","run_id":"fake-run","stage":null,"agent":null,"message":"","data":{},"ts":"2025-10-09T08:57:48Z"}
