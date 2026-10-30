@@ -25,3 +25,29 @@ profiles:
     thinking: false
     temperature: 0.1
     max_tokens: 4096
+
+# thinking по агентам (AgentSpec.name) — меняется здесь, без правки кода агентов.
+# Перекрывает AgentSpec.thinking и профиль; бюджет-контроллер при расходе > 70% всё равно
+# выключает thinking у оставшихся этапов. Имена должны совпадать с agents/<name>/ —
+# specforge doctor покажет записи без агента. Агент без записи — как в AgentSpec / профиле.
+agents:
+  # рассуждения окупаются: анализ, архитектура, ревью, приёмка
+  profiler: {thinking: true}
+  analyst: {thinking: true}
+  requirements_critic: {thinking: true}
+  system_architect: {thinking: true}
+  ux_designer: {thinking: true}
+  vlm_reviewer: {thinking: true}
+  security_analyst: {thinking: true}
+  acceptance: {thinking: true}
+  # генерация кода и текстов по готовому плану — без рассуждений
+  backend_coder: {thinking: false}
+  frontend_coder: {thinking: false}
+  android_coder: {thinking: false}
+  test_engineer: {thinking: false}
+  devops: {thinking: false}
+  tech_writer: {thinking: false}
+
+# Ремонт этапа (specforge/repair): thinking агента не наследует.
+repair:
+  thinking: false

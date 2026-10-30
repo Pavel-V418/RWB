@@ -140,7 +140,12 @@ def test_run_truncates_output_and_keeps_full_log(env: ToolEnv) -> None:
     assert tail.rstrip().endswith("Z" * 100)
     assert len(content) < OUTPUT_HEAD_CHARS + OUTPUT_TAIL_CHARS + 500
     assert result.stub.startswith("[run: exit 0, 3 строк, лог: ")
-    log_path = Path(result.stub.split("лог: ")[1].rstrip("]"))
+    log_name = result.stub.split("лог: ")[1].rstrip("]")
+    assert "/" not in log_name
+    assert "\\" not in log_name
+    assert str(env.sandbox.workspace.parent) not in content
+    assert content.splitlines()[1] == "exit 0"  # без длительности
+    log_path = env.sandbox.logs_dir / log_name  # type: ignore[attr-defined]  # LocalSandbox
     assert "M" * 5000 in log_path.read_text("utf-8")
 
 

@@ -97,6 +97,7 @@ class _Repair:
         self.protected = [*spec.protected_globs, f"{STATE_DIR}/**"]
         self.repair_ctx = dataclasses.replace(
             ctx,
+            llm=ctx.llm.for_repair(),  # thinking агента не наследуется (config/profiles.yaml)
             protected_globs=[*ctx.protected_globs, *self.protected],
             allowed_commands=list(spec.gate_commands),
         )

@@ -692,6 +692,10 @@ components:
           type: integer
           title: Calls
           default: 0
+        dedup_hits:
+          type: integer
+          title: Dedup Hits
+          default: 0
       additionalProperties: false
       type: object
       title: Usage

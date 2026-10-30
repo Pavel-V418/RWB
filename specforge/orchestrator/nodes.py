@@ -82,7 +82,7 @@ def execute_stage(
     # Токены этапа учитываются с метками run/stage/agent в общем UsageTracker.
     ctx = dataclasses.replace(
         ctx,
-        llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name),
+        llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name).for_agent(spec.name),
         protected_globs=[*ctx.protected_globs, *spec.protected_globs],
     )
     ctx.emit(
@@ -407,7 +407,7 @@ class PipelineNodes:
         output_dir = ws.clean_outputs(spec.stage, spec.outputs)
         llm: LLMClient = NullLLM() if spec.llm_free else self.llm
         if decision.thinking_off:
-            llm = llm.with_thinking(False)
+            llm = llm.without_thinking()
         ctx = AgentContext(
             run_id=state["run_id"],
             input_dir=ws.artifacts_dir,

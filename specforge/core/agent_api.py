@@ -8,6 +8,7 @@ StructuredAgent (один вызов LLM → JSON по pydantic-схеме) ил
 
 import dataclasses
 import inspect
+import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
@@ -20,12 +21,25 @@ from pydantic import BaseModel
 
 from specforge.core.contracts import AgentOutcome, AgentSpec, StageResult, StageStatus, Usage
 from specforge.core.events import Event
+from specforge.core.selectors import (
+    SEPARATOR,
+    SelectorError,
+    apply_selector,
+    input_globs,
+    split_pattern,
+)
 from specforge.executor.react import run_react_loop
 from specforge.executor.structured import run_structured
 from specforge.llm import ChatMessage, LLMClient, LLMError
 from specforge.sandbox.base import WORKDIR, Sandbox
 
 EmitFn = Callable[[Event], None]
+INPUT_DIR_LABEL = "artifacts"
+"""Значение $input_dir в task.md: стабильная метка вместо пути хоста с run_id."""
+DEFAULT_INPUT_INLINE_MAX_TOKENS = 8000
+"""Вход больше — предупреждение input_too_large (env INPUT_INLINE_MAX_TOKENS)."""
+CHARS_PER_TOKEN = 4
+"""Значение $input_dir в task.md: стабильная метка вместо пути хоста с run_id."""
 
 
 def _discard(event: Event) -> None:
@@ -118,11 +132,43 @@ class BaseAgent(ABC):
         return Template(text).safe_substitute(variables)
 
     def read_inputs(self, ctx: AgentContext) -> list[InputFile]:
-        """Файлы из input_dir, подходящие под spec.inputs, в стабильном порядке."""
-        return [
-            InputFile(path=p.relative_to(ctx.input_dir).as_posix(), content=p.read_text("utf-8"))
-            for p in _glob_files(ctx.input_dir, self.spec.inputs)
-        ]
+        """Файлы из input_dir под spec.inputs в стабильном порядке. Шаблон с селектором
+        (`<glob>#<JSONPath | заголовок>`) даёт только выбранную часть файла (core.selectors).
+
+        Файл без селектора больше INPUT_INLINE_MAX_TOKENS — предупреждение `input_too_large`:
+        его стоит сузить селектором.
+        """
+        selected: dict[tuple[str, str], InputFile] = {}
+        for pattern in self.spec.inputs:
+            glob, selector = split_pattern(pattern)
+            for path in _glob_files(ctx.input_dir, [glob]):
+                rel = path.relative_to(ctx.input_dir).as_posix()
+                text = path.read_text("utf-8")
+                if selector is None:
+                    self._warn_if_large(ctx, rel, text)
+                    selected[(rel, "")] = InputFile(path=rel, content=text)
+                    continue
+                try:
+                    content = apply_selector(path, text, selector)
+                except (SelectorError, ValueError) as exc:  # ValueError — битый JSON/YAML
+                    content = f"(селектор {selector!r} не применён: {exc})"
+                    ctx.emit(_input_event(ctx, "input_selector_failed", self.spec, rel, str(exc)))
+                selected[(rel, selector)] = InputFile(
+                    path=f"{rel}{SEPARATOR}{selector}", content=content
+                )
+        if any(sel == "" for _, sel in selected):  # файл целиком — его выборки не нужны
+            whole = {rel for rel, sel in selected if sel == ""}
+            selected = {k: v for k, v in selected.items() if k[1] == "" or k[0] not in whole}
+        return [selected[key] for key in sorted(selected)]
+
+    def _warn_if_large(self, ctx: AgentContext, rel: str, text: str) -> None:
+        tokens = len(text) // CHARS_PER_TOKEN
+        if tokens > input_inline_max_tokens():
+            message = (
+                f"вход {rel} ≈ {tokens} токенов > INPUT_INLINE_MAX_TOKENS="
+                f"{input_inline_max_tokens()}: сузьте его селектором в spec.inputs"
+            )
+            ctx.emit(_input_event(ctx, "input_too_large", self.spec, rel, message))
 
     def collect_artifacts(self, ctx: AgentContext) -> list[str]:
         """Файлы из output_dir, подходящие под spec.outputs."""
@@ -236,8 +282,9 @@ class ToolAgent(BaseAgent):
             "task.md",
             inputs=render_inputs(self.read_inputs(ctx)),
             workdir=WORKDIR,
-            input_dir=ctx.input_dir.as_posix(),
-            output_dir=ctx.output_dir.as_posix(),
+            # не пути хоста: в них run_id, а задача — часть неизменного префикса (prefix caching)
+            input_dir=INPUT_DIR_LABEL,
+            output_dir=WORKDIR,
         )
 
     def run(self, ctx: AgentContext) -> StageResult:
@@ -275,5 +322,21 @@ def render_inputs(files: Sequence[InputFile]) -> str:
 
 
 def _glob_files(root: Path, patterns: Sequence[str]) -> list[Path]:
-    found = {p for pattern in patterns for p in root.glob(pattern) if p.is_file()}
+    """Файлы под шаблонами; селекторы (`#…`) отбрасываются."""
+    found = {p for pattern in input_globs(patterns) for p in root.glob(pattern) if p.is_file()}
     return sorted(found)
+
+
+def input_inline_max_tokens() -> int:
+    return int(os.environ.get("INPUT_INLINE_MAX_TOKENS", DEFAULT_INPUT_INLINE_MAX_TOKENS))
+
+
+def _input_event(ctx: AgentContext, kind: str, spec: AgentSpec, path: str, message: str) -> Event:
+    return Event(
+        kind=kind,
+        run_id=ctx.run_id,
+        stage=spec.stage,
+        agent=spec.name,
+        message=message,
+        data={"path": path},
+    )

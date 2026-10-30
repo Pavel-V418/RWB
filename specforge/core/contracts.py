@@ -149,6 +149,8 @@ class Usage(_Contract):
     completion_tokens: int = 0
     cached_tokens: int = 0
     calls: int = 0
+    dedup_hits: int = 0
+    """Ответы из кэша дедупликации LLMClient (temperature == 0): вызова и токенов не было."""
 
     @property
     def total_tokens(self) -> int:
@@ -160,6 +162,7 @@ class Usage(_Contract):
             completion_tokens=self.completion_tokens + other.completion_tokens,
             cached_tokens=self.cached_tokens + other.cached_tokens,
             calls=self.calls + other.calls,
+            dedup_hits=self.dedup_hits + other.dedup_hits,
         )
 
 

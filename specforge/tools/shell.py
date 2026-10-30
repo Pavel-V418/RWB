@@ -3,6 +3,8 @@
 В контекст модели — усечённый вывод, полный лог — в runs/<id>/logs/.
 """
 
+from pathlib import Path
+
 from specforge.llm import ToolSpec
 from specforge.tools.base import (
     Args,
@@ -30,15 +32,18 @@ def run(env: ToolEnv, args: Args) -> ToolResult:
     )
     result = env.sandbox.exec(command, timeout_s=timeout)
     output = result.output
-    log_note = f"полный лог: {result.log_path}" if result.log_path else ""
+    # Без длительности и путей хоста (в них run_id): результат инструмента остаётся в истории,
+    # то есть в префиксе следующих запросов.
+    log_name = Path(result.log_path).name if result.log_path else ""
+    log_note = f"полный лог: {log_name}" if log_name else ""
     status = f"exit {result.exit_code}"
     if result.timed_out:
         status += f" (превышен таймаут {timeout} с)"
     body = truncate_middle(output, OUTPUT_HEAD_CHARS, OUTPUT_TAIL_CHARS, log_note)
     lines = output.count("\n") + (1 if output and not output.endswith("\n") else 0)
-    log_part = f", лог: {result.log_path}" if result.log_path else ""
+    log_part = f", лог: {log_name}" if log_name else ""
     return ToolResult(
-        content=f"$ {command}\n{status}, {result.duration_s:.1f} с\n{body}".rstrip(),
+        content=f"$ {command}\n{status}\n{body}".rstrip(),
         stub=f"[run: {status}, {lines} строк{log_part}]",
     )
 

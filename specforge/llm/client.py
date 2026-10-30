@@ -9,6 +9,7 @@
 """
 
 import copy
+import hashlib
 import json
 import os
 import random
@@ -34,7 +35,13 @@ from openai.types.chat import (
 from pydantic import BaseModel, Field, ValidationError
 
 from specforge.core.contracts import ProfileName, Usage, safe_thinking_temperature
-from specforge.llm.profiles import DEFAULT_PROFILES, Profile, load_profiles
+from specforge.llm.profiles import (
+    DEFAULT_PROFILES,
+    AgentLLMSettings,
+    Profile,
+    load_agent_settings,
+    load_profiles,
+)
 from specforge.llm.tool_parsing import (
     extract_json,
     extract_tool_calls,
@@ -121,17 +128,25 @@ class LLMClient:
         profiles: Mapping[str, Profile] | None = None,
         tracker: UsageTracker | None = None,
         on_call: Sequence[OnCallHook] = (),
+        agent_settings: AgentLLMSettings | None = None,
     ) -> None:
         self.config = config
         self.profiles: dict[str, Profile] = (
             dict(profiles) if profiles is not None else load_profiles(config.profiles_path)
         )
+        self.agent_settings = agent_settings or (
+            load_agent_settings(config.profiles_path) if profiles is None else AgentLLMSettings()
+        )
+        """thinking по агентам и для ремонта из config/profiles.yaml (раздел agents / repair)."""
         self.tracker = tracker or UsageTracker()
         self.hooks: list[OnCallHook] = list(on_call)
         self.labels = UsageKey()
         self.forced_thinking: bool | None = None
         """Если не None — thinking всех вызовов, что бы ни передали агент или профиль."""
+        self.thinking_off = False
+        """Жёсткий запрет thinking (бюджет): сильнее forced_thinking."""
         self._shared = _SharedOpenAI(openai_client)
+        self._dedup = _DedupCache()
         self._semaphore = threading.BoundedSemaphore(config.max_concurrency)
         self._meters: list[UsageMeter] = []
         self._sleep: Callable[[float], None] = time.sleep
@@ -158,12 +173,31 @@ class LLMClient:
     def with_thinking(self, thinking: bool | None) -> "LLMClient":
         """Копия, у которой thinking всех вызовов задан принудительно (None — как просят).
 
-        Нужна оркестратору: при перерасходе бюджета оставшиеся этапы идут без размышлений.
+        Так применяется thinking агента из config/profiles.yaml. Запрет without_thinking (бюджет)
+        сильнее и сохраняется.
         """
         forced = copy.copy(self)
         forced.forced_thinking = thinking
         forced._meters = []
         return forced
+
+    def without_thinking(self) -> "LLMClient":
+        """Копия с жёстким запретом thinking: при перерасходе бюджета оставшиеся этапы идут без
+        размышлений, что бы ни задали агент, профиль или config/profiles.yaml."""
+        off = copy.copy(self)
+        off.thinking_off = True
+        off._meters = []
+        return off
+
+    def for_agent(self, name: str) -> "LLMClient":
+        """Клиент агента: thinking из раздела agents config/profiles.yaml, если он задан."""
+        thinking = self.agent_settings.thinking_for(name)
+        return self if thinking is None else self.with_thinking(thinking)
+
+    def for_repair(self) -> "LLMClient":
+        """Клиент ремонта: thinking агента не наследуется — значение раздела repair или профиль
+        REPAIR."""
+        return self.with_thinking(self.agent_settings.repair_thinking)
 
     def add_hook(self, hook: OnCallHook) -> None:
         self.hooks.append(hook)
@@ -273,6 +307,8 @@ class LLMClient:
         effective_thinking = p.thinking if thinking is None else thinking
         if self.forced_thinking is not None:
             effective_thinking = self.forced_thinking
+        if self.thinking_off:
+            effective_thinking = False
         effective_temperature = p.temperature if temperature is None else temperature
         if effective_thinking:
             effective_temperature = safe_thinking_temperature(
@@ -292,6 +328,38 @@ class LLMClient:
         )
 
     def _call(self, request: LLMRequest) -> LLMResponse:
+        key = self._dedup_key(request)
+        if key is not None:
+            cached = self._dedup.get(key)
+            if cached is not None:
+                usage = Usage(dedup_hits=1)
+                self._record(usage)
+                return cached.model_copy(update={"usage": usage, "latency_s": 0.0})
+        response = self._call_transport(request)
+        if key is not None:
+            self._dedup.put(key, response)
+        return response
+
+    def _dedup_key(self, request: LLMRequest) -> str | None:
+        """Ключ кэша ответов: только temperature == 0 и только в пределах прогона (run_id)."""
+        if request.temperature != 0 or not self.labels.run_id:
+            return None
+        payload = json.dumps(
+            {
+                "run": self.labels.run_id,
+                "model": self.config.model,
+                "profile": request.profile,
+                "thinking": request.thinking,
+                "messages": [m.model_dump(mode="json") for m in request.messages],
+                "tools": [t.model_dump(mode="json") for t in request.tools],
+                "response_format": [request.response_schema_name, request.response_schema],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def _call_transport(self, request: LLMRequest) -> LLMResponse:
         started = time.monotonic()
         attempts = 0
         try:
@@ -494,6 +562,25 @@ class _SharedOpenAI:
     def __init__(self, client: OpenAI | None) -> None:
         self.client = client
         self.lock = threading.Lock()
+
+
+class _DedupCache:
+    """Ответы при temperature == 0, общие для bind()-копий; ключ содержит run_id."""
+
+    def __init__(self, max_entries: int = 2048) -> None:
+        self._items: dict[str, LLMResponse] = {}
+        self._lock = threading.Lock()
+        self._max = max_entries
+
+    def get(self, key: str) -> LLMResponse | None:
+        with self._lock:
+            return self._items.get(key)
+
+    def put(self, key: str, response: LLMResponse) -> None:
+        with self._lock:
+            if len(self._items) >= self._max:
+                self._items.pop(next(iter(self._items)))  # старейший
+            self._items[key] = response
 
 
 class NullLLM(LLMClient):

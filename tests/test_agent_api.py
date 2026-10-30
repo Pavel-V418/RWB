@@ -89,7 +89,10 @@ def test_tool_agent_uses_task_template(make_ctx: MakeCtx) -> None:
     assert result.status == StageStatus.passed
     assert result.summary == "[finish] сделано"
     assert result.artifacts == ["notes.md"]
-    assert ctx.output_dir.as_posix() in llm.calls[0].messages[1].content
+    # $input_dir / $output_dir — стабильные метки, не пути хоста (prefix caching)
+    assert llm.calls[0].messages[1].content == "Прочитай artifacts и запиши заметки в /work." + chr(
+        10
+    )
 
 
 def test_tool_agent_not_finished_is_failed(make_ctx: MakeCtx) -> None:

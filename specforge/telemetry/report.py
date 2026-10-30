@@ -26,6 +26,14 @@ from specforge.core.contracts import StageStatus
 from specforge.core.events import Event, EventType
 from specforge.llm.usage import UsageTracker
 from specforge.orchestrator.nodes import PipelineSummary
+from specforge.telemetry.compare import (
+    BASELINE_DIR,
+    Comparison,
+    compare,
+    load_baseline,
+    render_comparison,
+    save_baseline,
+)
 from specforge.telemetry.metrics import (
     RunMetrics,
     compute_metrics,
@@ -105,16 +113,25 @@ class ReportFiles(BaseModel):
     tokens_png: Path
     gantt_png: Path
     metrics: RunMetrics
+    comparison: Comparison | None = None
 
 
-def build_report(run_dir: Path, *, tracker: UsageTracker | None = None) -> ReportFiles:
+def build_report(
+    run_dir: Path,
+    *,
+    tracker: UsageTracker | None = None,
+    baseline: Path | None = BASELINE_DIR,
+) -> ReportFiles:
     """Отчёт прогона в runs/<id>/report/: report.md, report.json и два PNG.
 
-    Данные — pipeline.json, события и llm_calls.jsonl прогона (см. telemetry.metrics).
+    Данные — pipeline.json, события и llm_calls.jsonl прогона (см. telemetry.metrics). Если есть
+    baseline (bench/baseline/report.json) — блок «до/после» (telemetry.compare); None — без него.
     """
     summary = load_summary(run_dir)
     events = load_events(run_dir, summary.run_id)
     metrics = compute_metrics(summary, events=events, calls=load_calls(run_dir), tracker=tracker)
+    before = load_baseline(baseline) if baseline is not None else None
+    comparison = compare(before, metrics) if before is not None else None
     out = run_dir / REPORT_DIR
     out.mkdir(parents=True, exist_ok=True)
     files = ReportFiles(
@@ -123,18 +140,26 @@ def build_report(run_dir: Path, *, tracker: UsageTracker | None = None) -> Repor
         tokens_png=out / TOKENS_PNG,
         gantt_png=out / GANTT_PNG,
         metrics=metrics,
+        comparison=comparison,
     )
     plot_tokens(metrics, files.tokens_png)
     plot_gantt(metrics, files.gantt_png)
     files.json_path.write_text(
         json.dumps(
-            {"metrics": metrics.model_dump(mode="json"), "profile": summary.profile.model_dump()},
+            {
+                "metrics": metrics.model_dump(mode="json"),
+                "profile": summary.profile.model_dump(),
+                "comparison": comparison.model_dump(mode="json") if comparison else None,
+            },
             ensure_ascii=False,
             indent=2,
         ),
         encoding="utf-8",
     )
-    files.markdown.write_text(render_markdown(summary, metrics), encoding="utf-8")
+    markdown = render_markdown(summary, metrics)
+    if comparison is not None:
+        markdown += "\n" + render_comparison(comparison)
+    files.markdown.write_text(markdown, encoding="utf-8")
     return files
 
 
@@ -160,7 +185,8 @@ def render_markdown(summary: PipelineSummary, m: RunMetrics) -> str:
         f"- **Токены:** {_n(m.total_tokens)} — prompt {_n(m.prompt_tokens)}, "
         f"completion {_n(m.completion_tokens)}; из кэша {_n(m.cached_tokens)} "
         f"({m.cache_hit_rate:.0%} prompt).",
-        f"- **Вызовы LLM:** {m.llm_calls}, повторы {m.retries}; ремонты {m.repairs}.",
+        f"- **Вызовы LLM:** {m.llm_calls}, повторы {m.retries}, из кэша дедупликации "
+        f"{m.dedup_hits}; ремонты {m.repairs}.",
         f"- **Профиль кейса:** {', '.join(flags) or 'флаги не заданы'}.",
         "",
         "## Этапы",
@@ -194,6 +220,7 @@ def render_markdown(summary: PipelineSummary, m: RunMetrics) -> str:
         f"{_n(m.completion_tokens)} / {_n(m.cached_tokens)} |",
         f"| Cache hit rate | {m.cache_hit_rate:.1%} |",
         f"| Вызовы LLM / повторы | {m.llm_calls} / {m.retries} |",
+        f"| Ответы из кэша дедупликации (dedup_hits) | {m.dedup_hits} |",
         f"| Время прогона / сумма этапов | {_duration(m.wall_s)} / {_duration(m.stage_time_s)} |",
         f"| Попытки / ремонты | {m.attempts} / {m.repairs} |",
         f"| Шлюзы зелёные / красные | {m.gates_passed} / {m.gates_failed} |",
@@ -302,11 +329,24 @@ def register_cli(app: typer.Typer) -> None:
         runs_dir: Annotated[
             Path, typer.Option(help="Каталог запусков.", envvar="SPECFORGE_RUNS_DIR")
         ] = Path("runs"),
+        baseline: Annotated[
+            Path, typer.Option(help="Baseline для блока «до/после».")
+        ] = BASELINE_DIR,
+        save_as_baseline: Annotated[
+            bool,
+            typer.Option("--save-baseline", help="Сохранить этот отчёт как baseline."),
+        ] = False,
     ) -> None:
         """Отчёт о прогоне: report.md, report.json и графики в runs/<run_id>/report/."""
         try:
-            files = build_report(runs_dir / run_id)
+            # отчёт, который станет baseline, сам с собой не сравнивается
+            files = build_report(runs_dir / run_id, baseline=None if save_as_baseline else baseline)
+            if save_as_baseline:
+                saved = save_baseline(files.markdown.parent, baseline)
+                typer.echo(f"Baseline: {saved}")
         except FileNotFoundError as exc:
             typer.echo(f"Ошибка: {exc}", err=True)
             raise typer.Exit(2) from exc
         typer.echo(f"Отчёт: {files.markdown}")
+        if files.comparison is not None and files.comparison.regressions:
+            typer.echo("Хуже baseline по качеству: " + "; ".join(files.comparison.regressions))

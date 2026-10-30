@@ -38,6 +38,8 @@ class StageMetrics(BaseModel):
     cache_hit_rate: float = 0.0
     """cached / prompt."""
     llm_calls: int = 0
+    dedup_hits: int = 0
+    """Ответы из кэша дедупликации LLMClient (temperature == 0)."""
     retries: int = 0
     """Повторы транспорта LLM (attempts − 1 по всем вызовам)."""
     wall_s: float = 0.0
@@ -67,6 +69,8 @@ class RunMetrics(BaseModel):
     cached_tokens: int = 0
     cache_hit_rate: float = 0.0
     llm_calls: int = 0
+    dedup_hits: int = 0
+    """Ответы из кэша дедупликации LLMClient (temperature == 0)."""
     retries: int = 0
     wall_s: float = 0.0
     """Время прогона — объединение интервалов этапов (параллельные не считаются дважды)."""
@@ -132,6 +136,7 @@ def compute_metrics(
         cached_tokens=total.cached_tokens,
         cache_hit_rate=_rate(total.cached_tokens, total.prompt_tokens),
         llm_calls=total.calls,
+        dedup_hits=total.dedup_hits,
         retries=sum(s.retries for s in stages),
         wall_s=active_seconds(summary.clock.values()) if summary.clock else summary.active_s,
         stage_time_s=sum(s.wall_s for s in stages),
@@ -170,6 +175,7 @@ def _stage(
         cached_tokens=usage.cached_tokens,
         cache_hit_rate=_rate(usage.cached_tokens, usage.prompt_tokens),
         llm_calls=usage.calls,
+        dedup_hits=usage.dedup_hits,
         retries=sum(max(c.attempts - 1, 0) for c in calls),
         wall_s=(clock[1] - clock[0]) if clock else result.duration_s,
         start_s=(clock[0] - origin) if clock else None,

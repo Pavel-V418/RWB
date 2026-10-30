@@ -22,6 +22,7 @@ import structlog
 from specforge.core.agent_api import Agent
 from specforge.core.artifacts import artifact_files, glob_files, sha256_file
 from specforge.core.contracts import StageResult, StageStatus, Usage
+from specforge.core.selectors import input_globs
 
 log = structlog.get_logger(__name__)
 
@@ -42,7 +43,7 @@ def stage_key(agent: Agent, artifacts_dir: Path) -> str:
     prompts = agent_dir(agent) / spec.prompt_dir
     for path in artifact_files(prompts):
         h.update(f"\0prompt\0{path.relative_to(prompts).as_posix()}\0{sha256_file(path)}".encode())
-    for path in glob_files(artifacts_dir, spec.inputs):
+    for path in glob_files(artifacts_dir, input_globs(spec.inputs)):  # файл целиком
         rel = path.relative_to(artifacts_dir).as_posix()
         h.update(f"\0input\0{rel}\0{sha256_file(path)}".encode())
     return h.hexdigest()

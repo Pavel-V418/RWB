@@ -134,3 +134,52 @@ def load_profiles(path: Path | None) -> dict[str, Profile]:
     if not isinstance(overrides, dict) or not all(isinstance(v, dict) for v in overrides.values()):
         raise LLMConfigError(f"{path}: ожидается profiles: {{ИМЯ: {{поле: значение}}}}")
     return merge_profiles(DEFAULT_PROFILES, overrides)
+
+
+# --- thinking по агентам ------------------------------------------------------------------------
+
+
+class AgentLLMSettings(BaseModel):
+    """Разделы agents / repair в config/profiles.yaml: thinking по имени агента и для ремонта.
+
+    Перекрывают AgentSpec.thinking и профиль без правки кода агентов; бюджет-контроллер при
+    расходе > 70% всё равно выключает thinking (LLMClient.without_thinking).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    agents: dict[str, bool] = Field(default_factory=dict)
+    repair_thinking: bool | None = None
+
+    def thinking_for(self, agent: str) -> bool | None:
+        return self.agents.get(agent)
+
+
+def load_agent_settings(path: Path | None) -> AgentLLMSettings:
+    """Формат:
+    agents:
+      analyst: {thinking: true}
+    repair: {thinking: false}
+    """
+    if path is not None and not path.is_absolute():
+        path = PROJECT_ROOT / path
+    if path is None or not path.is_file():
+        return AgentLLMSettings()
+    try:
+        data = yaml.safe_load(path.read_text("utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise LLMConfigError(f"{path}: невалидный YAML: {exc}") from exc
+    agents_raw = data.get("agents") or {}
+    repair_raw = data.get("repair") or {}
+    if not isinstance(agents_raw, dict) or not isinstance(repair_raw, dict):
+        raise LLMConfigError(f"{path}: ожидается agents: {{имя: {{thinking: bool}}}}")
+    agents: dict[str, bool] = {}
+    for name, value in agents_raw.items():
+        thinking = value.get("thinking") if isinstance(value, dict) else None
+        if not isinstance(thinking, bool):
+            raise LLMConfigError(f"{path}: agents.{name}.thinking должен быть true или false")
+        agents[str(name)] = thinking
+    repair = repair_raw.get("thinking")
+    if repair is not None and not isinstance(repair, bool):
+        raise LLMConfigError(f"{path}: repair.thinking должен быть true или false")
+    return AgentLLMSettings(agents=agents, repair_thinking=repair)

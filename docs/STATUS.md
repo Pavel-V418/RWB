@@ -66,6 +66,18 @@
   гибрид FTS5 топ-20 + векторы топ-20 → RRF (k=60) → топ-5; `search_docs(mode=hybrid|fts|vector)`; строка в doctor.
   Реальная модель fastembed вживую не запускалась (тесты — фейковый Embedder).
 
+## Эффективность (этап 11)
+- Префиксы: `$input_dir`/`$output_dir` — метки, `run` без длительности и пути лога; тест — первый запрос двух прогонов
+  совпадает байт-в-байт, история дописывается (общий префикс ≥ 80%).
+- thinking по агентам и для ремонта — `config/profiles.yaml` (agents / repair); budget → `LLMClient.without_thinking`
+  (жёстко), yaml → `for_agent` (мягко), ремонт → `for_repair`. Имена агентов в yaml — предполагаемые, сверить с командой.
+- Дедупликация ответов при temperature == 0 в пределах прогона, `Usage.dedup_hits` в метриках и отчёте. Профили по
+  умолчанию имеют temperature > 0 — кэш срабатывает только у агентов с temperature=0.
+- Селекторы входов (core/selectors.py), событие `input_too_large` > INPUT_INLINE_MAX_TOKENS.
+- `infra/bench_concurrency.py` → bench/concurrency.md; отчёт «до/после» относительно bench/baseline (`specforge report
+  --save-baseline`, `E2E_SAVE_BASELINE=1`).
+- НЕ сделано: baseline e2e кейса 1 и bench/concurrency.md — нет ТЗ (examples/case1.md), vLLM, Docker и агентов.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).

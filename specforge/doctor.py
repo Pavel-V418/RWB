@@ -28,7 +28,8 @@ from rich.table import Table
 
 from specforge.core.agent_api import Agent
 from specforge.core.contracts import AgentSpec, CaseProfile
-from specforge.llm import ChatMessage, LLMClient, LLMError, ToolSpec
+from specforge.llm import ChatMessage, LLMClient, LLMConfig, LLMError, ToolSpec
+from specforge.llm.profiles import AgentLLMSettings, load_agent_settings
 from specforge.orchestrator.cache import agent_dir
 from specforge.orchestrator.registry import (
     PROFILE_STAGE,
@@ -70,6 +71,30 @@ class DoctorDeps:
     gitlab_factory: Callable[[str, str], Any] | None = None
     which: Callable[[str], str | None] = shutil.which
     embedder_factory: Callable[[], Embedder | None] = embedder_from_env
+    agent_settings_factory: Callable[[], AgentLLMSettings] = lambda: load_agent_settings(
+        LLMConfig.from_env().profiles_path
+    )
+
+
+def check_agent_settings(registry: Registry, deps: DoctorDeps) -> Check:
+    """Записи agents в config/profiles.yaml без агента в реестре — опечатка или чужое имя."""
+    try:
+        settings = deps.agent_settings_factory()
+    except LLMError as exc:
+        return Check(
+            "граф", "thinking агентов", "FAIL", str(exc)[:200], "исправьте config/profiles.yaml"
+        )
+    unknown = sorted(set(settings.agents) - set(registry.agents))
+    if unknown:
+        return Check(
+            "граф",
+            "thinking агентов",
+            "SKIP",
+            f"в config/profiles.yaml нет таких агентов: {', '.join(unknown)}",
+            "переименуйте записи agents под имена agents/<name>/ (specforge list-agents)",
+        )
+    on = sorted(n for n, v in settings.agents.items() if v)
+    return Check("граф", "thinking агентов", "OK", f"thinking on: {', '.join(on) or '—'}")
 
 
 def run_doctor(deps: DoctorDeps | None = None) -> list[Check]:
@@ -88,6 +113,7 @@ def run_doctor(deps: DoctorDeps | None = None) -> list[Check]:
         checks += check_agent(agent, docker_client, deps)
     if registry is not None:
         checks += check_graph(registry)
+        checks.append(check_agent_settings(registry, deps))
     return checks
 
 

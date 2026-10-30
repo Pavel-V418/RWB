@@ -3,6 +3,8 @@
 #
 #   scripts/e2e_case1.sh [путь к ТЗ]      (по умолчанию examples/case1.md)
 #   E2E_SKIP_DOCTOR=1 — запуск, даже если doctor нашёл FAIL
+#   E2E_SAVE_BASELINE=1 — сохранить отчёт как bench/baseline/ (точка отсчёта «до/после»);
+#                         без него отчёт сравнивается с существующим baseline
 #
 # Код выхода: 2 — стенд не готов (doctor) или нет ТЗ; иначе — код `specforge run`
 # (0 — без failed-этапов, 1 — есть failed). Отчёт строится в любом случае.
@@ -32,7 +34,11 @@ uv run specforge run "$CASE" --autopilot --run-id "$RUN_ID"
 run_code=$?
 
 echo "== 3/3 report"
-if ! uv run specforge report "$RUN_ID" --runs-dir "$RUNS_DIR"; then
+report_args=("$RUN_ID" --runs-dir "$RUNS_DIR")
+if [[ "${E2E_SAVE_BASELINE:-0}" == "1" ]]; then
+  report_args+=(--save-baseline)
+fi
+if ! uv run specforge report "${report_args[@]}"; then
   echo "отчёт не построен (нет $RUNS_DIR/$RUN_ID/pipeline.json?)" >&2
   exit 2
 fi
