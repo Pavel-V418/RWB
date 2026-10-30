@@ -246,6 +246,11 @@ components:
             type: string
           type: object
           title: Edits
+        answers:
+          additionalProperties:
+            type: string
+          type: object
+          title: Answers
       type: object
       title: ApproveRequest
     ArtifactEntry:
@@ -300,6 +305,11 @@ components:
           - type: 'null'
           title: Approve After
           description: Остановиться после этапа
+        clarify:
+          type: boolean
+          title: Clarify
+          description: Ждать ответов на уточняющие вопросы агентов
+          default: false
         flags:
           anyOf:
           - type: string

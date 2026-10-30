@@ -21,6 +21,7 @@ from specforge.core.artifacts import RunWorkspace, glob_files
 from specforge.core.contracts import (
     AgentSpec,
     CaseProfile,
+    ClarificationQuestion,
     PipelineState,
     StageResult,
     StageStatus,
@@ -32,6 +33,7 @@ from specforge.gates.runner import GateConfigError, GateRunner, diagnostics_dige
 from specforge.llm import LLMClient, NullLLM
 from specforge.orchestrator.budget import BudgetController, active_seconds
 from specforge.orchestrator.cache import StageCache, stage_key
+from specforge.orchestrator.clarify import read_questions, record_answers
 from specforge.orchestrator.registry import PROFILE_STAGE, Registry
 from specforge.repair.loop import repair_loop
 from specforge.repair.snapshots import SnapshotError, Snapshotter
@@ -354,6 +356,11 @@ class GraphState(PipelineState, total=False):
     """Узел (агент или profile), после шага которого граф ждёт подтверждения."""
     approvals: Annotated[dict[str, dict[str, Any]], merge_approvals]
     """Выданные подтверждения: {узел: {"edits": [пути]}}."""
+    clarify: bool
+    """True (--ask) — на вопросы агентов (questions.json) граф ждёт ответов пользователя;
+    False — автопилот: вместо ответов допущения из вопросов."""
+    clarified: Annotated[dict[str, dict[str, Any]], merge_approvals]
+    """Обработанные вопросы: {агент: {"asked": n, "answered": m}}."""
 
 
 NodeUpdate = dict[str, Any]
@@ -361,6 +368,7 @@ NodeUpdate = dict[str, Any]
 PROFILE_FILE = "case_profile.json"
 """Файл, который агент этапа profile пишет в свой output_dir (CaseProfile в JSON)."""
 PIPELINE_FILE = "pipeline.json"
+CLARIFICATIONS_EVENT = "clarifications"
 STAGE_SNAPSHOT_FILE = "stage_results.json"
 
 
@@ -478,30 +486,98 @@ class PipelineNodes:
         """
 
         def node(state: GraphState) -> NodeUpdate:
-            target = state.get("approve_after")
-            if target is None or target not in step or target in state.get("approvals", {}):
-                return {}
             ws = _workspace(state)
-            spec = self._spec_of(target)
+            target = state.get("approve_after")
+            need_approval = (
+                target is not None and target in step and target not in state.get("approvals", {})
+            )
+            asked = self._questions(state, step)
+            update: NodeUpdate = {}
+            if asked and not state.get("clarify"):
+                # автопилот: не останавливаемся, ответы — допущения из вопросов (идемпотентно:
+                # при продолжении после approve узел выполнится заново)
+                update["clarified"] = self._record(state, ws, asked, {})
+                asked = {}
+            if not asked and not need_approval:
+                return update
+
+            first = target if need_approval and target else next(iter(asked))
+            spec = self._spec_of(first)
             stage = spec.stage if spec else PROFILE_STAGE
             manifest = ws.read_manifest(stage)
             payload: dict[str, Any] = {
-                "after": target,
+                "kind": "approval" if need_approval else "questions",
+                "after": first,
                 "stage": stage,
                 "statuses": {
                     n: r.status.value for n, r in state["stage_results"].items() if n in step
                 },
                 "artifacts": [f"{stage}/{e.path}" for e in manifest.files] if manifest else [],
+                "questions": [
+                    {**q.model_dump(), "agent": agent} for agent, qs in asked.items() for q in qs
+                ],
             }
             answer = interrupt(payload)
-            edits = answer.get("edits", {}) if isinstance(answer, dict) else {}
-            applied = apply_edits(ws, edits)
-            if applied:
-                self._event("artifacts_edited", state, spec=spec, data={"paths": list(applied)})
-            return {"approvals": {target: {"edits": applied}}}
+            answer = answer if isinstance(answer, dict) else {}
+            if asked:
+                answers = answer.get("answers") or {}
+                update["clarified"] = self._record(
+                    state, ws, asked, {str(k): str(v) for k, v in answers.items()}
+                )
+            if need_approval and target is not None:
+                applied = apply_edits(ws, answer.get("edits") or {})
+                if applied:
+                    self._event("artifacts_edited", state, spec=spec, data={"paths": list(applied)})
+                update["approvals"] = {target: {"edits": applied}}
+            return update
 
         node.__name__ = f"approval_{'_'.join(step)}"
         return node
+
+    def _questions(
+        self, state: GraphState, step: tuple[str, ...]
+    ) -> dict[str, list[ClarificationQuestion]]:
+        """Новые вопросы агентов шага (questions.json в каталоге этапа)."""
+        done = state.get("clarified", {})
+        ws = _workspace(state)
+        found: dict[str, list[ClarificationQuestion]] = {}
+        for name in step:
+            spec = self._spec_of(name)
+            result = state["stage_results"].get(name)
+            if spec is None or name in done or result is None:
+                continue
+            if result.status not in (StageStatus.passed, StageStatus.degraded):
+                continue
+            questions = read_questions(ws.stage_dir(spec.stage))
+            if questions:
+                found[name] = questions
+        return found
+
+    def _record(
+        self,
+        state: GraphState,
+        ws: RunWorkspace,
+        asked: dict[str, list[ClarificationQuestion]],
+        answers: dict[str, str],
+    ) -> dict[str, dict[str, Any]]:
+        done: dict[str, dict[str, Any]] = {}
+        for agent, questions in asked.items():
+            records = record_answers(ws, agent, questions, answers)
+            answered = sum(r.source == "user" for r in records)
+            done[agent] = {"asked": len(records), "answered": answered}
+            self._event(
+                CLARIFICATIONS_EVENT,
+                state,
+                spec=self._spec_of(agent),
+                message=f"вопросов {len(records)}, ответов {answered}",
+                data={
+                    "asked": len(records),
+                    "answered": answered,
+                    "assumed": len(records) - answered,
+                    "ids": [r.id for r in records],
+                },
+            )
+        return done
 
     def _spec_of(self, node: str) -> AgentSpec | None:
         if node == PROFILE_STAGE:

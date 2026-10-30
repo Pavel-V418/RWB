@@ -86,6 +86,12 @@ class RunMetrics(BaseModel):
     llm_free_share: float = 0.0
     """Доля llm_free-этапов среди запускавшихся."""
     escalations: list[str] = Field(default_factory=list)
+    questions_asked: int = 0
+    """Уточняющих вопросов агентов (событие clarifications)."""
+    questions_answered: int = 0
+    """Из них ответил пользователь; остальные — допущения."""
+    manual_edits: int = 0
+    """Правок артефактов при подтверждении (artifacts_edited) — ручное вмешательство."""
 
     @property
     def total_tokens(self) -> int:
@@ -149,6 +155,13 @@ def compute_metrics(
         errors_after=sum(s.errors_after for s in stages),
         llm_free_share=_rate(sum(s.llm_free for s in executed), len(executed)),
         escalations=escalations,
+        questions_asked=_sum_data(events, "clarifications", "asked"),
+        questions_answered=_sum_data(events, "clarifications", "answered"),
+        manual_edits=sum(
+            len(paths)
+            for e in events
+            if e.kind == "artifacts_edited" and isinstance(paths := e.data.get("paths"), list)
+        ),
     )
 
 
@@ -198,6 +211,10 @@ def _first_gate_errors(events: Iterable[Event]) -> dict[str, int]:
             if isinstance(value, int):
                 found[e.agent] = value
     return found
+
+
+def _sum_data(events: Iterable[Event], kind: str, key: str) -> int:
+    return sum(v for e in events if e.kind == kind and isinstance(v := e.data.get(key), int))
 
 
 def _rate(part: int, whole: int) -> float:

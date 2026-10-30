@@ -707,6 +707,32 @@ GitLab запускает CI только из корня. Этап без за�
 - ТЗ — `.md`, `.txt`, `.pdf`, `.docx`: оригинал и извлечённый текст
   (`artifacts/input/requirements.md`) лежат в `artifacts/input/`.
 
+### Уточняющие вопросы
+
+Агент, которому без ответа заказчика пришлось бы гадать о важном (архитектура, безопасность,
+пользовательский сценарий), пишет в корень своего `output_dir` файл `questions.json` и
+добавляет его в `outputs`. Вопросы — модель `ClarificationQuestion` из
+`specforge.core.contracts`:
+
+```json
+{"questions": [{"id": "Q1", "question": "Нужен ли вход через корпоративный SSO?",
+                "why": "меняет схему аутентификации", "impact": "security",
+                "assumption": "локальные учётные записи"}]}
+```
+
+- Это не анкета: платформа берёт не больше `SPECFORGE_MAX_QUESTIONS` (по умолчанию 5)
+  вопросов на агента, невалидные пропускает. Число вопросов и ответов попадает в отчёт.
+- `specforge run ТЗ --ask` (API: поле `clarify`) — после шага граф ждёт ответов: событие
+  `approval_required` с `payload.kind = "questions"` и `payload.questions`. Ответы —
+  `POST /runs/{id}/approve` с `{"answers": {"Q1": "да"}}` или
+  `specforge resume <run_id> --answers answers.yaml`. Вопрос без ответа закрывается допущением.
+- Без `--ask` (автопилот) граф не останавливается: на все вопросы принимаются допущения.
+- Итог — `artifacts/input/clarifications.json` (`Clarification`: вопрос, `answer`, `source` —
+  `user` или `assumption`, кто спросил) и `clarifications.md` с разделами «Ответы заказчика» и
+  «Допущения». Следующие этапы получают их через `inputs=["input/clarifications.md"]`, так
+  допущения явно отделены от требований заказчика.
+- Событие `clarifications` (`asked`, `answered`, `assumed`).
+
 ### CLI и API
 
 `specforge run | resume | status <run_id> | report <run_id> | list-agents | agent run`;
@@ -734,6 +760,13 @@ specforge.api.server:app`, контракт — `docs/console-api.yaml` (обн�
 - `$input_dir` / `$output_dir` в `task.md` — стабильные метки `artifacts` и `/work`, а не пути хоста;
   результат инструмента `run` — без длительности и абсолютного пути лога (стабильный префикс).
 - Селекторы входов `<glob>#<JSONPath | заголовок>` — см. §4 «Селекторы входов».
+
+### Не ломает совместимость: уточняющие вопросы и seed
+
+- `ClarificationQuestion`, `Clarification`, `QUESTIONS_FILE` в `specforge.core.contracts`;
+  `RunOptions.clarify`, `ApproveRequest.answers`, флаги `run --ask` и `resume --answers`.
+- `LLMConfig.seed` / `LLMRequest.seed` (`LLM_SEED`): seed в каждом запросе; запросы с seed
+  попадают в кэш дедупликации прогона.
 
 ### Не ломает совместимость: устойчивость и приёмка (этап 12)
 

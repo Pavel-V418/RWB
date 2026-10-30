@@ -24,6 +24,7 @@
 | 13 репетиция | — | `scripts/rehearse.py`: все ТЗ из examples/ → rehearsal.md (этап × ТЗ, топ-10 ошибок шлюзов с исправлениями по `config/rehearse_rules.yaml`); diagnostics в событиях gate_failed/repair_attempt |
 | — публикация | — | `repo_layout.yaml`: корень (`.`) и файлы в корень (`root`: .gitlab-ci.yml, docker-compose, README), этапы ux/db/mocks/tests/e2e/security/devops/ci/docs/acceptance; вердикт приёмщика в docs/report/ и MR; `doctor` — этапы без раскладки; парсер `diagnostics-json` |
 | — приёмка по ТЗ | — | `doc_templates.yaml` по ТЗ (14 разделов СА, 11 документов, ID ФТ); проверки CI, секретов, README/.env.example/миграций/тестовых данных, статического анализа; `test-report.md`, `security-report.md`; `GateResult.tests_executed` из TRX/JUnit |
+| — вопросы, seed, логи | — | Протокол уточняющих вопросов (`questions.json` → `--ask` / допущения → `input/clarifications.*`), ручное вмешательство в отчёте; `LLM_SEED`; логи шлюзов в `docs/report/logs/` |
 
 ## Начато и не доделано
 

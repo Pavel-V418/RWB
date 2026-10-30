@@ -187,6 +187,9 @@ def render_markdown(summary: PipelineSummary, m: RunMetrics) -> str:
         f"({m.cache_hit_rate:.0%} prompt).",
         f"- **Вызовы LLM:** {m.llm_calls}, повторы {m.retries}, из кэша дедупликации "
         f"{m.dedup_hits}; ремонты {m.repairs}.",
+        f"- **Ручное вмешательство:** вопросов агентов {m.questions_asked} (ответов "
+        f"{m.questions_answered}, допущений {m.questions_asked - m.questions_answered}), "
+        f"правок артефактов {m.manual_edits}.",
         f"- **Профиль кейса:** {', '.join(flags) or 'флаги не заданы'}.",
         "",
         "## Этапы",

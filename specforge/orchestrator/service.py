@@ -51,6 +51,8 @@ class RunOptions(BaseModel):
     only: list[str] | None = None
     approve_after: str | None = None
     """None — автопилот (без остановок)."""
+    clarify: bool = False
+    """Ждать ответов на уточняющие вопросы агентов; False — допущения из вопросов."""
 
 
 class RunInfo(BaseModel):
@@ -133,6 +135,7 @@ class RunService:
                 profile=options.profile,
                 only=options.only,
                 approve_after=options.approve_after,
+                clarify=options.clarify,
             )
 
         self._submit(run_id, work, background)
@@ -150,14 +153,21 @@ class RunService:
         )
 
     def approve(
-        self, run_id: str, edits: dict[str, str] | None = None, *, background: bool = False
+        self,
+        run_id: str,
+        edits: dict[str, str] | None = None,
+        *,
+        answers: dict[str, str] | None = None,
+        background: bool = False,
     ) -> None:
         if self.is_active(run_id):
             raise OrchestratorError(f"запуск {run_id!r} ещё выполняется")
         validate_approval(self.graph, self.registry, self.config, run_id, edits)
         self._submit(
             run_id,
-            lambda: approve_run(self.graph, self.registry, self.config, run_id=run_id, edits=edits),
+            lambda: approve_run(
+                self.graph, self.registry, self.config, run_id=run_id, edits=edits, answers=answers
+            ),
             background,
         )
 

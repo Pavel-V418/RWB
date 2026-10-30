@@ -194,6 +194,34 @@ class StageResult(_Contract):
     """Почему агент остановился (AgentOutcome.stopped_reason для tool-агента)."""
 
 
+# --- Уточняющие вопросы ---------------------------------------------------------------------
+
+QUESTIONS_FILE = "questions.json"
+"""Вопросы агента пользователю — в корне output_dir: {"questions": [ClarificationQuestion]}."""
+
+
+class ClarificationQuestion(_Contract):
+    """Вопрос, без ответа на который решение рискованно (архитектура, безопасность, сценарий).
+    Не анкета: платформа берёт не больше SPECFORGE_MAX_QUESTIONS вопросов прогона на агента."""
+
+    id: str = Field(min_length=1, max_length=40)
+    question: str = Field(min_length=1)
+    why: str = ""
+    """Почему ответ влияет на результат."""
+    impact: str = "other"
+    """architecture | security | ux | data | integration | other."""
+    assumption: str = ""
+    """Что принять, если ответа нет (автопилот или пустой ответ) — явное допущение."""
+
+
+class Clarification(ClarificationQuestion):
+    """Вопрос с ответом — artifacts/input/clarifications.json (вход следующих этапов)."""
+
+    agent: str
+    answer: str
+    source: Literal["user", "assumption"]
+
+
 # --- Кейс и запуск -------------------------------------------------------------------------
 
 

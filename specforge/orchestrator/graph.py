@@ -149,6 +149,7 @@ def initial_state(
     *,
     only: list[str] | None = None,
     approve_after: str | None = None,
+    clarify: bool = False,
 ) -> GraphState:
     return {
         "run_id": run_id,
@@ -161,6 +162,8 @@ def initial_state(
         "only": only,
         "approve_after": approve_after,
         "approvals": {},
+        "clarify": clarify,
+        "clarified": {},
     }
 
 
@@ -174,12 +177,14 @@ def start_run(
     profile: CaseProfile | None = None,
     only: list[str] | None = None,
     approve_after: str | None = None,
+    clarify: bool = False,
 ) -> GraphState:
     """Новый запуск: runs/<run_id>/, ТЗ — в artifacts/input/ (оригинал и текст в
     requirements.md), профиль по умолчанию — из CLI.
 
     `only` — имена агентов или этапов; к ним добавляются их зависимости. `approve_after` —
-    агент или этап, после шага которого граф ждёт `approve_run`.
+    агент или этап, после шага которого граф ждёт `approve_run`. `clarify` — ждать ответов
+    на вопросы агентов (questions.json); иначе — допущения из вопросов.
     """
     try:
         selected = sorted(registry.closure(only)) if only else None
@@ -197,13 +202,14 @@ def start_run(
         profile or CaseProfile(),
         only=selected,
         approve_after=gate,
+        clarify=clarify,
     )
     config.emit(
         Event(
             kind=EventType.run_started,
             run_id=run_id,
             message=requirements.name,
-            data={"only": list(selected or []), "approve_after": gate},
+            data={"only": list(selected or []), "approve_after": gate, "clarify": clarify},
         )
     )
     return _invoke(graph, state, thread_config(run_id, registry, config.run), config)
@@ -299,11 +305,14 @@ def approve_run(
     *,
     run_id: str,
     edits: dict[str, str] | None = None,
+    answers: dict[str, str] | None = None,
 ) -> GraphState:
-    """Подтвердить остановку и продолжить; `edits` — {путь в artifacts/: новое содержимое}."""
+    """Подтвердить остановку и продолжить; `edits` — {путь в artifacts/: новое содержимое},
+    `answers` — {id вопроса: ответ} (без ответа — допущение из вопроса)."""
     validate_approval(graph, registry, config, run_id, edits)
     cfg = thread_config(run_id, registry, config.run)
-    return _invoke(graph, Command(resume={"edits": edits or {}}), cfg, config)
+    resume = {"edits": edits or {}, "answers": answers or {}}
+    return _invoke(graph, Command(resume=resume), cfg, config)
 
 
 def _invoke(
@@ -323,7 +332,11 @@ def _invoke(
                 run_id=str(cfg["configurable"]["thread_id"]),
                 stage=payload.get("stage"),
                 agent=payload.get("after"),
-                message=f"ждёт подтверждения после {payload.get('after')}",
+                message=(
+                    f"ждёт ответов на вопросы ({len(payload.get('questions') or [])})"
+                    if payload.get("kind") == "questions"
+                    else f"ждёт подтверждения после {payload.get('after')}"
+                ),
                 data=payload,
             )
         )

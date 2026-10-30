@@ -6,7 +6,7 @@
     GET  /runs/{id}/graph            — узлы, рёбра, статусы, usage для отрисовки графа
     GET  /runs/{id}/artifacts?path=  — список файлов каталога или содержимое файла
     GET  /runs/{id}/report           — отчёт в Markdown
-    POST /runs/{id}/approve          — подтвердить остановку (с правками артефактов)
+    POST /runs/{id}/approve          — подтвердить остановку (правки артефактов, ответы на вопросы)
 
 Запуск: `uv run uvicorn specforge.api.server:app`; выгрузка контракта:
 `uv run python -m specforge.api.server openapi docs/console-api.yaml`.
@@ -81,6 +81,8 @@ class RunCreated(BaseModel):
 class ApproveRequest(BaseModel):
     edits: dict[str, str] = Field(default_factory=dict)
     """Правки артефактов: {путь относительно artifacts/ (<этап>/<файл>): новое содержимое}."""
+    answers: dict[str, str] = Field(default_factory=dict)
+    """Ответы на уточняющие вопросы: {id вопроса: ответ}; без ответа — допущение из вопроса."""
 
 
 class ArtifactEntry(BaseModel):
@@ -152,6 +154,9 @@ def create_run(
     file: Annotated[UploadFile, File(description="ТЗ: .md, .txt, .pdf, .docx")],
     only: Annotated[str | None, Form(description="Этапы через запятую")] = None,
     approve_after: Annotated[str | None, Form(description="Остановиться после этапа")] = None,
+    clarify: Annotated[
+        bool, Form(description="Ждать ответов на уточняющие вопросы агентов")
+    ] = False,
     flags: Annotated[
         str | None, Form(description="Флаги CaseProfile через запятую: has_web,has_mobile")
     ] = None,
@@ -169,6 +174,7 @@ def create_run(
         profile=_profile(_split(flags)),
         only=_split(only),
         approve_after=approve_after or None,
+        clarify=clarify,
     )
     try:
         service.start(target, options, run_id=run_id, background=True)
@@ -284,7 +290,8 @@ def approve(request: Request, run_id: str, body: ApproveRequest | None = None) -
     if info.status != "waiting_approval":
         raise HTTPException(409, f"запуск в статусе {info.status}, подтверждать нечего")
     try:
-        service.approve(run_id, (body or ApproveRequest()).edits, background=True)
+        body = body or ApproveRequest()
+        service.approve(run_id, body.edits, answers=body.answers, background=True)
     except OrchestratorError as exc:
         raise HTTPException(400, str(exc)) from exc
     return RunCreated(run_id=run_id, status="running")

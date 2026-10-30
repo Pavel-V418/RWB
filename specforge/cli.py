@@ -20,6 +20,7 @@ from typing import Annotated
 
 import structlog
 import typer
+import yaml
 from dotenv import find_dotenv, load_dotenv
 from rich.console import Console
 from rich.live import Live
@@ -277,6 +278,16 @@ def _exit_with(info: RunInfo) -> None:
     raise typer.Exit(1 if failed or info.status == "failed" else 0)
 
 
+def _load_answers(path: Path | None) -> dict[str, str]:
+    if path is None:
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        typer.echo("Ошибка: в --answers ожидается словарь {id: ответ}", err=True)
+        raise typer.Exit(2)
+    return {str(k): str(v) for k, v in data.items()}
+
+
 def _split(value: str | None) -> list[str] | None:
     items = [v.strip() for v in (value or "").split(",") if v.strip()]
     return items or None
@@ -315,10 +326,14 @@ def run_pipeline(
         list[str] | None, typer.Option("--flag", help="Флаг CaseProfile.extra (повторяемый).")
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Без кэша этапов.")] = False,
+    ask: Annotated[
+        bool,
+        typer.Option("--ask", help="Ждать ответов на вопросы агентов (иначе допущения)."),
+    ] = False,
 ) -> None:
     """Запустить конвейер. Флаги профиля — если нет агента этапа profile."""
-    if autopilot and approve_after:
-        typer.echo("Ошибка: --autopilot и --approve-after несовместимы", err=True)
+    if autopilot and (approve_after or ask):
+        typer.echo("Ошибка: --autopilot несовместим с --approve-after и --ask", err=True)
         raise typer.Exit(2)
     if requirements.suffix.lower() not in SUPPORTED_SUFFIXES:
         typer.echo(f"Ошибка: ожидается {', '.join(SUPPORTED_SUFFIXES)}", err=True)
@@ -336,6 +351,7 @@ def run_pipeline(
         ),
         only=_split(only),
         approve_after=approve_after,
+        clarify=ask,
     )
     with _service(use_cache=not no_cache, budget=budget, time_limit=time_limit) as service:
 
@@ -352,11 +368,22 @@ def resume_pipeline(
         str | None, typer.Option("--from", help="Перезапустить с этого агента или этапа.")
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Без кэша этапов.")] = False,
+    answers: Annotated[
+        Path | None,
+        typer.Option(
+            "--answers",
+            exists=True,
+            dir_okay=False,
+            help="YAML/JSON {id вопроса: ответ} — ответы на уточняющие вопросы.",
+        ),
+    ] = None,
 ) -> None:
-    """Продолжить запуск с чекпойнта; если он ждёт подтверждения — подтвердить без правок."""
+    """Продолжить запуск с чекпойнта; если он ждёт подтверждения или ответов — продолжить
+    (без --answers на вопросы принимаются допущения)."""
+    given = _load_answers(answers)
     with _service(use_cache=not no_cache) as service:
         if from_stage is None and service.info(run_id).status == "waiting_approval":
-            _drive(service, run_id, lambda: service.approve(run_id))
+            _drive(service, run_id, lambda: service.approve(run_id, answers=given))
         else:
             _drive(service, run_id, lambda: service.resume(run_id, from_stage))
 
