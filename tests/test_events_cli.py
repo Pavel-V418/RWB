@@ -131,8 +131,12 @@ def test_cli_run_status_report(cli_env: Path) -> None:
 
     report = runner.invoke(cli.app, ["report", "r1"])
     assert report.exit_code == 0, report.output
-    assert "# Запуск r1" in report.output
-    assert "| b | ✅ passed |" in report.output
+    md = cli_env.parent / "runs" / "r1" / "report" / "report.md"
+    assert str(md.name) in report.output
+    text = md.read_text("utf-8")
+    assert "# Отчёт о прогоне `r1`" in text
+    assert "| b | ✅ passed | 1 |" in text
+    assert (md.parent / "stages_gantt.png").is_file()
 
 
 def test_cli_run_approve_after_and_conflicting_flags(cli_env: Path) -> None:

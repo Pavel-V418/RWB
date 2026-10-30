@@ -5,7 +5,7 @@ specforge agent run <name> --in --out       — один агент и его ш
 specforge run <ТЗ.md|.txt|.pdf|.docx> [...] — весь конвейер (дерево этапов — rich)
 specforge resume <run_id> [--from <этап>]   — продолжить запуск / подтвердить остановку
 specforge status <run_id>                   — дерево этапов со статусами
-specforge report <run_id>                   — отчёт в Markdown
+specforge report <run_id>                   — отчёт с графиками в runs/<run_id>/report/
 """
 
 import io
@@ -45,7 +45,7 @@ from specforge.orchestrator.service import (
     new_run_id,
     open_service,
 )
-from specforge.telemetry.report import render_report
+from specforge.telemetry.report import register_cli
 from specforge.tools.docs import SUPPORTED_SUFFIXES
 
 app = typer.Typer(no_args_is_help=True, help="SpecForge — агентный конвейер разработки.")
@@ -372,16 +372,7 @@ def run_status(run_id: Annotated[str, typer.Argument(help="Идентифика�
             typer.echo(f"Ошибка: {info.error}")
 
 
-@app.command("report")
-def run_report(run_id: Annotated[str, typer.Argument(help="Идентификатор запуска.")]) -> None:
-    """Отчёт о запуске в Markdown."""
-    with _service() as service:
-        summary = service.summary(run_id)
-        if summary is None:
-            typer.echo(f"Запуск {run_id!r} не найден", err=True)
-            raise typer.Exit(2)
-        typer.echo(render_report(summary, [e.event for e in service.events(run_id)]))
-
+register_cli(app)  # report <run_id> → runs/<run_id>/report/
 
 if __name__ == "__main__":
     app()
