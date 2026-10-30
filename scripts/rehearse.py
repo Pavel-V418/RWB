@@ -2,6 +2,7 @@
 
 - ТЗ — файлы .md/.txt/.pdf/.docx в examples/ и в его подкаталогах первого уровня
   (examples/case1/tz.md; каталоги данных внутри не обходятся); README.md и «_*» пропускаются;
+  каталог data/ рядом с ТЗ кейса передаётся прогону как `--data`;
 - каждое ТЗ — отдельный `specforge run --autopilot` (подпроцесс, run_id rehearse-<время>-<ТЗ>),
   вывод — в runs/rehearse-logs/<run_id>.log;
 - таблица «этап × ТЗ → статус, попытки, токены, время» — из pipeline.json и метрик прогона;
@@ -62,6 +63,8 @@ ICONS = {"passed": "✔", "degraded": "⚠", "failed": "✘", "skipped": "⏭"}
 class Case(BaseModel):
     name: str
     path: Path
+    data: Path | None = None
+    """Каталог data/ рядом с ТЗ в подкаталоге кейса → `specforge run --data`."""
 
 
 class CaseRun(BaseModel):
@@ -129,6 +132,9 @@ def discover_cases(examples: Path) -> list[Case]:
         Case(
             name=_slug(p.stem) if names[_slug(p.stem)] == 1 else _slug(f"{p.parent.name}-{p.stem}"),
             path=p,
+            data=p.parent / "data"
+            if p.parent != examples and (p.parent / "data").is_dir()
+            else None,
         )
         for p in found
     ]
@@ -154,6 +160,8 @@ def subprocess_runner(case: Case, run_id: str, runs_dir: Path, extra: Sequence[s
     exe = Path(sys.executable).parent / ("specforge.exe" if os.name == "nt" else "specforge")
     cmd = [str(exe)] if exe.is_file() else [sys.executable, "-m", "specforge.cli"]
     cmd += ["run", str(case.path), "--run-id", run_id, "--autopilot", *extra]
+    if case.data is not None:
+        cmd += ["--data", str(case.data)]
     logs = runs_dir / "rehearse-logs"
     logs.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "SPECFORGE_RUNS_DIR": str(runs_dir)}

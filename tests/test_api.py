@@ -1,6 +1,8 @@
 """API консоли (TestClient, фейковый прогон): запуск, граф, артефакты, отчёт, SSE, approve."""
 
+import io
 import json
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -164,6 +166,28 @@ def test_api_errors(client: TestClient, service: RunService) -> None:
         headers={"Origin": "http://localhost:4200", "Access-Control-Request-Method": "GET"},
     )
     assert cors.headers["access-control-allow-origin"] == "http://localhost:4200"
+
+
+def test_data_zip_upload(client: TestClient, service: RunService) -> None:
+    good, bad = io.BytesIO(), io.BytesIO()
+    with zipfile.ZipFile(good, "w") as zf:
+        zf.writestr("zones/spb.json", '{"zones": []}')
+    with zipfile.ZipFile(bad, "w") as zf:
+        zf.writestr("../evil.txt", "x")
+    tz = ("req.md", b"# TZ\n", "text/markdown")
+
+    ok = client.post("/runs", files={"file": tz, "data": ("d.zip", good.getvalue())})
+    assert ok.status_code == 202, ok.text
+    run_id = ok.json()["run_id"]
+    service.wait(run_id, 30)
+    copied = service.config.runs_dir / run_id / "artifacts" / "input" / "data" / "zones"
+    assert (copied / "spb.json").read_text("utf-8") == '{"zones": []}'
+
+    evil = client.post("/runs", files={"file": tz, "data": ("d.zip", bad.getvalue())})
+    assert evil.status_code == 400
+    assert "недопустимый путь" in evil.json()["detail"]
+    junk = client.post("/runs", files={"file": tz, "data": ("d.zip", b"not a zip")})
+    assert junk.status_code == 400
 
 
 def test_openapi_contract_is_exported() -> None:

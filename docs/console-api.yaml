@@ -310,6 +310,13 @@ components:
           title: Clarify
           description: Ждать ответов на уточняющие вопросы агентов
           default: false
+        data:
+          anyOf:
+          - type: string
+            contentMediaType: application/octet-stream
+          - type: 'null'
+          title: Data
+          description: 'Данные, приложенные к ТЗ: zip-архив (→ artifacts/input/data/)'
         flags:
           anyOf:
           - type: string

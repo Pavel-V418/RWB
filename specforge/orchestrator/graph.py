@@ -178,13 +178,15 @@ def start_run(
     only: list[str] | None = None,
     approve_after: str | None = None,
     clarify: bool = False,
+    data: Path | None = None,
 ) -> GraphState:
     """Новый запуск: runs/<run_id>/, ТЗ — в artifacts/input/ (оригинал и текст в
     requirements.md), профиль по умолчанию — из CLI.
 
     `only` — имена агентов или этапов; к ним добавляются их зависимости. `approve_after` —
     агент или этап, после шага которого граф ждёт `approve_run`. `clarify` — ждать ответов
-    на вопросы агентов (questions.json); иначе — допущения из вопросов.
+    на вопросы агентов (questions.json); иначе — допущения из вопросов. `data` — каталог данных,
+    приложенных к ТЗ: копируется в artifacts/input/data/.
     """
     try:
         selected = sorted(registry.closure(only)) if only else None
@@ -193,7 +195,9 @@ def start_run(
     except (RegistryError, DocumentError) as exc:
         raise OrchestratorError(str(exc)) from exc
     workspace = RunWorkspace.for_run(config.runs_dir, run_id)
-    workspace.prepare(requirements)
+    if data is not None and not data.is_dir():
+        raise OrchestratorError(f"--data: {data} — не каталог")
+    workspace.prepare(requirements, data)
     (workspace.input_dir / REQUIREMENTS_TEXT).write_text(text, encoding="utf-8", newline="")
     state = initial_state(
         run_id,
@@ -209,7 +213,12 @@ def start_run(
             kind=EventType.run_started,
             run_id=run_id,
             message=requirements.name,
-            data={"only": list(selected or []), "approve_after": gate, "clarify": clarify},
+            data={
+                "only": list(selected or []),
+                "approve_after": gate,
+                "clarify": clarify,
+                "data": data.name if data else None,
+            },
         )
     )
     return _invoke(graph, state, thread_config(run_id, registry, config.run), config)

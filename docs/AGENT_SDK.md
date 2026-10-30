@@ -664,6 +664,7 @@ meter.usage
 
 ```
 runs/<run_id>/artifacts/input/<ТЗ>        — вход конвейера
+runs/<run_id>/artifacts/input/data/       — данные, приложенные к ТЗ (`run --data <каталог>`)
 runs/<run_id>/artifacts/<stage>/          — output_dir агентов этапа (/work в песочнице)
 runs/<run_id>/artifacts/<stage>/manifest.json — файлы этапа с sha256
 runs/<run_id>/pipeline.json               — итог (статусы, usage)
@@ -672,6 +673,11 @@ runs/<run_id>/pipeline.json               — итог (статусы, usage)
 `input_dir` агента в конвейере — `runs/<run_id>/artifacts/`, поэтому `inputs` пишутся с этапом:
 `["analysis/*.json"]`, ТЗ — `["input/*.md"]`. Перед запуском этапа удаляются прежние файлы
 агента (под его `outputs`).
+
+Данные к ТЗ (`specforge run ТЗ --data <каталог>`, API — zip в поле `data`) лежат в
+`artifacts/input/data/`. Они бывают большими (зоны кейса 1 — 5,4 МБ): не включайте
+`input/data/**` в `inputs` целиком — берите описание (`input/data/README.md`), нужную часть
+селектором (`input/data/spb.json#$.data.zones[0]`) или читайте файл инструментами tool-агента.
 
 ### Итоговый репозиторий (`config/repo_layout.yaml`)
 

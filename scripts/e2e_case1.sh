@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# E2E кейса №1: doctor → run examples/case1.md --autopilot → report.
+# E2E кейса №1: doctor → run examples/case1/tz.md --autopilot --data examples/case1/data → report.
 #
-#   scripts/e2e_case1.sh [путь к ТЗ]      (по умолчанию examples/case1.md)
+#   scripts/e2e_case1.sh [путь к ТЗ]      (по умолчанию examples/case1/tz.md; каталог data/
+#                                          рядом с ТЗ, если есть, передаётся как --data)
 #   E2E_SKIP_DOCTOR=1 — запуск, даже если doctor нашёл FAIL
 #   E2E_SAVE_BASELINE=1 — сохранить отчёт как bench/baseline/ (точка отсчёта «до/после»);
 #                         без него отчёт сравнивается с существующим baseline
@@ -11,12 +12,13 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
-CASE="${1:-examples/case1.md}"
+CASE="${1:-examples/case1/tz.md}"
+DATA_DIR="$(dirname "$CASE")/data"
 RUN_ID="${RUN_ID:-e2e-case1-$(date +%Y%m%d-%H%M%S)}"
 RUNS_DIR="${SPECFORGE_RUNS_DIR:-runs}"
 
 if [[ ! -f "$CASE" ]]; then
-  echo "Нет файла ТЗ: $CASE (положите ТЗ кейса №1 в examples/case1.md или передайте путь)" >&2
+  echo "Нет файла ТЗ: $CASE (ТЗ кейса №1 — examples/case1/tz.md, или передайте путь)" >&2
   exit 2
 fi
 
@@ -29,8 +31,12 @@ if ! uv run specforge doctor; then
   echo "doctor нашёл FAIL, продолжаю (E2E_SKIP_DOCTOR=1)" >&2
 fi
 
-echo "== 2/3 run $CASE (run_id=$RUN_ID)"
-uv run specforge run "$CASE" --autopilot --run-id "$RUN_ID"
+run_args=("$CASE" --autopilot --run-id "$RUN_ID")
+if [[ -d "$DATA_DIR" ]]; then
+  run_args+=(--data "$DATA_DIR")
+fi
+echo "== 2/3 run ${run_args[*]}"
+uv run specforge run "${run_args[@]}"
 run_code=$?
 
 echo "== 3/3 report"

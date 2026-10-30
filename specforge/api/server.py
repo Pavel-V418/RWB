@@ -16,6 +16,7 @@ import asyncio
 import os
 import shutil
 import sys
+import zipfile
 from collections.abc import AsyncIterator, Iterator
 from contextlib import AbstractContextManager, ExitStack, asynccontextmanager
 from datetime import datetime
@@ -157,6 +158,10 @@ def create_run(
     clarify: Annotated[
         bool, Form(description="Ждать ответов на уточняющие вопросы агентов")
     ] = False,
+    data: Annotated[
+        UploadFile | None,
+        File(description="Данные, приложенные к ТЗ: zip-архив (→ artifacts/input/data/)"),
+    ] = None,
     flags: Annotated[
         str | None, Form(description="Флаги CaseProfile через запятую: has_web,has_mobile")
     ] = None,
@@ -170,11 +175,13 @@ def create_run(
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as out:
         shutil.copyfileobj(file.file, out)
+    data_dir = _unpack_data(data, target.parent / "data") if data is not None else None
     options = RunOptions(
         profile=_profile(_split(flags)),
         only=_split(only),
         approve_after=approve_after or None,
         clarify=clarify,
+        data=data_dir,
     )
     try:
         service.start(target, options, run_id=run_id, background=True)
@@ -295,6 +302,25 @@ def approve(request: Request, run_id: str, body: ApproveRequest | None = None) -
     except OrchestratorError as exc:
         raise HTTPException(400, str(exc)) from exc
     return RunCreated(run_id=run_id, status="running")
+
+
+def _unpack_data(upload: UploadFile, target: Path) -> Path:
+    """zip с данными к ТЗ → каталог; пути вне каталога (`..`, абсолютные) — 400."""
+    archive = target.with_suffix(".zip")
+    with archive.open("wb") as out:
+        shutil.copyfileobj(upload.file, out)
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            for name in zf.namelist():
+                parts = Path(name).parts
+                if Path(name).is_absolute() or ".." in parts or (parts and ":" in parts[0]):
+                    raise HTTPException(400, f"data: недопустимый путь в архиве {name!r}")
+            zf.extractall(target)
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(400, "data: ожидается zip-архив") from exc
+    finally:
+        archive.unlink(missing_ok=True)
+    return target
 
 
 def _split(value: str | None) -> list[str] | None:

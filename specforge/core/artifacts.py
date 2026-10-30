@@ -23,6 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field
 ARTIFACTS_DIR = "artifacts"
 INPUT_STAGE = "input"
 LOGS_DIR = "logs"
+INPUT_DATA_DIR = "data"
+"""Данные, приложенные к ТЗ (`run --data`): artifacts/input/data/."""
 MANIFEST_FILE = "manifest.json"
 SERVICE_DIRS = frozenset({".specforge"})
 """Каталоги этапа, которые не являются артефактами (= repair.snapshots.STATE_DIR)."""
@@ -139,12 +141,15 @@ class RunWorkspace:
             raise ValueError(f"путь {rel!r}: ожидается <этап>/<файл>, не служебный")
         return path
 
-    def prepare(self, requirements: Path | None = None) -> None:
-        """Создать каталоги запуска и положить ТЗ в artifacts/input/."""
+    def prepare(self, requirements: Path | None = None, data: Path | None = None) -> None:
+        """Создать каталоги запуска, положить ТЗ в artifacts/input/ и приложенные к ТЗ данные
+        (каталог) — в artifacts/input/data/."""
         for d in (self.artifacts_dir, self.logs_dir, self.input_dir):
             d.mkdir(parents=True, exist_ok=True)
         if requirements is not None:
             shutil.copy2(requirements, self.input_dir / requirements.name)
+        if data is not None:
+            shutil.copytree(data, self.input_dir / INPUT_DATA_DIR, dirs_exist_ok=True)
 
     def clean_outputs(self, stage: str, patterns: Sequence[str]) -> Path:
         """Удалить прежние выходы агента (файлы под его шаблоны outputs) перед запуском этапа.

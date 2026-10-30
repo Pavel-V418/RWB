@@ -26,17 +26,17 @@
 | — приёмка по ТЗ | — | `doc_templates.yaml` по ТЗ (14 разделов СА, 11 документов, ID ФТ); проверки CI, секретов, README/.env.example/миграций/тестовых данных, статического анализа; `test-report.md`, `security-report.md`; `GateResult.tests_executed` из TRX/JUnit |
 | — вопросы, seed, логи | — | Протокол уточняющих вопросов (`questions.json` → `--ask` / допущения → `input/clarifications.*`), ручное вмешательство в отчёте; `LLM_SEED`; логи шлюзов в `docs/report/logs/` |
 | — образы песочниц | — | `infra/images/{dotnet,node,postgis,devops,android}` + `build.sh`, `pg-up`; кэш Trivy; не собирались (Docker на машине разработки не запущен) |
+| — кейс 1 и данные | — | `examples/case1/` (ТЗ + `data/spb.json`), `run --data` / API zip → `artifacts/input/data/`; e2e и репетиция берут `data/` |
 
 ## Начато и не доделано
 
 Незакоммиченных правок нет. Не сделано из промптов:
-- **Baseline (этап 11) и `bench/concurrency.md`** — не сняты: нет ТЗ `examples/case1.md`, vLLM, Docker и агентов.
+- **Baseline (этап 11) и `bench/concurrency.md`** — не сняты: нет vLLM, Docker и агентов команды.
 - **Репетиция (этап 13) вживую не запускалась** — `examples/` пуст; проверена на синтетических прогонах.
   Ранние прогоны без поля `diagnostics` в событиях дают в топ только итоговые красные шлюзы.
-- **Данные кейса 1 не в репозитории.** `response.json` (Москва, 16 656 зон, перекачан — целый) и `spb.json` (6 867 зон)
-  лежат в загрузках пользователя. ТЗ кейса 1 не получено. План: `examples/case1/` (ТЗ + `data/`).
-- **`specforge run` копирует в `artifacts/input/` только файл ТЗ** — каталог с данными кейса агентам не передаётся.
-  Нужно: опция вроде `--data <dir>` → `artifacts/input/data/`.
+- Кейс 1 в репозитории: `examples/case1/tz.md` (текст Приложения 1), `examples/case1/data/spb.json` и описание
+  данных; `run --data`, `e2e_case1.sh` и `rehearse.py` передают `data/`. Живой прогон не выполнялся.
+  Зоны в данных — линии (LINESTRING), не полигоны: неоднозначность для аналитика.
 - Из STATUS 4.x: `StageResult.stopped_reason` не заполняют StructuredAgent и ремонт.
 
 ## Отклонения от промптов и TODO
@@ -86,8 +86,7 @@
 
 ## Следующий шаг
 
-1. Получить ТЗ кейса 1 → `examples/case1/` вместе с `data/`; добавить передачу каталога данных в `run`.
-2. На VM: `specforge doctor` → `infra/fetch_docs.sh` → `uv run python infra/bench_concurrency.py` →
+1. На VM: `infra/images/build.sh`, `specforge doctor` → `infra/fetch_docs.sh` → `uv run python infra/bench_concurrency.py` →
    `E2E_SAVE_BASELINE=1 scripts/e2e_case1.sh` → `uv run python scripts/rehearse.py`.
-3. Сверить имена агентов с командой (`config/profiles.yaml`), шаблоны документации организаторов
+2. Сверить имена агентов с командой (`config/profiles.yaml`), шаблоны документации организаторов
    (`config/doc_templates.yaml`, `infra/docs-corpus/org-standards/`).

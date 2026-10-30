@@ -56,7 +56,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy specforge
 docker compose -f infra/docker-compose.platform.yml up -d
 uv run specforge agent run <name> --in <dir> --out <dir>
-uv run specforge run examples/case1.md
+uv run specforge run examples/case1/tz.md --data examples/case1/data
 uv run specforge report <run_id>
 ```
 

@@ -53,6 +53,8 @@ class RunOptions(BaseModel):
     """None — автопилот (без остановок)."""
     clarify: bool = False
     """Ждать ответов на уточняющие вопросы агентов; False — допущения из вопросов."""
+    data: Path | None = None
+    """Каталог данных, приложенных к ТЗ (→ artifacts/input/data/)."""
 
 
 class RunInfo(BaseModel):
@@ -136,6 +138,7 @@ class RunService:
                 only=options.only,
                 approve_after=options.approve_after,
                 clarify=options.clarify,
+                data=options.data,
             )
 
         self._submit(run_id, work, background)

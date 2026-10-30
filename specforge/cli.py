@@ -326,6 +326,16 @@ def run_pipeline(
         list[str] | None, typer.Option("--flag", help="Флаг CaseProfile.extra (повторяемый).")
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Без кэша этапов.")] = False,
+    data: Annotated[
+        Path | None,
+        typer.Option(
+            "--data",
+            exists=True,
+            file_okay=False,
+            resolve_path=True,
+            help="Каталог данных, приложенных к ТЗ (→ artifacts/input/data/).",
+        ),
+    ] = None,
     ask: Annotated[
         bool,
         typer.Option("--ask", help="Ждать ответов на вопросы агентов (иначе допущения)."),
@@ -352,6 +362,7 @@ def run_pipeline(
         only=_split(only),
         approve_after=approve_after,
         clarify=ask,
+        data=data,
     )
     with _service(use_cache=not no_cache, budget=budget, time_limit=time_limit) as service:
 

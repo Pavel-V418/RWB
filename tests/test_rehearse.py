@@ -122,6 +122,11 @@ def test_discover_cases(rh: ModuleType, tmp_path: Path) -> None:
         ("case2-tz", "case2/tz.docx"),
         ("synthetic", "synthetic.md"),
     ]
+    assert [c.data.relative_to(ex).as_posix() if c.data else None for c in cases] == [
+        "case1/data",  # data/ рядом с ТЗ кейса → run --data
+        None,
+        None,
+    ]
 
 
 def test_table_top_errors_and_remedies(rh: ModuleType, tmp_path: Path) -> None:
