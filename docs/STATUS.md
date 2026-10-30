@@ -26,6 +26,17 @@
 - `orchestrator/cache.py` — кэш этапов в `runs/.cache/` по хэшу входов + spec + промптов + исходника агента.
 - `core/artifacts.py` — `RunWorkspace`, `artifacts/<stage>/manifest.json` с sha256.
 
+## CLI, события, API консоли
+- `core/events.py` — `EventType`, поле `stage`; `EventBus` пишет в `PostgresEventStore` (таблица events),
+  `SqliteEventStore` (`runs/events.sqlite` без Postgres) или память; ошибка хранилища его отключает.
+- Подтверждение: узел `approve_<i>` после каждого шага, interrupt при `--approve-after`; `approve_run` с
+  правками артефактов (пути проверяются до продолжения); `--only` — этапы + зависимости.
+- `orchestrator/service.py` — `RunService` (фоновые запуски, статус, граф для консоли), общий для CLI и API.
+- `cli.py` — run (md/txt/pdf/docx, `--autopilot | --approve-after`, `--only`, `--budget`, дерево rich), resume
+  (подтверждает остановку), status, report; `telemetry/report.py` — отчёт в Markdown.
+- `api/server.py` — FastAPI, SSE (`?after`, `Last-Event-ID`, `?follow=false`), CORS; контракт
+  `docs/console-api.yaml`.
+
 ## Осталось
 - `GateResult.tests_executed` всегда `None`: парсеры TRX/JUnit пока не считают выполненные тесты.
 - `StageResult.stopped_reason` не заполняется у StructuredAgent и ремонта (эскалация пишет причину только в summary).
@@ -35,6 +46,8 @@
 ## Не проверено вживую (только тесты на подделках)
 - PostgresSaver: resume проверен только на InMemorySaver (тот же интерфейс); с реальным Postgres не запускался.
 - Лимит времени этапа не прерывает этап — превышение фиксируется событием после него.
+- `PostgresEventStore` и approve через CLI между процессами — только с Postgres, вживую не запускались.
+- SSE опрашивает хранилище каждые 0.2 с (без LISTEN/NOTIFY).
 - DockerSandbox — поддельный docker-клиент; Docker на машине разработки нет.
 - `infra/docker-compose.platform.yml` — проверен разбором YAML, `docker compose up` не запускался.
 - Память исправлений в Postgres (pg_trgm, SQL) — поддельное соединение.

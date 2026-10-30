@@ -180,7 +180,7 @@ def test_five_agents_parallel_group_and_enabled_if(h: Harness) -> None:
     assert '"b.txt"' in manifest
     assert '"sha256"' in manifest
     assert (root / "pipeline.json").is_file()
-    assert h.kinds("pipeline.finished")
+    assert h.kinds("run_finished")
 
 
 def test_enabled_if_from_profile_flags(h: Harness) -> None:
@@ -198,7 +198,7 @@ def test_profile_agent_builds_case_profile(h: Harness) -> None:
     state = h.run(agents, use_cache=False)
     assert state["profile"].has_mobile
     assert statuses(state) == {"profiler": "passed", "e": "passed"}
-    assert h.kinds("profile.built")
+    assert h.kinds("profile_built")
 
 
 def test_failed_stage_without_artifacts_skips_dependents(h: Harness) -> None:
@@ -352,7 +352,7 @@ def test_stage_cache_reuses_passed_outputs(h: Harness) -> None:
     assert state["stage_results"]["d"].summary.startswith("кэш ")
     assert state["usage_total"].calls == 0
     assert (h.runs_dir / "r2" / "artifacts" / "d" / "d.txt").read_text("utf-8") == "d"
-    assert {e.agent for e in h.kinds("stage.cached")} == {"a", "b", "c", "d"}
+    assert {e.agent for e in h.kinds("stage_cached")} == {"a", "b", "c", "d"}
 
 
 def test_stage_cache_misses_when_input_changes(h: Harness) -> None:

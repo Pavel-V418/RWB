@@ -1,0 +1,723 @@
+openapi: 3.1.0
+info:
+  title: SpecForge Console API
+  description: 'API локальной консоли SpecForge: запуски конвейера, события, граф,
+    артефакты, отчёт и подтверждения.'
+  version: 1.0.0
+paths:
+  /runs:
+    get:
+      tags:
+      - runs
+      summary: List Runs
+      operationId: list_runs_runs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/RunInfo'
+                type: array
+                title: Response List Runs Runs Get
+    post:
+      tags:
+      - runs
+      summary: Create Run
+      operationId: create_run_runs_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_create_run_runs_post'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}:
+    get:
+      tags:
+      - runs
+      summary: Get Run
+      operationId: get_run_runs__run_id__get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunInfo'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}/events:
+    get:
+      tags:
+      - runs
+      summary: Run Events
+      operationId: run_events_runs__run_id__events_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: Только события с id больше
+          default: 0
+          title: After
+        description: Только события с id больше
+      - name: follow
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Ждать новые до run_finished
+          default: true
+          title: Follow
+        description: Ждать новые до run_finished
+      responses:
+        '200':
+          description: 'text/event-stream: id — id события, event — kind, data — EventOut
+            в JSON'
+          content:
+            text/event-stream: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}/graph:
+    get:
+      tags:
+      - runs
+      summary: Run Graph
+      operationId: run_graph_runs__run_id__graph_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphView'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}/artifacts:
+    get:
+      tags:
+      - artifacts
+      summary: Run Artifacts
+      operationId: run_artifacts_runs__run_id__artifacts_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: path
+        in: query
+        required: false
+        schema:
+          type: string
+          description: Путь относительно artifacts/
+          default: ''
+          title: Path
+        description: Путь относительно artifacts/
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactListing'
+            application/octet-stream: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}/report:
+    get:
+      tags:
+      - runs
+      summary: Run Report
+      operationId: run_report_runs__run_id__report_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/plain:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_id}/approve:
+    post:
+      tags:
+      - runs
+      summary: Approve
+      operationId: approve_runs__run_id__approve_post
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ApproveRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    ApproveRequest:
+      properties:
+        edits:
+          additionalProperties:
+            type: string
+          type: object
+          title: Edits
+      type: object
+      title: ApproveRequest
+    ArtifactEntry:
+      properties:
+        path:
+          type: string
+          title: Path
+        is_dir:
+          type: boolean
+          title: Is Dir
+        size:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Size
+      type: object
+      required:
+      - path
+      - is_dir
+      title: ArtifactEntry
+    ArtifactListing:
+      properties:
+        path:
+          type: string
+          title: Path
+        entries:
+          items:
+            $ref: '#/components/schemas/ArtifactEntry'
+          type: array
+          title: Entries
+      type: object
+      required:
+      - path
+      - entries
+      title: ArtifactListing
+    Body_create_run_runs_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: 'ТЗ: .md, .txt, .pdf, .docx'
+        only:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Only
+          description: Этапы через запятую
+        approve_after:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approve After
+          description: Остановиться после этапа
+        flags:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Flags
+          description: 'Флаги CaseProfile через запятую: has_web,has_mobile'
+      type: object
+      required:
+      - file
+      title: Body_create_run_runs_post
+    CaseProfile:
+      properties:
+        has_mobile:
+          type: boolean
+          title: Has Mobile
+          default: false
+        has_web:
+          type: boolean
+          title: Has Web
+          default: false
+        has_backend:
+          type: boolean
+          title: Has Backend
+          default: false
+        has_geo:
+          type: boolean
+          title: Has Geo
+          default: false
+        has_events:
+          type: boolean
+          title: Has Events
+          default: false
+        has_integrations:
+          type: boolean
+          title: Has Integrations
+          default: false
+        extra:
+          additionalProperties:
+            type: boolean
+          type: object
+          title: Extra
+      additionalProperties: false
+      type: object
+      title: CaseProfile
+      description: Профиль кейса, извлечённый из ТЗ. Определяет, какие этапы включены
+        (AgentSpec.enabled_if).
+    Diagnostic:
+      properties:
+        tool:
+          type: string
+          title: Tool
+        file:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: File
+        line:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line
+        column:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Column
+        severity:
+          type: string
+          enum:
+          - error
+          - warning
+          title: Severity
+          default: error
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+        message:
+          type: string
+          title: Message
+        code_window:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Window
+        category:
+          anyOf:
+          - type: string
+            enum:
+            - compile
+            - test
+            - lint
+            - generic
+          - type: 'null'
+          title: Category
+      additionalProperties: false
+      type: object
+      required:
+      - tool
+      - message
+      title: Diagnostic
+      description: Одна находка шлюза (ошибка компилятора, линтера, упавший тест).
+    GateResult:
+      properties:
+        passed:
+          type: boolean
+          title: Passed
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/Diagnostic'
+          type: array
+          title: Diagnostics
+        total_errors:
+          type: integer
+          title: Total Errors
+          default: 0
+        log_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Log Path
+        duration_s:
+          type: number
+          title: Duration S
+          default: 0.0
+        failed_command_index:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Failed Command Index
+        tests_executed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Tests Executed
+      additionalProperties: false
+      type: object
+      required:
+      - passed
+      title: GateResult
+    GraphEdge:
+      properties:
+        source:
+          type: string
+          title: Source
+        target:
+          type: string
+          title: Target
+      type: object
+      required:
+      - source
+      - target
+      title: GraphEdge
+    GraphNode:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          type: string
+          enum:
+          - profile
+          - stage
+          - finalize
+          title: Kind
+        agent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agent
+        stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stage
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/StageStatus'
+          - type: string
+            enum:
+            - pending
+            - running
+            - waiting_approval
+          title: Status
+          default: pending
+        parallel_group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parallel Group
+        enabled_if:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Enabled If
+        usage:
+          $ref: '#/components/schemas/Usage'
+        duration_s:
+          type: number
+          title: Duration S
+          default: 0.0
+        attempts:
+          type: integer
+          title: Attempts
+          default: 0
+        summary:
+          type: string
+          title: Summary
+          default: ''
+      type: object
+      required:
+      - id
+      - kind
+      title: GraphNode
+    GraphView:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          enum:
+          - running
+          - waiting_approval
+          - finished
+          - failed
+          - interrupted
+          - unknown
+          title: Status
+        nodes:
+          items:
+            $ref: '#/components/schemas/GraphNode'
+          type: array
+          title: Nodes
+        edges:
+          items:
+            $ref: '#/components/schemas/GraphEdge'
+          type: array
+          title: Edges
+        steps:
+          items:
+            items:
+              type: string
+            type: array
+          type: array
+          title: Steps
+      type: object
+      required:
+      - run_id
+      - status
+      - nodes
+      - edges
+      - steps
+      title: GraphView
+      description: 'Граф для отрисовки в консоли: логические рёбра depends_on + profile/finalize.'
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    RunCreated:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - run_id
+      - status
+      title: RunCreated
+    RunInfo:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          enum:
+          - running
+          - waiting_approval
+          - finished
+          - failed
+          - interrupted
+          - unknown
+          title: Status
+        requirements:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Requirements
+        profile:
+          anyOf:
+          - $ref: '#/components/schemas/CaseProfile'
+          - type: 'null'
+        stages:
+          additionalProperties:
+            $ref: '#/components/schemas/StageResult'
+          type: object
+          title: Stages
+        usage:
+          $ref: '#/components/schemas/Usage'
+        pending_approval:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Pending Approval
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - run_id
+      - status
+      title: RunInfo
+    StageResult:
+      properties:
+        agent:
+          type: string
+          title: Agent
+        status:
+          $ref: '#/components/schemas/StageStatus'
+        attempts:
+          type: integer
+          title: Attempts
+          default: 1
+        usage:
+          $ref: '#/components/schemas/Usage'
+        duration_s:
+          type: number
+          title: Duration S
+          default: 0.0
+        gate:
+          anyOf:
+          - $ref: '#/components/schemas/GateResult'
+          - type: 'null'
+        artifacts:
+          items:
+            type: string
+          type: array
+          title: Artifacts
+        summary:
+          type: string
+          title: Summary
+          default: ''
+        stopped_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stopped Reason
+      additionalProperties: false
+      type: object
+      required:
+      - agent
+      - status
+      title: StageResult
+    StageStatus:
+      type: string
+      enum:
+      - passed
+      - failed
+      - degraded
+      - skipped
+      title: StageStatus
+    Usage:
+      properties:
+        prompt_tokens:
+          type: integer
+          title: Prompt Tokens
+          default: 0
+        completion_tokens:
+          type: integer
+          title: Completion Tokens
+          default: 0
+        cached_tokens:
+          type: integer
+          title: Cached Tokens
+          default: 0
+        calls:
+          type: integer
+          title: Calls
+          default: 0
+      additionalProperties: false
+      type: object
+      title: Usage
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

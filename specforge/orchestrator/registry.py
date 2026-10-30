@@ -107,6 +107,22 @@ class Registry:
         done = {profile.spec.name} if profile else set()
         return plan_steps(self.specs, done)
 
+    def closure(self, targets: list[str]) -> set[str]:
+        """Агенты по именам агентов или этапов плюс все их зависимости."""
+        selected: set[str] = set()
+        for target in targets:
+            node = self.node_of(target)
+            if node == PROFILE_STAGE:
+                continue
+            selected |= {node, *ancestors(self.specs, node)}
+            for name, spec in self.specs.items():  # все агенты этапа, если указан этап
+                if spec.stage == target and spec.stage != PROFILE_STAGE:
+                    selected |= {name, *ancestors(self.specs, name)}
+        profile = self.profile_agent
+        if profile is not None:
+            selected.discard(profile.spec.name)
+        return selected
+
     def node_of(self, target: str) -> str:
         """Узел графа по имени агента или этапа (у этапа из нескольких агентов — первый)."""
         profile = self.profile_agent

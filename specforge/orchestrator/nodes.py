@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import structlog
+from langgraph.types import interrupt
 from pydantic import BaseModel, JsonValue
 
 from specforge.core.agent_api import Agent, AgentContext, EmitFn
@@ -24,12 +25,12 @@ from specforge.core.contracts import (
     StageStatus,
     Usage,
 )
-from specforge.core.events import Event
+from specforge.core.events import Event, EventType
 from specforge.gates.runner import GateConfigError, GateRunner
 from specforge.llm import LLMClient, NullLLM
 from specforge.orchestrator.budget import BudgetController, active_seconds
 from specforge.orchestrator.cache import StageCache, stage_key
-from specforge.orchestrator.registry import Registry
+from specforge.orchestrator.registry import PROFILE_STAGE, Registry
 from specforge.repair.loop import repair_loop
 from specforge.repair.snapshots import SnapshotError, Snapshotter
 from specforge.sandbox.base import BaseSandbox, Sandbox, SandboxError
@@ -37,6 +38,13 @@ from specforge.sandbox.docker_sandbox import DockerSandbox
 from specforge.sandbox.local_sandbox import LocalSandbox
 
 log = structlog.get_logger(__name__)
+
+FINISHED_EVENT = {
+    StageStatus.passed: EventType.stage_passed,
+    StageStatus.degraded: EventType.stage_degraded,
+    StageStatus.failed: EventType.stage_failed,
+    StageStatus.skipped: EventType.stage_skipped,
+}
 
 
 def create_sandbox(spec: AgentSpec, workspace: Path, logs_dir: Path) -> BaseSandbox:
@@ -77,7 +85,14 @@ def execute_stage(
         llm=ctx.llm.bind(run_id=ctx.run_id, stage=spec.stage, agent=spec.name),
         protected_globs=[*ctx.protected_globs, *spec.protected_globs],
     )
-    ctx.emit(Event(kind="stage.started", run_id=ctx.run_id, agent=spec.name))
+    ctx.emit(
+        Event(
+            kind=EventType.stage_started,
+            run_id=ctx.run_id,
+            stage=spec.stage,
+            agent=spec.name,
+        )
+    )
 
     own_sandbox: BaseSandbox | None = None
     try:
@@ -101,8 +116,9 @@ def execute_stage(
 
     ctx.emit(
         Event(
-            kind="stage.finished",
+            kind=FINISHED_EVENT[result.status],
             run_id=ctx.run_id,
+            stage=spec.stage,
             agent=spec.name,
             message=result.summary,
             data={"status": result.status.value, "tokens": result.usage.total_tokens},
@@ -137,6 +153,19 @@ def _run_agent_and_gate(
     if gate.passed:
         _mark_green(ctx.sandbox)
         return result.model_copy(update={"gate": gate})
+    ctx.emit(
+        Event(
+            kind=EventType.gate_failed,
+            run_id=ctx.run_id,
+            stage=spec.stage,
+            agent=spec.name,
+            message=gate.diagnostics[0].message[:300] if gate.diagnostics else "",
+            data={
+                "total_errors": gate.total_errors,
+                "failed_command_index": gate.failed_command_index,
+            },
+        )
+    )
     if spec.max_repairs == 0:
         return result.model_copy(update={"gate": gate, "status": StageStatus.failed})
 
@@ -173,11 +202,23 @@ def merge_clock(
     return {**left, **right}
 
 
+def merge_approvals(
+    left: dict[str, dict[str, Any]], right: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    return {**left, **right}
+
+
 class GraphState(PipelineState, total=False):
     """PipelineState + служебные поля оркестратора."""
 
     stage_clock: Annotated[dict[str, list[float]], merge_clock]
     """[начало, конец] работы этапов (time.time()) — для бюджета времени."""
+    only: list[str] | None
+    """Агенты, которые запускаются (--only с зависимостями); None — все."""
+    approve_after: str | None
+    """Узел (агент или profile), после шага которого граф ждёт подтверждения."""
+    approvals: Annotated[dict[str, dict[str, Any]], merge_approvals]
+    """Выданные подтверждения: {узел: {"edits": [пути]}}."""
 
 
 NodeUpdate = dict[str, Any]
@@ -223,7 +264,7 @@ class PipelineNodes:
         """Агент этапа profile строит CaseProfile; без него остаётся профиль из флагов CLI."""
         agent = self.registry.profile_agent
         if agent is None:
-            self._event("profile.from_cli", state, data=state["profile"].model_dump(mode="json"))
+            self._event("profile_from_cli", state, data=state["profile"].model_dump(mode="json"))
             return {}
         started = time.time()
         result = self._execute(agent, state)
@@ -231,15 +272,15 @@ class PipelineNodes:
         profile = self._read_profile(agent, state)
         if profile is None:
             self._event(
-                "profile.fallback",
+                "profile_fallback",
                 state,
-                agent=agent.spec.name,
+                spec=agent.spec,
                 message=f"нет корректного {PROFILE_FILE} — профиль из флагов CLI",
             )
         else:
             update["profile"] = profile
             self._event(
-                "profile.built", state, agent=agent.spec.name, data=profile.model_dump(mode="json")
+                "profile_built", state, spec=agent.spec, data=profile.model_dump(mode="json")
             )
         return update
 
@@ -262,18 +303,62 @@ class PipelineNodes:
             started = time.time()
             spec = agent.spec
             blocker = self._blocker(spec, state["stage_results"])
-            if blocker is not None:
+            only = state.get("only")
+            if only is not None and name not in only:
+                result = _skipped(spec, "не выбран в --only", "only")
+            elif blocker is not None:
                 result = _skipped(spec, blocker, "dependency")
             elif spec.enabled_if and not state["profile"].is_enabled(spec.enabled_if):
                 result = _skipped(spec, f"{spec.enabled_if} = false в профиле кейса", "enabled_if")
             else:
                 result = self._execute(agent, state)
             if result.status == StageStatus.skipped:
-                self._event("stage.skipped", state, agent=spec.name, message=result.summary)
+                self._event(EventType.stage_skipped, state, spec=spec, message=result.summary)
             return self._update(spec, result, started)
 
         node.__name__ = f"stage_{name}"
         return node
+
+    # --- подтверждение ----------------------------------------------------------------------
+
+    def approval(self, step: tuple[str, ...]) -> Callable[[GraphState], NodeUpdate]:
+        """Узел после шага: если в шаге этап из approve_after — interrupt до approve_run.
+
+        При продолжении LangGraph выполняет узел заново и interrupt возвращает ответ
+        ({"edits": {путь: содержимое}}), поэтому до interrupt узел ничего не меняет.
+        """
+
+        def node(state: GraphState) -> NodeUpdate:
+            target = state.get("approve_after")
+            if target is None or target not in step or target in state.get("approvals", {}):
+                return {}
+            ws = _workspace(state)
+            spec = self._spec_of(target)
+            stage = spec.stage if spec else PROFILE_STAGE
+            manifest = ws.read_manifest(stage)
+            payload: dict[str, Any] = {
+                "after": target,
+                "stage": stage,
+                "statuses": {
+                    n: r.status.value for n, r in state["stage_results"].items() if n in step
+                },
+                "artifacts": [f"{stage}/{e.path}" for e in manifest.files] if manifest else [],
+            }
+            answer = interrupt(payload)
+            edits = answer.get("edits", {}) if isinstance(answer, dict) else {}
+            applied = apply_edits(ws, edits)
+            if applied:
+                self._event("artifacts_edited", state, spec=spec, data={"paths": list(applied)})
+            return {"approvals": {target: {"edits": applied}}}
+
+        node.__name__ = f"approval_{'_'.join(step)}"
+        return node
+
+    def _spec_of(self, node: str) -> AgentSpec | None:
+        if node == PROFILE_STAGE:
+            profile = self.registry.profile_agent
+            return profile.spec if profile else None
+        return self.registry.agents[node].spec
 
     def _blocker(self, spec: AgentSpec, results: dict[str, StageResult]) -> str | None:
         """Почему этап нельзя запускать из-за зависимостей; None — можно.
@@ -299,6 +384,7 @@ class PipelineNodes:
         decision = self.budget.decide(
             spec,
             tokens_used=state["usage_total"].total_tokens,
+            run_id=state["run_id"],
             elapsed_s=active_seconds(state.get("stage_clock", {}).values()),
         )
         if decision.exhausted:
@@ -311,7 +397,7 @@ class PipelineNodes:
                 stage_dir = ws.clean_outputs(spec.stage, spec.outputs)
                 result = self.cache.restore(agent, key, cached, stage_dir)
                 ws.write_manifest(spec.stage, spec.name)
-                self._event("stage.cached", state, agent=spec.name, data={"key": key})
+                self._event("stage_cached", state, spec=spec, data={"key": key})
                 return result
 
         output_dir = ws.clean_outputs(spec.stage, spec.outputs)
@@ -328,7 +414,7 @@ class PipelineNodes:
             emit=self.emit,
         )
         result = execute_stage(agent, ctx, max_repairs=decision.max_repairs)
-        self.budget.after_stage(spec, result)
+        self.budget.after_stage(spec, result, run_id=state["run_id"])
         if result.status in (StageStatus.passed, StageStatus.degraded):
             ws.write_manifest(spec.stage, spec.name)
         if self.cache is not None and key is not None:
@@ -352,7 +438,7 @@ class PipelineNodes:
             "counts": dict(summary.counts),
             "tokens": summary.usage.total_tokens,
         }
-        self._event("pipeline.finished", state, data=data)
+        self._event(EventType.run_finished, state, data=data)
         return {}
 
     def _event(
@@ -360,12 +446,19 @@ class PipelineNodes:
         kind: str,
         state: GraphState,
         *,
-        agent: str | None = None,
+        spec: AgentSpec | None = None,
         message: str = "",
         data: dict[str, JsonValue] | None = None,
     ) -> None:
         self.emit(
-            Event(kind=kind, run_id=state["run_id"], agent=agent, message=message, data=data or {})
+            Event(
+                kind=kind,
+                run_id=state["run_id"],
+                stage=spec.stage if spec else None,
+                agent=spec.name if spec else None,
+                message=message,
+                data=data or {},
+            )
         )
 
 
@@ -389,6 +482,22 @@ def _skipped(spec: AgentSpec, reason: str, stopped_reason: str) -> StageResult:
         summary=reason,
         stopped_reason=stopped_reason,
     )
+
+
+def apply_edits(ws: RunWorkspace, edits: dict[str, str]) -> list[str]:
+    """Записать правки артефактов (пути относительно artifacts/) и пересобрать манифесты."""
+    applied = []
+    stages = set()
+    for rel, content in edits.items():
+        path = ws.artifact_path(rel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="")
+        relative = path.relative_to(ws.artifacts_dir)
+        applied.append(relative.as_posix())
+        stages.add(relative.parts[0])
+    for stage in sorted(stages):
+        ws.write_manifest(stage, "approval")
+    return applied
 
 
 def _workspace(state: GraphState) -> RunWorkspace:

@@ -1,47 +1,52 @@
 """CLI платформы.
 
-specforge list-agents                     — реестр, проверка и план шагов конвейера
-specforge agent run <name> --in --out     — один агент и его шлюз
-specforge run <requirements.md> [флаги]   — весь конвейер
-specforge resume <run_id> [--from <этап>] — продолжить запуск с чекпойнта
+specforge list-agents                       — реестр, проверка и план шагов конвейера
+specforge agent run <name> --in --out       — один агент и его шлюз
+specforge run <ТЗ.md|.txt|.pdf|.docx> [...] — весь конвейер (дерево этапов — rich)
+specforge resume <run_id> [--from <этап>]   — продолжить запуск / подтвердить остановку
+specforge status <run_id>                   — дерево этапов со статусами
+specforge report <run_id>                   — отчёт в Markdown
 """
 
 import io
 import logging
 import os
 import sys
-import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 import structlog
 import typer
 from dotenv import find_dotenv, load_dotenv
+from rich.console import Console
+from rich.live import Live
+from rich.markup import escape
+from rich.tree import Tree
 
 from specforge.core.agent_api import AgentContext
-from specforge.core.contracts import CaseProfile, RunConfig, StageStatus
-from specforge.core.events import Event, EventBus
+from specforge.core.contracts import CaseProfile, StageStatus
+from specforge.core.events import Event, EventBus, EventType
 from specforge.llm import LLMClient, LLMError, NullLLM
-from specforge.orchestrator.graph import (
-    GraphConfig,
-    OrchestratorError,
-    PipelineGraph,
-    build_graph,
-    open_checkpointer,
-    resume_run,
-    start_run,
-)
-from specforge.orchestrator.nodes import GraphState, execute_stage, summarize
+from specforge.orchestrator.graph import OrchestratorError
+from specforge.orchestrator.nodes import execute_stage
 from specforge.orchestrator.registry import (
     Registry,
     RegistryError,
     available_agents,
     load_agent,
 )
+from specforge.orchestrator.service import (
+    GraphView,
+    RunInfo,
+    RunOptions,
+    RunService,
+    new_run_id,
+    open_service,
+)
+from specforge.telemetry.report import render_report
+from specforge.tools.docs import SUPPORTED_SUFFIXES
 
 app = typer.Typer(no_args_is_help=True, help="SpecForge — агентный конвейер разработки.")
 agent_app = typer.Typer(no_args_is_help=True, help="Агенты из реестра agents/.")
@@ -80,10 +85,6 @@ def configure_logging() -> None:
 def build_llm() -> LLMClient:
     """Точка подмены LLM в тестах."""
     return LLMClient.from_env()
-
-
-def new_run_id() -> str:
-    return f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
 
 
 def _log_event(event: Event) -> None:
@@ -189,77 +190,117 @@ def list_pipeline_agents() -> None:
     typer.echo("\nПлан: " + " → ".join([*plan, "finalize"]))
 
 
-def run_config_from_env(llm: LLMClient) -> RunConfig:
-    env = os.environ
-    fields = RunConfig.model_fields
-    return RunConfig(
-        llm_base_url=llm.config.base_url,
-        model=llm.config.model,
-        global_token_budget=int(
-            env.get("SPECFORGE_TOKEN_BUDGET", fields["global_token_budget"].default)
-        ),
-        wall_clock_limit_s=float(
-            env.get("SPECFORGE_WALL_CLOCK_S", fields["wall_clock_limit_s"].default)
-        ),
-        max_concurrency=int(
-            env.get("SPECFORGE_MAX_CONCURRENCY", fields["max_concurrency"].default)
-        ),
-    )
-
-
-@dataclass
-class _Pipeline:
-    registry: Registry
-    config: GraphConfig
-    graph: PipelineGraph
-
-
 @contextmanager
-def _pipeline(
-    run_id: str, *, use_cache: bool, budget: int | None, time_limit: float | None
-) -> Iterator[_Pipeline]:
+def _service(
+    *, use_cache: bool = True, budget: int | None = None, time_limit: float | None = None
+) -> Iterator[RunService]:
     load_dotenv(find_dotenv(usecwd=True))
     configure_logging()
     try:
-        registry = build_registry()
-        llm = build_llm()
+        with open_service(
+            registry_factory=build_registry,
+            llm_factory=build_llm,
+            use_cache=use_cache,
+            budget=budget,
+            time_limit=time_limit,
+        ) as service:
+            service.bus.subscribe(_log_event)
+            yield service
     except (RegistryError, LLMError) as exc:
         typer.echo(f"Ошибка: {exc}", err=True)
         raise typer.Exit(2) from exc
-    run = run_config_from_env(llm)
-    updates: dict[str, int | float] = {}
-    if budget is not None:
-        updates["global_token_budget"] = budget
-    if time_limit is not None:
-        updates["wall_clock_limit_s"] = time_limit
-    run = run.model_copy(update=updates)
-    bus = EventBus()
-    bus.subscribe(_log_event)
-    with open_checkpointer() as checkpointer:
-        config = GraphConfig(
-            run=run,
-            llm=llm,
-            runs_dir=Path(os.environ.get("SPECFORGE_RUNS_DIR", "runs")),
-            emit=bus.emit,
-            checkpointer=checkpointer,
-            use_cache=use_cache and os.environ.get("SPECFORGE_STAGE_CACHE", "true") != "false",
-            run_id=run_id,
-        )
-        yield _Pipeline(registry, config, build_graph(registry, config))
 
 
-def _finish(state: GraphState) -> None:
-    summary = summarize(state)
-    typer.echo(summary.model_dump_json(indent=2))
-    raise typer.Exit(1 if summary.counts[StageStatus.failed.value] else 0)
+ICONS = {
+    "passed": "[green]✔ passed[/]",
+    "degraded": "[yellow]⚠ degraded[/]",
+    "failed": "[red]✘ failed[/]",
+    "skipped": "[dim]⏭ skipped[/]",
+    "running": "[cyan]… running[/]",
+    "waiting_approval": "[magenta]⏸ ждёт подтверждения[/]",
+    "pending": "[dim]· pending[/]",
+}
+
+
+def render_tree(view: GraphView) -> Tree:
+    """Дерево этапов по шагам конвейера со статусами."""
+    tree = Tree(f"[bold]{view.run_id}[/] — {view.status}")
+    by_id = {n.id: n for n in view.nodes}
+    for step in view.steps:
+        parent = tree if len(step) == 1 else tree.add("[bold]параллельно[/]")
+        for node_id in step:
+            node = by_id[node_id]
+            status = node.status.value if isinstance(node.status, StageStatus) else node.status
+            label = f"{node.agent or node.id}  {ICONS.get(status, status)}"
+            if node.usage.total_tokens:
+                label += f"  [dim]{node.usage.total_tokens} tok, {node.duration_s:.1f} с[/]"
+            if status in ("failed", "degraded", "skipped") and node.summary:
+                label += f"\n[dim]{escape(node.summary.splitlines()[0][:120])}[/]"
+            parent.add(label)
+    return tree
+
+
+def _drive(service: RunService, run_id: str, work: Callable[[], None]) -> None:
+    """Выполнить запуск с живым деревом этапов и завершить с кодом по итогу."""
+    console = Console()
+    with Live(render_tree(service.graph_view(run_id)), console=console, transient=False) as live:
+
+        def refresh(event: Event) -> None:
+            if event.run_id == run_id and event.kind in REFRESH_ON:
+                live.update(render_tree(service.graph_view(run_id)))
+
+        unsubscribe = service.bus.subscribe(refresh)
+        try:
+            work()
+        except OrchestratorError as exc:
+            live.stop()
+            typer.echo(f"Ошибка: {exc}", err=True)
+            raise typer.Exit(2) from exc
+        finally:
+            unsubscribe()
+        live.update(render_tree(service.graph_view(run_id)))
+    _exit_with(service.info(run_id))
+
+
+REFRESH_ON = {t.value for t in EventType} | {"stage_cached"}
+
+
+def _exit_with(info: RunInfo) -> None:
+    if info.status == "waiting_approval":
+        after = (info.pending_approval or {}).get("after")
+        typer.echo(f"Ждёт подтверждения после {after}: specforge resume {info.run_id}")
+        raise typer.Exit(0)
+    failed = sum(r.status == StageStatus.failed for r in info.stages.values())
+    typer.echo(f"Итог: {info.status}; failed: {failed}; токенов: {info.usage.total_tokens}")
+    raise typer.Exit(1 if failed or info.status == "failed" else 0)
+
+
+def _split(value: str | None) -> list[str] | None:
+    items = [v.strip() for v in (value or "").split(",") if v.strip()]
+    return items or None
 
 
 @app.command("run")
 def run_pipeline(
     requirements: Annotated[
-        Path, typer.Argument(exists=True, dir_okay=False, resolve_path=True, help="Файл ТЗ.")
+        Path,
+        typer.Argument(
+            exists=True, dir_okay=False, resolve_path=True, help="ТЗ: .md, .txt, .pdf, .docx."
+        ),
     ],
     run_id: Annotated[str | None, typer.Option(help="Идентификатор запуска.")] = None,
+    autopilot: Annotated[
+        bool, typer.Option("--autopilot", help="Без остановок на подтверждение (по умолчанию).")
+    ] = False,
+    approve_after: Annotated[
+        str | None, typer.Option("--approve-after", help="Остановиться после этого этапа.")
+    ] = None,
+    only: Annotated[
+        str | None,
+        typer.Option("--only", help="Только эти этапы (через запятую) и их зависимости."),
+    ] = None,
+    budget: Annotated[int | None, typer.Option(help="Глобальный бюджет токенов.")] = None,
+    time_limit: Annotated[float | None, typer.Option(help="Лимит времени конвейера, с.")] = None,
     mobile: Annotated[bool, typer.Option("--mobile", help="has_mobile в профиле.")] = False,
     web: Annotated[bool, typer.Option("--web", help="has_web в профиле.")] = False,
     backend: Annotated[bool, typer.Option("--backend", help="has_backend в профиле.")] = False,
@@ -272,25 +313,34 @@ def run_pipeline(
         list[str] | None, typer.Option("--flag", help="Флаг CaseProfile.extra (повторяемый).")
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Без кэша этапов.")] = False,
-    budget: Annotated[int | None, typer.Option(help="Глобальный бюджет токенов.")] = None,
-    time_limit: Annotated[float | None, typer.Option(help="Лимит времени конвейера, с.")] = None,
 ) -> None:
     """Запустить конвейер. Флаги профиля — если нет агента этапа profile."""
+    if autopilot and approve_after:
+        typer.echo("Ошибка: --autopilot и --approve-after несовместимы", err=True)
+        raise typer.Exit(2)
+    if requirements.suffix.lower() not in SUPPORTED_SUFFIXES:
+        typer.echo(f"Ошибка: ожидается {', '.join(SUPPORTED_SUFFIXES)}", err=True)
+        raise typer.Exit(2)
     run_id = run_id or new_run_id()
-    profile = CaseProfile(
-        has_mobile=mobile,
-        has_web=web,
-        has_backend=backend,
-        has_geo=geo,
-        has_events=events,
-        has_integrations=integrations,
-        extra=dict.fromkeys(flag or [], True),
+    options = RunOptions(
+        profile=CaseProfile(
+            has_mobile=mobile,
+            has_web=web,
+            has_backend=backend,
+            has_geo=geo,
+            has_events=events,
+            has_integrations=integrations,
+            extra=dict.fromkeys(flag or [], True),
+        ),
+        only=_split(only),
+        approve_after=approve_after,
     )
-    with _pipeline(run_id, use_cache=not no_cache, budget=budget, time_limit=time_limit) as p:
-        state = start_run(
-            p.graph, p.registry, p.config, run_id=run_id, requirements=requirements, profile=profile
-        )
-    _finish(state)
+    with _service(use_cache=not no_cache, budget=budget, time_limit=time_limit) as service:
+
+        def work() -> None:
+            service.start(requirements, options, run_id=run_id)
+
+        _drive(service, run_id, work)
 
 
 @app.command("resume")
@@ -301,14 +351,36 @@ def resume_pipeline(
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Без кэша этапов.")] = False,
 ) -> None:
-    """Продолжить запуск с последнего чекпойнта (нужен SPECFORGE_PG_DSN)."""
-    with _pipeline(run_id, use_cache=not no_cache, budget=None, time_limit=None) as p:
-        try:
-            state = resume_run(p.graph, p.registry, p.config, run_id=run_id, from_stage=from_stage)
-        except OrchestratorError as exc:
-            typer.echo(f"Ошибка: {exc}", err=True)
-            raise typer.Exit(2) from exc
-    _finish(state)
+    """Продолжить запуск с чекпойнта; если он ждёт подтверждения — подтвердить без правок."""
+    with _service(use_cache=not no_cache) as service:
+        if from_stage is None and service.info(run_id).status == "waiting_approval":
+            _drive(service, run_id, lambda: service.approve(run_id))
+        else:
+            _drive(service, run_id, lambda: service.resume(run_id, from_stage))
+
+
+@app.command("status")
+def run_status(run_id: Annotated[str, typer.Argument(help="Идентификатор запуска.")]) -> None:
+    """Дерево этапов запуска со статусами."""
+    with _service() as service:
+        info = service.info(run_id)
+        if info.status == "unknown":
+            typer.echo(f"Запуск {run_id!r} не найден", err=True)
+            raise typer.Exit(2)
+        Console().print(render_tree(service.graph_view(run_id)))
+        if info.error:
+            typer.echo(f"Ошибка: {info.error}")
+
+
+@app.command("report")
+def run_report(run_id: Annotated[str, typer.Argument(help="Идентификатор запуска.")]) -> None:
+    """Отчёт о запуске в Markdown."""
+    with _service() as service:
+        summary = service.summary(run_id)
+        if summary is None:
+            typer.echo(f"Запуск {run_id!r} не найден", err=True)
+            raise typer.Exit(2)
+        typer.echo(render_report(summary, [e.event for e in service.events(run_id)]))
 
 
 if __name__ == "__main__":

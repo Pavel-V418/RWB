@@ -127,6 +127,18 @@ class RunWorkspace:
     def stage_dir(self, stage: str) -> Path:
         return self.artifacts_dir / stage
 
+    def artifact_path(self, rel: str) -> Path:
+        """Путь артефакта по пути относительно artifacts/; ValueError — если он выходит за
+        artifacts/, указывает на служебный каталог, manifest.json или корень."""
+        root = self.artifacts_dir.resolve()
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root) or path == root:
+            raise ValueError(f"путь {rel!r} вне artifacts/")
+        parts = path.relative_to(root).parts
+        if len(parts) < 2 or any(p in SERVICE_DIRS for p in parts) or path.name == MANIFEST_FILE:
+            raise ValueError(f"путь {rel!r}: ожидается <этап>/<файл>, не служебный")
+        return path
+
     def prepare(self, requirements: Path | None = None) -> None:
         """Создать каталоги запуска и положить ТЗ в artifacts/input/."""
         for d in (self.artifacts_dir, self.logs_dir, self.input_dir):

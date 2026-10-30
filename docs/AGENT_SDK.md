@@ -212,6 +212,13 @@ agent_loop(ctx, system_prompt, task, spec.tools,
 result — усечён до 500 символов) · `history_compacted` · `agent_finished` (stopped_reason,
 steps, tokens, changed_files). Structured-агенты шлют `step_started` и `agent_finished`.
 
+У события есть `run_id`, `stage`, `agent`, `ts`, `message` и `data` (в таблице `events` и в API
+оно называется `payload`). События платформы — `EventType` (`specforge.core.events`):
+`run_started`, `stage_started`, `stage_skipped`, `gate_failed`, `repair_attempt`, `stage_passed`,
+`stage_degraded`, `stage_failed`, `budget_warning`, `approval_required`, `run_finished`. Свои
+события агент шлёт с любым `kind`. `EventBus` пишет события в Postgres (таблица `events`,
+`SPECFORGE_PG_DSN`; без него — `runs/events.sqlite`) и раздаёт подписчикам.
+
 Правила для tool-агентов:
 - Правка существующих файлов — через `str_replace`, а не переписывание целиком.
 - Не возвращайте в контекст полные логи — инструменты сами их усекают.
@@ -359,7 +366,7 @@ spec = AgentSpec(
 зелёному снимку (состоянию после последнего этапа с зелёным шлюзом), если он есть, и
 публикуется событие `escalation`. Бюджет `token_budget` — общий на агента и ремонты.
 
-События ремонта: `repair_started`, `fix_memory_hits`, `repair_rolled_back`,
+События ремонта: `repair_attempt`, `fix_memory_hits`, `repair_rolled_back`,
 `repair_succeeded`, `escalation`.
 
 Чтобы ремонт работал хорошо:
@@ -622,9 +629,27 @@ runs/<run_id>/pipeline.json               — итог (статусы, usage)
 
 Если хэш входных артефактов + `AgentSpec` + промптов + исходника `agent.py` совпал с прошлым
 `passed`-результатом, этап не запускается: выходы (файлы под `outputs`) копируются из
-`runs/.cache/`, событие `stage.cached`. Агенты без `outputs` не кэшируются. Отключить:
+`runs/.cache/`, событие `stage_cached`. Агенты без `outputs` не кэшируются. Отключить:
 `--no-cache` или `SPECFORGE_STAGE_CACHE=false`. Агент, зависящий от чего-то кроме входов
 (сеть, время), должен это учитывать: его кэш устареет незаметно.
+
+### Подтверждение и выбор этапов
+
+- `specforge run ТЗ --approve-after <агент|этап>` — после шага с этим этапом граф
+  останавливается (interrupt LangGraph), событие `approval_required` (в `payload` — этап и файлы).
+  Продолжение — `POST /runs/{id}/approve` (можно с `{"edits": {"<этап>/<файл>": "текст"}}`)
+  или `specforge resume <run_id>` (без правок). Без флага (`--autopilot`) — без остановок.
+- `--only a,b` — запускаются только эти этапы и их зависимости, остальные `skipped`
+  (`stopped_reason="only"`).
+- ТЗ — `.md`, `.txt`, `.pdf`, `.docx`: оригинал и извлечённый текст
+  (`artifacts/input/requirements.md`) лежат в `artifacts/input/`.
+
+### CLI и API
+
+`specforge run | resume | status <run_id> | report <run_id> | list-agents | agent run`;
+прогресс `run` — дерево этапов (rich). HTTP API для консоли — `uv run uvicorn
+specforge.api.server:app`, контракт — `docs/console-api.yaml` (обновить:
+`uv run python -m specforge.api.server openapi docs/console-api.yaml`; тест сверяет файл с кодом).
 
 ### Resume
 

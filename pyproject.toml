@@ -5,15 +5,22 @@ description = "SpecForge — агентный конвейер разработ�
 requires-python = ">=3.12"
 dependencies = [
     "docker>=7.1",
+    "fastapi>=0.162.0",
     "langgraph>=0.6",
     "langgraph-checkpoint-postgres>=2.0",
     "openai>=2.0",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
+    "pypdf>=6.21.4",
+    "python-docx>=1.2.0",
     "python-dotenv>=1.0",
+    "python-multipart>=0.0.32",
     "pyyaml>=6.0",
+    "rich>=15.0.0",
+    "sse-starlette>=3.6.0",
     "structlog>=24.4",
     "typer>=0.12",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
@@ -21,6 +28,7 @@ specforge = "specforge.cli:app"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
