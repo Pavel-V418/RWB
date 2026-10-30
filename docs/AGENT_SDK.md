@@ -319,6 +319,7 @@ gate_commands = [
 | `spectral` | `spectral` | `-f json`; без него — формат stylish | lint |
 | `asyncapi` | `asyncapi` | `asyncapi validate` (stylish) | compile |
 | `psql` | `psql` | `psql:file:line: ERROR: …` + `LINE`/`DETAIL`/`HINT` | compile |
+| `diagnostics-json` | только явно (`gate_parsers`) | готовый отчёт своего скрипта: JSON в stdout или свежий `gate_report.json` в workspace (ниже) | из отчёта |
 | `generic` | всё остальное | последние строки со словами error / exception / failed | generic |
 
 Если команда не опознаётся (обёртка `make check`, `npm run build`), укажите парсер явно —
@@ -338,6 +339,26 @@ spec = AgentSpec(
 ```
 
 Неизвестное имя парсера — ошибка конфигурации, этап падает до запуска команд.
+
+Свой скрипт проверки (например, сборка + сверка снимков экранов) подключается парсером
+`diagnostics-json`. Скрипт печатает JSON в stdout или пишет `gate_report.json` в любое место
+workspace — список диагностик или объект с ключом `diagnostics` / `errors`; код выхода ≠ 0 при
+ошибках:
+
+```json
+{"errors": [{"tool": "android-gate", "file": "app/src/main/java/App.kt", "line": 12,
+             "column": 5, "severity": "error", "code": "SNAPSHOT_MISMATCH",
+             "category": "test", "message": "Снимок MainScreen отличается от эталона"}]}
+```
+
+Обязательно только `message`; `col` принимается как `column`; `severity` — `error`/`warning`
+(`info`/`hint` пропускаются); `category` — `compile`/`test`/`lint`/`generic`; `code_window`
+заполняет платформа. Отчёт старше запуска команды не читается.
+
+```python
+gate_commands = (["python tools/android_gate/android_gate.py"],)
+gate_parsers = ({"python tools/android_gate/android_gate.py": "diagnostics-json"},)
+```
 Если парсер не нашёл ошибок в упавшей команде, в ход идёт `generic`, а если и он пуст —
 одна диагностика с хвостом вывода.
 

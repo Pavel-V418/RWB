@@ -1,0 +1,14 @@
+{
+  "passed": false,
+  "errors": [
+    {"tool": "android-gate", "file": "/work/app/src/main/java/App.kt", "line": 12, "col": 5,
+     "severity": "error", "code": "SNAPSHOT_MISMATCH", "category": "test",
+     "message": "Снимок MainScreen отличается от эталона на 3.2%"},
+    {"tool": "android-gate", "file": "app/build.gradle.kts", "line": "7", "severity": "warn",
+     "category": "lint", "message": "minSdk ниже требуемого", "code_window": "игнорируется"},
+    {"severity": "info", "message": "собрано за 41 с"},
+    {"severity": "error", "message": ""},
+    "мусор",
+    {"message": "6 снимков вместо 7", "category": "screens"}
+  ]
+}

@@ -249,7 +249,30 @@ def test_generic_tail(tmp_path: Path) -> None:
     assert parse("generic", "Tests: 5 passed, 0 failed\nerrors: 0", tmp_path) == []
 
 
+def test_diagnostics_json_report_file(tmp_path: Path) -> None:
+    place_report(tmp_path, "gate_report.json", "app/build/reports")
+    found = parse("diagnostics-json", "BUILD FAILED", tmp_path, command="python gate.py")
+    assert brief(found) == [
+        ("/work/app/src/main/java/App.kt", 12, 5, "error", "SNAPSHOT_MISMATCH"),
+        ("app/build.gradle.kts", 7, None, "warning", None),
+        (None, None, None, "error", None),
+    ]
+    assert [d.category for d in found] == ["test", "lint", None]
+    assert found[0].tool == "android-gate"
+    assert found[2].tool == "gate-report"
+    assert all(d.code_window is None for d in found)
+
+
+def test_diagnostics_json_stdout_wins_and_stale_report_ignored(tmp_path: Path) -> None:
+    report = place_report(tmp_path, "gate_report.json", ".")
+    old = time.time() - 3600
+    os.utime(report, (old, old))
+    assert parse("diagnostics-json", "нет отчёта", tmp_path) == []
+    stdout = '{"diagnostics": [{"file": "a.kt", "line": 3, "message": "boom"}]}'
+    assert brief(parse("diagnostics-json", stdout, tmp_path)) == [("a.kt", 3, None, "error", None)]
+
+
 def test_every_parser_has_a_fixture_test() -> None:
     tested = {"msbuild", "trx", "dotnet-test", "tsc", "eslint", "kotlinc", "junit", "gradle"}
-    tested |= {"spectral", "asyncapi", "psql", "generic"}
+    tested |= {"spectral", "asyncapi", "psql", "generic", "diagnostics-json"}
     assert tested == set(PARSERS)

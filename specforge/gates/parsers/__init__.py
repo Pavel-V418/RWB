@@ -8,6 +8,7 @@ import re
 
 from specforge.gates.parsers.api_specs import parse_asyncapi, parse_spectral
 from specforge.gates.parsers.common import ParseContext, ParseFn
+from specforge.gates.parsers.diagnostics_json import parse_diagnostics_json
 from specforge.gates.parsers.dotnet import parse_dotnet_test, parse_msbuild, parse_trx
 from specforge.gates.parsers.generic import parse_generic
 from specforge.gates.parsers.jvm import parse_gradle, parse_junit, parse_kotlinc
@@ -26,6 +27,7 @@ PARSERS: dict[str, ParseFn] = {
     "spectral": parse_spectral,
     "asyncapi": parse_asyncapi,
     "psql": parse_psql,
+    "diagnostics-json": parse_diagnostics_json,
     "generic": parse_generic,
 }
 
