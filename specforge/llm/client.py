@@ -129,6 +129,8 @@ class LLMClient:
         self.tracker = tracker or UsageTracker()
         self.hooks: list[OnCallHook] = list(on_call)
         self.labels = UsageKey()
+        self.forced_thinking: bool | None = None
+        """Если не None — thinking всех вызовов, что бы ни передали агент или профиль."""
         self._shared = _SharedOpenAI(openai_client)
         self._semaphore = threading.BoundedSemaphore(config.max_concurrency)
         self._meters: list[UsageMeter] = []
@@ -152,6 +154,16 @@ class LLMClient:
         )
         bound._meters = []
         return bound
+
+    def with_thinking(self, thinking: bool | None) -> "LLMClient":
+        """Копия, у которой thinking всех вызовов задан принудительно (None — как просят).
+
+        Нужна оркестратору: при перерасходе бюджета оставшиеся этапы идут без размышлений.
+        """
+        forced = copy.copy(self)
+        forced.forced_thinking = thinking
+        forced._meters = []
+        return forced
 
     def add_hook(self, hook: OnCallHook) -> None:
         self.hooks.append(hook)
@@ -259,6 +271,8 @@ class LLMClient:
     ) -> LLMRequest:
         p = self.profile(profile)
         effective_thinking = p.thinking if thinking is None else thinking
+        if self.forced_thinking is not None:
+            effective_thinking = self.forced_thinking
         effective_temperature = p.temperature if temperature is None else temperature
         if effective_thinking:
             effective_temperature = safe_thinking_temperature(
