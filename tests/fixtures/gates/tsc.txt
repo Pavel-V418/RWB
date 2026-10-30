@@ -1,0 +1,19 @@
+src/app/orders/order.service.ts:18:5 - error TS2322: Type 'Observable<Order[]>' is not assignable to type 'Observable<Order>'.
+  Type 'Order[]' is missing the following properties from type 'Order': id, name, total
+
+18     return this.http.get<Order[]>(this.url);
+       ~~~~~~
+
+src/app/orders/order.model.ts:3:3 - error TS2564: Property 'total' has no initializer and is not definitely assigned in the constructor.
+
+3   total: number;
+    ~~~~~
+
+src/main.ts(4,1): error TS2304: Cannot find name 'bootstrapApplicaton'.
+
+Found 3 errors in 3 files.
+
+Errors  Files
+     1  src/app/orders/order.service.ts:18
+     1  src/app/orders/order.model.ts:3
+     1  src/main.ts:4

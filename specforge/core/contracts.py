@@ -21,6 +21,8 @@ class _Contract(BaseModel):
 # --- Шлюзы ---------------------------------------------------------------------------------
 
 Severity = Literal["error", "warning"]
+DiagnosticCategory = Literal["compile", "test", "lint", "generic"]
+"""Приоритет при отборе диагностик шлюза: compile → test → lint → generic."""
 
 
 class Diagnostic(_Contract):
@@ -34,7 +36,8 @@ class Diagnostic(_Contract):
     code: str | None = None
     message: str
     code_window: str | None = None
-    """Несколько строк кода вокруг места ошибки — для промпта ремонта."""
+    """15 строк кода вокруг места ошибки с номерами (строка ошибки помечена `>`)."""
+    category: DiagnosticCategory | None = None
 
 
 class GateResult(_Contract):
@@ -71,7 +74,10 @@ class AgentSpec(_Contract):
     """Имена инструментов для tool-агента (`read_file`, `str_replace`, `shell`, ...)."""
     sandbox_image: str | None = None
     gate_commands: list[str] = Field(default_factory=list)
-    """Команды шлюза; этап пройден, если все завершились с кодом 0."""
+    """Команды шлюза по порядку; этап пройден, если все завершились с кодом 0."""
+    gate_parsers: dict[str, str] = Field(default_factory=dict)
+    """Явный парсер вывода для команды шлюза: {команда: имя парсера}. Без записи парсер
+    выбирается по виду команды (см. docs/AGENT_SDK.md, «Шлюз»)."""
     protected_globs: list[str] = Field(default_factory=list)
     """Файлы, которые агенту и ремонту запрещено менять (например, тесты-эталоны)."""
     thinking: bool = False

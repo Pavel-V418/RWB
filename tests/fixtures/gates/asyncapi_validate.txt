@@ -1,0 +1,10 @@
+
+File api/asyncapi.yaml and/or referenced documents have governance issues.
+
+api/asyncapi.yaml
+  1:1   warning  asyncapi-id                     AsyncAPI document should have "id" field.
+ 14:7     error  asyncapi-document-resolved      "message" property must have required property "payload"  channels.order/created.messages.created
+ 22:11    error  asyncapi-operation-operationId  Operation must have "operationId".                          operations.publishOrder
+ 30:3      info  asyncapi-tags                   AsyncAPI object should have non-empty "tags" array.
+
+✖ 4 problems (2 errors, 1 warning, 1 info, 0 hints)

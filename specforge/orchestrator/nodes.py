@@ -13,7 +13,7 @@ import structlog
 from specforge.core.agent_api import Agent, AgentContext
 from specforge.core.contracts import AgentSpec, StageResult, StageStatus
 from specforge.core.events import Event
-from specforge.gates.runner import run_gate
+from specforge.gates.runner import GateConfigError, GateRunner
 from specforge.sandbox.base import BaseSandbox, SandboxError
 from specforge.sandbox.docker_sandbox import DockerSandbox
 from specforge.sandbox.local_sandbox import LocalSandbox
@@ -102,11 +102,12 @@ def _run_agent_and_gate(agent: Agent, ctx: AgentContext, started: float) -> Stag
         )
 
     if result.status == StageStatus.passed and spec.gate_commands and ctx.sandbox is not None:
-        gate = run_gate(
-            spec.gate_commands,
-            ctx.sandbox,
-            log_path=ctx.workdir / "logs" / f"{spec.name}.gate.log",
-        )
+        try:
+            gate = GateRunner(logs_dir=ctx.workdir / "logs").run(spec, ctx.sandbox, ctx.run_id)
+        except GateConfigError as exc:
+            return result.model_copy(
+                update={"status": StageStatus.failed, "summary": f"шлюз: {exc}"}
+            )
         result = result.model_copy(
             update={
                 "gate": gate,

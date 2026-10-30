@@ -11,7 +11,7 @@ from typing import Annotated
 
 import structlog
 import typer
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from specforge.core.agent_api import AgentContext
 from specforge.core.contracts import StageStatus
@@ -98,7 +98,7 @@ def run_agent(
     ] = None,
 ) -> None:
     """Запустить одного агента (и его шлюз) на каталоге входов."""
-    load_dotenv()
+    load_dotenv(find_dotenv(usecwd=True))  # .env текущего каталога, не каталога скрипта
     configure_logging()
     try:
         agent = load_agent(name)

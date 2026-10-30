@@ -1,0 +1,25 @@
+Application bundle generation failed. [3.412 seconds]
+
+✘ [ERROR] TS2345: Argument of type 'string' is not assignable to parameter of type 'number'. [plugin angular-compiler]
+
+    src/app/orders/order-list.component.ts:24:22:
+      24 │     this.selectPage('2');
+         ╵                       ~~~
+
+✘ [ERROR] NG8002: Can't bind to 'ngModel' since it isn't a known property of 'input'. [plugin angular-compiler]
+
+    src/app/orders/order-form.component.html:7:11:
+      7 │     <input [(ngModel)]="name" />
+        ╵            ~~~~~~~~~~~~~~~~~~~
+
+  Error occurs in the template of component OrderFormComponent.
+
+    src/app/orders/order-form.component.ts:9:15:
+      9 │   templateUrl: './order-form.component.html',
+        ╵                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+▲ [WARNING] NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator. [plugin angular-compiler]
+
+    src/app/app.component.html:3:12:
+      3 │   {{ user?.name }}
+        ╵            ~~~~

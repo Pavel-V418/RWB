@@ -1,0 +1,18 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+/work/src/Api/Services/OrderService.cs(14,17): warning CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/work/src/Api/Api.csproj]
+/work/src/Api/Program.cs(12,5): error CS1002: ; expected [/work/src/Api/Api.csproj]
+/work/src/Api/Controllers/OrdersController.cs(27,20): error CS0103: The name 'orderSvc' does not exist in the current context [/work/src/Api/Api.csproj]
+/work/src/Api/Controllers/OrdersController.cs(31,13): error CS1503: Argument 1: cannot convert from 'string' to 'System.Guid' [/work/src/Api/Api.csproj]
+
+Build FAILED.
+
+/work/src/Api/Services/OrderService.cs(14,17): warning CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/work/src/Api/Api.csproj]
+/work/src/Api/Program.cs(12,5): error CS1002: ; expected [/work/src/Api/Api.csproj]
+/work/src/Api/Controllers/OrdersController.cs(27,20): error CS0103: The name 'orderSvc' does not exist in the current context [/work/src/Api/Api.csproj]
+/work/src/Api/Controllers/OrdersController.cs(31,13): error CS1503: Argument 1: cannot convert from 'string' to 'System.Guid' [/work/src/Api/Api.csproj]
+CSC : error CS2001: Source file '/work/src/Api/Generated/Missing.cs' could not be found. [/work/src/Api/Api.csproj]
+    1 Warning(s)
+    4 Error(s)
+
+Time Elapsed 00:00:07.41

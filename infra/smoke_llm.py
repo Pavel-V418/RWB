@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel
 
 from specforge.core.contracts import Usage
@@ -147,7 +147,7 @@ def format_table(results: list[CheckResult]) -> str:
 def main() -> int:
     if isinstance(sys.stdout, io.TextIOWrapper):  # кириллица в pipe на Windows (cp1251)
         sys.stdout.reconfigure(encoding="utf-8")
-    load_dotenv()
+    load_dotenv(find_dotenv(usecwd=True))  # .env текущего каталога, не каталога скрипта
     if not os.environ.get("LLM_BASE_URL"):
         print("SKIP: LLM_BASE_URL не задан")
         return 0

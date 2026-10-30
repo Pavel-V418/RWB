@@ -1,0 +1,26 @@
+[
+  {
+    "code": "oas3-schema",
+    "path": ["info"],
+    "message": "\"info\" property must have required property \"version\".",
+    "severity": 0,
+    "range": {"start": {"line": 1, "character": 5}, "end": {"line": 3, "character": 20}},
+    "source": "/work/api/openapi.yaml"
+  },
+  {
+    "code": "operation-operationId",
+    "path": ["paths", "/orders", "get"],
+    "message": "Operation must have \"operationId\".",
+    "severity": 1,
+    "range": {"start": {"line": 11, "character": 8}, "end": {"line": 18, "character": 30}},
+    "source": "/work/api/openapi.yaml"
+  },
+  {
+    "code": "info-contact",
+    "path": ["info"],
+    "message": "Info object must have \"contact\" object.",
+    "severity": 2,
+    "range": {"start": {"line": 1, "character": 5}, "end": {"line": 3, "character": 20}},
+    "source": "/work/api/openapi.yaml"
+  }
+]

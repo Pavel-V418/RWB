@@ -227,6 +227,7 @@ steps, tokens, changed_files). Structured-агенты шлют `step_started` �
 | `tools` | `[]` | Инструменты tool-агента (§3): `["read_file", "str_replace", "run"]` |
 | `sandbox_image` | `None` | Docker-образ для инструментов и шлюза: `"specforge/node:22"` |
 | `gate_commands` | `[]` | Команды шлюза, см. §5: `["npx tsc --noEmit", "npm test"]` |
+| `gate_parsers` | `{}` | Явный парсер вывода для команды шлюза: `{"npm run build": "tsc"}` (§5) |
 | `protected_globs` | `[]` | Что нельзя менять агенту и ремонту: `["**/*.spec.ts"]` |
 | `thinking` | `False` | Включить режим размышлений модели (дороже, точнее) |
 | `temperature` | `0.2` | 0.0–2.0; для JSON-анализа — 0.0–0.2 |
@@ -248,25 +249,84 @@ steps, tokens, changed_files). Structured-агенты шлют `step_started` �
 
 ## 5. Шлюз
 
-Шлюз — список shell-команд в `spec.gate_commands`. Платформа запускает их после агента,
-каждую в песочнице этапа (той же, где работал агент) с рабочим каталогом `/work` (= `output_dir`); этап пройден, если все завершились
-с кодом 0.
+Шлюз — список shell-команд в `spec.gate_commands`. Платформа запускает их после агента
+в песочнице этапа (той же, где работал агент) с рабочим каталогом `/work` (= `output_dir`):
+по очереди и **до первой упавшей** — тесты не запускаются на некомпилируемом коде.
+Этап пройден, если все команды завершились с кодом 0.
 
 ```python
 gate_commands = [
     "dotnet build backend -warnaserror",
-    "dotnet test backend/tests --no-build",
+    "dotnet test backend/tests --no-build --logger trx",
 ]
 ```
 
 - Пишите команды, которые падают с ненулевым кодом на любую проблему (`-warnaserror`,
   `--max-warnings 0`, `tsc --noEmit`).
 - Шлюз запускает платформа, а не агент: из `run()` проверки не вызывайте.
-- Полный лог — `runs/<run_id>/logs/<name>.gate.log`; в `StageResult.gate.diagnostics`
-  попадает усечённый хвост вывода каждой упавшей команды. Позже парсеры вывода
-  (`gates/parsers/`) будут давать точные `Diagnostic` с файлом и строкой — для ремонта.
+- Полный вывод — `runs/<run_id>/logs/<name>.gate.log`. В `StageResult.gate` попадают только
+  разобранные `Diagnostic` — их увидит ремонт.
+- Таймаут одной команды — `SPECFORGE_GATE_TIMEOUT_S` (по умолчанию 1800 с).
 - У structured-агента схема уже проверена при разборе ответа; шлюз нужен, если есть
   дополнительные инварианты (например, `python -m json.tool out.json`).
+
+### Разбор вывода
+
+Вывод каждой команды разбирает парсер. Он выбирается по виду команды:
+
+| Парсер | Команда (regex) | Что разбирает | Категория |
+|---|---|---|---|
+| `msbuild` | `dotnet build/publish/run`, `msbuild` | `path(line,col): error CS1234: … [project]` | compile |
+| `dotnet-test` | `dotnet test` | msbuild + `trx` | compile, test |
+| `trx` | — | `**/*.trx` этого запуска; без отчёта — консоль `Failed …` | test |
+| `tsc` | `tsc`, `ng build`, `vue-tsc` | `path:line:col - error TS…`, `path(line,col): error TS…`, Angular esbuild `✘ [ERROR] TS…/NG…` | compile |
+| `eslint` | `eslint`, `ng lint` | `--format json` | lint |
+| `gradle` | `gradle`, `gradlew` | `kotlinc` + `junit` | compile, test |
+| `kotlinc` | `kotlinc` | `e: file:///path:line:col msg` (и старый `e: path: (l, c): msg`) | compile |
+| `junit` | — | JUnit XML (`build/test-results`, `surefire-reports`) этого запуска | test |
+| `spectral` | `spectral` | `-f json`; без него — формат stylish | lint |
+| `asyncapi` | `asyncapi` | `asyncapi validate` (stylish) | compile |
+| `psql` | `psql` | `psql:file:line: ERROR: …` + `LINE`/`DETAIL`/`HINT` | compile |
+| `generic` | всё остальное | последние строки со словами error / exception / failed | generic |
+
+Если команда не опознаётся (обёртка `make check`, `npm run build`), укажите парсер явно —
+ключ словаря должен совпадать с командой из `gate_commands` символ в символ:
+
+```python
+spec = AgentSpec(
+    name="web_coder",
+    stage="web",
+    kind="tool",
+    gate_commands=["npm run build", "npm run lint -- --format json"],
+    gate_parsers={
+        "npm run build": "tsc",
+        "npm run lint -- --format json": "eslint",
+    },
+)
+```
+
+Неизвестное имя парсера — ошибка конфигурации, этап падает до запуска команд.
+Если парсер не нашёл ошибок в упавшей команде, в ход идёт `generic`, а если и он пуст —
+одна диагностика с хвостом вывода.
+
+### Что получает ремонт
+
+- Диагностики дедуплицируются (MSBuild печатает каждую ошибку дважды) и упорядочиваются:
+  **compile → test → lint → generic**, внутри категории ошибки раньше предупреждений.
+- В `GateResult.diagnostics` — не больше 20; `total_errors` — число всех уникальных ошибок.
+- Пути приводятся к виду относительно `/work` (`/work/src/a.cs`, `file:///work/…` → `src/a.cs`).
+- Если файл есть в `/work`, у диагностики заполнен `code_window` — 15 строк вокруг ошибки:
+
+```
+     5 | using Api.Services;
+ ...
+>   12 | var app = builder.Build()
+ ...
+    19 | app.Run();
+```
+
+Отчёты тестов (`*.trx`, JUnit XML) включайте в команду (`--logger trx`; Gradle пишет их
+сам): из них берутся имя теста, сообщение и место в коде из стека.
 
 Статусы `StageResult.status`: `passed`, `failed`, `degraded` (шлюз красный, ремонты
 исчерпаны, конвейер идёт дальше), `skipped` (`enabled_if` ложен).

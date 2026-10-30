@@ -1,0 +1,10 @@
+CREATE EXTENSION
+CREATE TABLE
+psql:/work/db/001_schema.sql:12: ERROR:  relation "orders" already exists
+psql:/work/db/002_items.sql:5: ERROR:  syntax error at or near "TABL"
+LINE 1: CREATE TABL order_items (
+               ^
+psql:/work/db/003_geo.sql:9: ERROR:  type "geography" does not exist
+LINE 4:     location geography(Point, 4326) NOT NULL
+                     ^
+HINT:  No type named "geography" was found. Did you forget CREATE EXTENSION postgis?

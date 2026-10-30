@@ -1,0 +1,20 @@
+> web@0.0.0 test
+> vitest run
+
+ RUN  v3.2.4 /work/web
+
+ ✓ src/app/utils/format.spec.ts (4 tests) 12ms
+ ❯ src/app/orders/total.spec.ts (2 tests | 1 failed) 9ms
+   × computes total 6ms
+     → expected 10 to be 30 // Object.is equality
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 5 passed (6)
+   Start at  12:00:00
+   Duration  812ms
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /work/web
+npm error command failed
+npm error command sh -c vitest run

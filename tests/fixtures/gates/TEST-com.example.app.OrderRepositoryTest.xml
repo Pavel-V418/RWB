@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.app.OrderRepositoryTest" tests="3" skipped="0" failures="1" errors="1" timestamp="2026-10-30T12:00:00" hostname="sandbox" time="0.412">
+  <properties/>
+  <testcase name="loadsOrders" classname="com.example.app.OrderRepositoryTest" time="0.201"/>
+  <testcase name="totalIsSum" classname="com.example.app.OrderRepositoryTest" time="0.105">
+    <failure message="expected:&lt;30&gt; but was:&lt;10&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected:&lt;30&gt; but was:&lt;10&gt;
+	at app//org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at app//com.example.app.OrderRepositoryTest.totalIsSum(OrderRepositoryTest.kt:27)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+</failure>
+  </testcase>
+  <testcase name="handlesTimeout" classname="com.example.app.OrderRepositoryTest" time="0.106">
+    <error message="Unexpected exception" type="java.lang.IllegalStateException">java.lang.IllegalStateException: Unexpected exception
+	at com.example.app.data.OrderRepository.load(OrderRepository.kt:55)
+	at com.example.app.OrderRepositoryTest.handlesTimeout(OrderRepositoryTest.kt:40)
+</error>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

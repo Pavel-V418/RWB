@@ -1,0 +1,26 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Api -> /work/src/Api/bin/Debug/net10.0/Api.dll
+  Api.Tests -> /work/tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll
+Test run for /work/tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.0 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+  Failed Api.Tests.OrderServiceTests.Total_IsSumOfItems [14 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 30
+Actual:   10
+  Stack Trace:
+     at Api.Tests.OrderServiceTests.Total_IsSumOfItems() in /work/tests/Api.Tests/OrderServiceTests.cs:line 27
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+  Failed Api.Tests.OrderServiceTests.Create_RejectsEmptyName [3 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Api.Services.OrderService.Create(String name) in /work/src/Api/Services/OrderService.cs:line 21
+   at Api.Tests.OrderServiceTests.Create_RejectsEmptyName() in /work/tests/Api.Tests/OrderServiceTests.cs:line 35
+  Passed Api.Tests.OrderServiceTests.Create_AssignsId [1 ms]
+
+Failed!  - Failed:     2, Passed:     1, Skipped:     0, Total:     3, Duration: 52 ms - Api.Tests.dll (net10.0)
