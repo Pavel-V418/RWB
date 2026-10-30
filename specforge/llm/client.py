@@ -96,6 +96,10 @@ class LLMConfig(BaseModel):
     """Слать vLLM-специфичные поля в extra_body: chat_template_kwargs.enable_thinking и top_k.
     Для эндпоинтов, которые их отвергают (OpenAI), — false."""
     profiles_path: Path | None = None
+    seed: int | None = None
+    """Seed сэмплирования для каждого запроса (LLM_SEED): одинаковый запрос → тот же ответ,
+    повторный прогон стабилен и при temperature > 0; заодно включает дедупликацию ответов.
+    None — без seed (ответы при temperature > 0 случайны)."""
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "LLMConfig":
@@ -115,6 +119,7 @@ class LLMConfig(BaseModel):
             "structured_mode": "LLM_STRUCTURED_MODE",
             "structured_attempts": "LLM_STRUCTURED_ATTEMPTS",
             "vllm_extras": "LLM_VLLM_EXTRAS",
+            "seed": "LLM_SEED",
         }
         raw: dict[str, object] = {f: e[v] for f, v in names.items() if e.get(v)}
         raw["model"] = model
@@ -335,6 +340,7 @@ class LLMClient:
             presence_penalty=p.presence_penalty,
             timeout_s=p.timeout_s,
             thinking=effective_thinking,
+            seed=self.config.seed,
         )
 
     def _call(self, request: LLMRequest) -> LLMResponse:
@@ -351,8 +357,10 @@ class LLMClient:
         return response
 
     def _dedup_key(self, request: LLMRequest) -> str | None:
-        """Ключ кэша ответов: только temperature == 0 и только в пределах прогона (run_id)."""
-        if request.temperature != 0 or not self.labels.run_id:
+        """Ключ кэша ответов: только детерминированные запросы (temperature == 0 или задан seed)
+        и только в пределах прогона (run_id)."""
+        deterministic = request.temperature == 0 or request.seed is not None
+        if not deterministic or not self.labels.run_id:
             return None
         payload = json.dumps(
             {
@@ -360,6 +368,8 @@ class LLMClient:
                 "model": self.config.model,
                 "profile": request.profile,
                 "thinking": request.thinking,
+                "temperature": request.temperature,
+                "seed": request.seed,
                 "messages": [m.model_dump(mode="json") for m in request.messages],
                 "tools": [t.model_dump(mode="json") for t in request.tools],
                 "response_format": [request.response_schema_name, request.response_schema],
@@ -585,6 +595,7 @@ class LLMClient:
                     if request.response_schema is not None
                     else omit
                 ),
+                seed=omit if request.seed is None else request.seed,
                 extra_body=extra_body or None,
             )
         except openai.APIConnectionError as e:

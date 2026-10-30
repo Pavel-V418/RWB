@@ -145,3 +145,20 @@ def test_project_layout_maps_root_files() -> None:
     assert layout.place("docs", "README.md") == "README.md"
     assert layout.place("e2e", "run.sh") == "e2e/run.sh"
     assert layout.dir_of("acceptance") == "docs/report/acceptance/"
+
+
+def test_gate_logs_published_with_tail(tmp_path: Path) -> None:
+    from specforge.orchestrator.publisher import gate_logs  # noqa: PLC0415
+
+    write(tmp_path / "logs" / "backend.gate.log", "ok")
+    write(tmp_path / "logs" / "acceptance_web.gate.log", "x" * 50 + "TAIL")
+    write(tmp_path / "logs" / "backend-001-dotnet.log", "команда агента — не шлюз")
+    files = gate_logs(tmp_path, "docs/report/logs/", max_bytes=10)
+    assert sorted(files) == [
+        "docs/report/logs/acceptance_web.gate.log",
+        "docs/report/logs/backend.gate.log",
+    ]
+    assert files["docs/report/logs/backend.gate.log"] == b"ok"
+    tail = files["docs/report/logs/acceptance_web.gate.log"].decode()
+    assert tail.startswith("[обрезано: показаны последние 10 из 54 байт]\n")
+    assert tail.endswith("xxxxxxTAIL")

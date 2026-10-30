@@ -6,7 +6,8 @@
   с файлами artifacts/<stage>/ по config/repo_layout.yaml, сообщение `stage(<agent>): <summary>`;
 - run_finished — коммит отчёта (telemetry.report), verdict.json с вердиктом приёмщика и его
   verdict.json / summary.md (docs/report/acceptance/), затем один раз MR в target_branch
-  с таблицей этапов и блокерами приёмки. MR не обновляется и не сливается.
+  с таблицей этапов и блокерами приёмки, плюс логи шлюзов (docs/report/logs/, длинные — хвостом,
+  SPECFORGE_PUBLISH_LOG_BYTES). MR не обновляется и не сливается.
 
 Раскладка (RepoLayout) — каталог этапа, "." — корень, `root` — файлы верхнего уровня этапа,
 которые идут в корень (.gitlab-ci.yml, docker-compose.yml); её же использует приёмщик.
@@ -29,7 +30,7 @@ import structlog
 import yaml
 from pydantic import BaseModel, Field, JsonValue
 
-from specforge.core.artifacts import MANIFEST_FILE, RunWorkspace, artifact_files
+from specforge.core.artifacts import LOGS_DIR, MANIFEST_FILE, RunWorkspace, artifact_files
 from specforge.core.contracts import StageStatus
 from specforge.core.events import Event, EventBus, EventType
 from specforge.orchestrator.nodes import PIPELINE_FILE, PipelineSummary
@@ -44,6 +45,8 @@ PUBLISHED = "published"
 STAGE_EVENTS = {EventType.stage_passed, EventType.stage_degraded, "stage_cached"}
 COMMIT_SUMMARY_CHARS = 72
 ACCEPTANCE_VERDICT = "verdict.json"
+DEFAULT_LOG_MAX_BYTES = 256_000
+"""Лог шлюза больше этого публикуется хвостом (полный остаётся в runs/<id>/logs/)."""
 MAX_BLOCKERS = 20
 
 
@@ -276,6 +279,7 @@ class GitLabPublisher:
                 if (source / name).is_file():
                     files[f"{prefix}acceptance/{name}"] = (source / name).read_bytes()
             verdict.acceptance = f"{prefix}acceptance/{ACCEPTANCE_VERDICT}"
+        files.update(gate_logs(run_dir, prefix + "logs/", self._log_max_bytes()))
         files[prefix + "verdict.json"] = verdict.model_dump_json(indent=2).encode()
         self._commit(repo, run_id, files, f"report: {verdict.verdict} — {verdict.headline}")
         if repo.mr_created or self._mr_exists(repo):
@@ -293,6 +297,9 @@ class GitLabPublisher:
         self._emit(
             run_id, f"MR !{getattr(mr, 'iid', '?')}", {"mr": str(getattr(mr, "web_url", ""))}
         )
+
+    def _log_max_bytes(self) -> int:
+        return int(self.env.get("SPECFORGE_PUBLISH_LOG_BYTES", DEFAULT_LOG_MAX_BYTES))
 
     def _mr_exists(self, repo: _RunRepo) -> bool:
         found = repo.project.mergerequests.list(
@@ -377,6 +384,20 @@ def _mr_description(summary: PipelineSummary, verdict: Verdict, report_dir: str)
             lines.append(f"Полный вердикт: `{verdict.acceptance}`.")
     lines += ["", f"Отчёт: `{report_dir}report.md`. Создано SpecForge; MR не обновляется."]
     return "\n".join(lines)
+
+
+def gate_logs(run_dir: Path, prefix: str, max_bytes: int) -> dict[str, bytes]:
+    """Логи шлюзов прогона (<agent>.gate.log, в т.ч. повторы приёмщика) — результаты проверок
+    воспроизводимы по репозиторию; длинные — хвостом с пометкой."""
+    files: dict[str, bytes] = {}
+    logs = run_dir / LOGS_DIR
+    for path in sorted(logs.glob("*.gate.log")) if logs.is_dir() else []:
+        data = path.read_bytes()
+        if len(data) > max_bytes:
+            note = f"[обрезано: показаны последние {max_bytes} из {len(data)} байт]\n"
+            data = note.encode() + data[-max_bytes:]
+        files[prefix + path.name] = data
+    return files
 
 
 def _action(kind: str, path: str, data: bytes | str) -> dict[str, str]:

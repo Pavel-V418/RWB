@@ -22,7 +22,7 @@ from specforge.core.selectors import (
     markdown_section,
     split_pattern,
 )
-from specforge.llm import ChatMessage, FakeLLM
+from specforge.llm import ChatMessage, FakeLLM, LLMConfig
 from specforge.telemetry.compare import compare, save_baseline
 from specforge.telemetry.metrics import RunMetrics
 from specforge.telemetry.report import build_report, register_cli
@@ -89,6 +89,18 @@ def test_dedup_only_at_zero_temperature_within_run() -> None:
     usage = llm.tracker.total(run_id="r1")
     assert (usage.calls, usage.dedup_hits) == (3, 1)
     assert run.usage.dedup_hits == 1
+
+
+def test_seed_reaches_request_and_enables_dedup() -> None:
+    llm = FakeLLM(["первый", "второй"], config=LLMConfig(model="fake", seed=42))
+    run = llm.bind(run_id="r1", stage="s", agent="a")
+    messages = [ChatMessage(role="user", content="одинаковый запрос")]
+    assert run.chat(messages, temperature=0.2).content == "первый"
+    assert run.chat(messages, temperature=0.2).usage.dedup_hits == 1  # с seed ответ тот же
+    assert run.chat(messages, temperature=0.7).content == "второй"  # другая температура
+    assert [c.seed for c in llm.calls] == [42, 42]
+    assert LLMConfig.from_env({"LLM_MODEL": "m", "LLM_SEED": "7"}).seed == 7
+    assert LLMConfig.from_env({"LLM_MODEL": "m"}).seed is None
 
 
 # --- 5. селекторы входов ----------------------------------------------------------------------

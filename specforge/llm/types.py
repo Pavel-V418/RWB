@@ -120,6 +120,8 @@ class LLMRequest(BaseModel):
     timeout_s: float | None = None
     """Таймаут HTTP-запроса; None — LLMConfig.timeout_s."""
     thinking: bool = False
+    seed: int | None = None
+    """Seed сэмплирования (LLMConfig.seed); None — не передаётся."""
     response_schema_name: str | None = None
     response_schema: dict[str, Any] | None = None
 
