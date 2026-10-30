@@ -107,7 +107,6 @@ class _Repair:
     def run(self) -> StageResult:
         if not self.snaps.available:
             log.warning("repair.no_snapshots", agent=self.spec.name)
-        profile = self.ctx.llm.profile(ProfileName.REPAIR)
         system_prompt = (PROMPTS / "system.md").read_text("utf-8")
         reason = f"ремонты исчерпаны ({self.spec.max_repairs})"
         attempts = 0
@@ -130,9 +129,7 @@ class _Repair:
                 self._task(attempt, known),
                 REPAIR_TOOLS,
                 max_steps=min(self.spec.max_steps, REPAIR_MAX_STEPS),
-                temperature=profile.temperature,
-                thinking=profile.thinking,
-                profile=profile.name,
+                profile=ProfileName.REPAIR,
             )
             self.usage = self.usage.add(outcome.usage)
 

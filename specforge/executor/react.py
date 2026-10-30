@@ -64,8 +64,8 @@ def run_react_loop(
     tools: Sequence[str],
     *,
     max_steps: int,
-    temperature: float,
-    thinking: bool,
+    temperature: float | None,
+    thinking: bool | None,
     profile: str | None = None,
     settings: LoopSettings | None = None,
 ) -> AgentOutcome:
@@ -109,7 +109,12 @@ class _Loop:
         self._repeats = 0
 
     def run(
-        self, system_prompt: str, task: str, max_steps: int, temperature: float, thinking: bool
+        self,
+        system_prompt: str,
+        task: str,
+        max_steps: int,
+        temperature: float | None,
+        thinking: bool | None,
     ) -> AgentOutcome:
         entries = [
             HistoryEntry(ChatMessage(role="system", content=system_prompt), PREFIX_STEP),

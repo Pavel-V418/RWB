@@ -1,8 +1,9 @@
 """Доступ к LLM: все вызовы модели идут только через LLMClient."""
 
+from specforge.core.contracts import ProfileName
 from specforge.llm.client import LLMClient, LLMConfig, NullLLM
 from specforge.llm.fake import Expect, FakeExpectationError, FakeLLM, FakeReply, FakeToolCall
-from specforge.llm.profiles import DEFAULT_PROFILES, Profile, ProfileName, load_profiles
+from specforge.llm.profiles import DEFAULT_PROFILES, Profile, load_profiles
 from specforge.llm.tool_parsing import tool_error_message
 from specforge.llm.types import (
     ChatMessage,

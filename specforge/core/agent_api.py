@@ -68,8 +68,8 @@ def agent_loop(
     tools: Sequence[str],
     *,
     max_steps: int = 30,
-    temperature: float = 0.2,
-    thinking: bool = False,
+    temperature: float | None = None,
+    thinking: bool | None = None,
     profile: str | None = None,
 ) -> AgentOutcome:
     """ReAct-цикл tool-агента: модель вызывает инструменты `tools` (имена из AgentSpec.tools,
@@ -77,7 +77,7 @@ def agent_loop(
 
     Инструменты работают в ctx.sandbox (/work); бюджет — ctx.budget_tokens. Остановка и её причина —
     в AgentOutcome.stopped_reason. `profile` — профиль LLM (по умолчанию CODE); temperature и
-    thinking перекрывают его значения. Реализация — specforge.executor.react.
+    thinking, если не None, перекрывают его значения. Реализация — specforge.executor.react.
     """
     return run_react_loop(
         ctx,
@@ -139,6 +139,7 @@ class BaseAgent(ABC):
         usage: Usage | None = None,
         artifacts: list[str] | None = None,
         summary: str = "",
+        stopped_reason: str | None = None,
     ) -> StageResult:
         return StageResult(
             agent=self.spec.name,
@@ -147,6 +148,7 @@ class BaseAgent(ABC):
             duration_s=time.monotonic() - started,
             artifacts=artifacts or [],
             summary=summary,
+            stopped_reason=stopped_reason,
         )
 
     @abstractmethod
@@ -199,6 +201,7 @@ class StructuredAgent[T: BaseModel](BaseAgent):
                     ctx,
                     self.build_messages(ctx),
                     self.schema,
+                    profile=self.spec.profile,
                     temperature=self.spec.temperature,
                     thinking=self.spec.thinking,
                 )
@@ -251,6 +254,7 @@ class ToolAgent(BaseAgent):
                 max_steps=self.spec.max_steps,
                 temperature=self.spec.temperature,
                 thinking=self.spec.thinking,
+                profile=self.spec.profile,
             )
         except LLMError as exc:
             return self.result(StageStatus.failed, started=started, summary=str(exc))
@@ -261,6 +265,7 @@ class ToolAgent(BaseAgent):
             usage=outcome.usage,
             artifacts=self.collect_artifacts(ctx),
             summary=f"[{outcome.stopped_reason}] {outcome.summary}"[:500],
+            stopped_reason=outcome.stopped_reason,
         )
 
 

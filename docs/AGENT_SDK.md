@@ -6,6 +6,7 @@
 
 Изменения контракта сопровождаются правкой этого документа и пометкой **BREAKING** в коммите.
 Добавление необязательного поля со значением по умолчанию совместимость не ломает.
+Что поменялось и как перевести своего агента — в разделе [«Изменения»](#10-изменения).
 
 ---
 
@@ -58,7 +59,7 @@ class Requirements(BaseModel):
 ```python
 from agents.my_analyzer.schemas.result import Requirements
 from specforge.core.agent_api import StructuredAgent
-from specforge.core.contracts import AgentSpec
+from specforge.core.contracts import AgentSpec, ProfileName
 
 
 class MyAnalyzer(StructuredAgent[Requirements]):
@@ -68,7 +69,7 @@ class MyAnalyzer(StructuredAgent[Requirements]):
         kind="structured",
         inputs=["requirements/*.md"],
         outputs=["analysis/requirements.json"],
-        temperature=0.1,
+        profile=ProfileName.ANALYSIS,
     )
     schema = Requirements
     output_file = "analysis/requirements.json"
@@ -126,7 +127,7 @@ class BackendCoder(ToolAgent):
         sandbox_image="specforge/dotnet:10",
         gate_commands=["dotnet build backend -warnaserror"],
         protected_globs=["backend/tests/contract/**"],
-        thinking=True,
+        profile=ProfileName.CODE,
         max_steps=40,
         token_budget=400_000,
     )
@@ -143,12 +144,14 @@ AGENT = BackendCoder()
 
 ```python
 agent_loop(ctx, system_prompt, task, spec.tools,
-           max_steps=..., temperature=..., thinking=..., profile=None) -> AgentOutcome
+           max_steps=spec.max_steps, temperature=spec.temperature,
+           thinking=spec.thinking, profile=spec.profile) -> AgentOutcome
 ```
 
 и считает этап выполненным (`passed`, дальше — шлюз), только если модель вызвала `finish`.
-`profile` — профиль LLM (`ProfileName`, по умолчанию `CODE`); `temperature`/`thinking`
-перекрывают его значения.
+`profile` — профиль LLM (по умолчанию `CODE`); `temperature` и `thinking` перекрывают
+значения профиля, только если они не `None`. Причина остановки попадает в
+`StageResult.stopped_reason`.
 
 ### Цикл (ReAct)
 
@@ -231,8 +234,9 @@ steps, tokens, changed_files). Structured-агенты шлют `step_started` �
 | `gate_commands` | `[]` | Команды шлюза, см. §5: `["npx tsc --noEmit", "npm test"]` |
 | `gate_parsers` | `{}` | Явный парсер вывода для команды шлюза: `{"npm run build": "tsc"}` (§5) |
 | `protected_globs` | `[]` | Что нельзя менять агенту и ремонту: `["**/*.spec.ts"]` |
-| `thinking` | `False` | Включить режим размышлений модели (дороже, точнее) |
-| `temperature` | `0.2` | 0.0–2.0; для JSON-анализа — 0.0–0.2 |
+| `profile` | `CODE` | Профиль LLM (§8): `ANALYSIS`, `REVIEW`, `CODE`, `REPAIR` |
+| `thinking` | `None` | Перекрыть режим размышлений профиля; `None` — как в профиле |
+| `temperature` | `None` | Перекрыть температуру профиля (0.0–2.0); с `thinking=True` меньше 0.5 нельзя — поднимается до 0.6 с предупреждением |
 | `max_steps` | `30` | Лимит шагов `agent_loop` |
 | `token_budget` | `200_000` | Бюджет токенов этапа (включая ремонты) |
 | `max_repairs` | `2` | Попыток ремонта при красном шлюзе (§5, «Ремонт»); после них — `degraded`; `0` — без ремонта, `failed` |
@@ -455,7 +459,7 @@ def test_my_analyzer(tmp_path):
 | `sandbox` | Песочница этапа (`/work` = `output_dir`) или `None` — тогда `agent_loop` создаст локальную |
 | `protected_globs` | Файлы, закрытые для изменений инструментами (из `spec.protected_globs`) |
 | `allowed_commands` | Если задано — `run` выполняет только эти команды (так ремонт ограничен командами шлюза) |
-| `emit(event)` | Отправить `Event` в телеметрию: `ctx.emit(Event(kind="my.progress", message="..."))` |
+| `emit(event)` | Отправить `Event` (в `EventBus` платформы): `ctx.emit(Event(kind="my.progress", message="..."))` |
 | `budget_tokens` | Бюджет токенов этапа |
 
 ### `LLMClient` (`specforge.llm`)
@@ -472,9 +476,20 @@ with ctx.llm.track() as meter:  # токены вызовов внутри бл�
 meter.usage
 ```
 
-- **Профили** (`ProfileName`): `ANALYSIS` (thinking, t=0.6), `REVIEW` (thinking, t=0.3),
-  `CODE` (t=0.2, по умолчанию), `REPAIR` (t=0.1). Переопределяются в `config/profiles.yaml`;
-  `temperature=`, `thinking=`, `max_tokens=` в вызове перекрывают профиль.
+- **Профили** (`ProfileName`) — значения по умолчанию:
+
+  | Профиль | thinking | temperature | top_p | max_tokens |
+  |---|---|---|---|---|
+  | `ANALYSIS` | да | 0.6 | 0.95 | 16384 |
+  | `REVIEW` | да | 0.6 | 0.95 | 8192 |
+  | `CODE` (по умолчанию) | нет | 0.2 | 0.8 | 8192 |
+  | `REPAIR` | нет | 0.1 | 0.8 | 4096 |
+
+  Ещё у профиля есть `top_k`, `presence_penalty` и `timeout_s` (по умолчанию
+  `max_tokens / LLM_MIN_TOKENS_PER_S + 60`, `LLM_MIN_TOKENS_PER_S=25`). Переопределения — в
+  `config/profiles.yaml` (`LLM_PROFILES_PATH`; относительный путь — от корня проекта).
+  `temperature=`, `thinking=`, `max_tokens=` в вызове перекрывают профиль, если не `None`.
+  С включённым thinking температура ниже 0.5 поднимается до 0.6 с предупреждением.
 - **structured**: `response_format=json_schema`; при ошибке валидации — один повтор с текстом
   ошибки, затем `StructuredOutputError` (`.raw`, `.validation_error`).
 - **tool calls**: если сервер не разобрал вызов и он остался в content (`<tool_call>` XML или
@@ -504,3 +519,51 @@ meter.usage
 6. **Не тащите в промпт полные логи и файлы целиком без нужды** — экономьте токены.
 7. **Типы и тесты.** Схемы — pydantic-модели, не `dict`. У агента есть тест на `FakeLLM`;
    `uv run pytest -q`, `uv run ruff check .`, `uv run mypy specforge agents` — зелёные.
+
+---
+
+## 10. Изменения
+
+### BREAKING: профили, события, невалидные tool call
+
+**Что изменилось**
+
+| Где | Было | Стало |
+|---|---|---|
+| `AgentSpec.profile` | — | `ProfileName`, по умолчанию `CODE` |
+| `AgentSpec.thinking` | `bool = False` | `bool \| None = None` — `None` значит «как в профиле» |
+| `AgentSpec.temperature` | `float = 0.2` | `float \| None = None`; с `thinking=True` меньше 0.5 → 0.6 и предупреждение |
+| `agent_loop(temperature=, thinking=)` | `0.2`, `False` | `None`, `None` (берутся из `profile`) |
+| `Profile` | — | новые поля `presence_penalty`, `timeout_s`; у профилей по умолчанию есть `max_tokens`; `REVIEW` — t=0.6 (было 0.3) |
+| `ProfileName` | `specforge.llm.profiles` | `specforge.core.contracts` (из `specforge.llm` импортируется как раньше) |
+| `PipelineState.events` | список событий в состоянии графа | удалено: события только через `ctx.emit` → `EventBus` |
+| `LLM_PROFILES_PATH` | относительно текущего каталога | относительно корня проекта |
+| История с невалидным tool call | в `arguments` уходил сырой текст модели | уходит `"{}"`; сырой текст — в логах (`llm.tool_call.invalid`) и событии `tool_called`; ошибку модель по-прежнему получает в результате инструмента |
+
+Новые необязательные поля (совместимость не ломают): `GateResult.failed_command_index`,
+`GateResult.tests_executed`, `StageResult.stopped_reason`.
+
+**Миграция агента**
+
+1. Выберите профиль по характеру работы и уберите ручные `temperature`/`thinking`, если они
+   повторяли профиль:
+
+   ```python
+   # было
+   spec = AgentSpec(
+       name="analyzer", stage="analysis", kind="structured", thinking=True, temperature=0.6
+   )
+   # стало
+   spec = AgentSpec(name="analyzer", stage="analysis", kind="structured", profile=ProfileName.ANALYSIS)
+   ```
+
+   Анализ и планирование — `ANALYSIS`, ревью — `REVIEW`, генерация кода и JSON — `CODE`.
+2. Агент, у которого не было ни `temperature`, ни `thinking`, раньше работал с t=0.2 без
+   thinking — это профиль `CODE` по умолчанию, менять ничего не нужно.
+3. `thinking=True` вместе с `temperature` ниже 0.5 больше не работает как раньше: температура
+   поднимется до 0.6. Либо уберите `temperature`, либо выключите thinking.
+4. Если вы вызываете `agent_loop` или `ctx.llm.chat/structured` напрямую — передавайте
+   `profile=self.spec.profile` и только те перекрытия, которые действительно нужны.
+5. Если вы читали `state["events"]` — подпишитесь на `EventBus` (`bus.subscribe(fn)`).
+6. Проверьте тесты агента: в `FakeLLM` профиль виден как `llm.calls[i].profile`, лимит —
+   `llm.calls[i].max_tokens`; ожидание — `Expect(profile="ANALYSIS")`.

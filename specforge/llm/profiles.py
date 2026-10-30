@@ -1,25 +1,29 @@
-"""Профили генерации: режим размышлений и параметры сэмплинга под тип задачи.
+"""Профили генерации: режим размышлений, сэмплинг, лимит ответа и таймаут под тип задачи.
 
 Значения по умолчанию — ниже; config/profiles.yaml переопределяет их поле за полем и может
-добавлять новые профили. top_p/top_k взяты из рекомендаций для Qwen3 (сверить с model card).
+добавлять новые профили. top_p/top_k — рекомендации для Qwen3 (сверить с model card).
+
+timeout_s по умолчанию = max_tokens / LLM_MIN_TOKENS_PER_S + 60: запрос не должен обрываться,
+пока модель генерирует ответ максимальной длины с минимально приемлемой скоростью.
 """
 
+import os
 from collections.abc import Mapping
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from specforge.core.contracts import ProfileName, safe_thinking_temperature
 from specforge.llm.types import LLMConfigError
+from specforge.paths import PROJECT_ROOT
+
+TIMEOUT_MARGIN_S = 60.0
 
 
-class ProfileName(StrEnum):
-    ANALYSIS = "ANALYSIS"
-    REVIEW = "REVIEW"
-    CODE = "CODE"
-    REPAIR = "REPAIR"
+def min_tokens_per_s() -> float:
+    return float(os.environ.get("LLM_MIN_TOKENS_PER_S", "25"))
 
 
 class Profile(BaseModel):
@@ -32,15 +36,60 @@ class Profile(BaseModel):
     top_k: int | None = Field(default=None, ge=-1)
     """vLLM-специфичный параметр, уходит в extra_body."""
     max_tokens: int | None = Field(default=None, ge=1)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    timeout_s: float | None = Field(default=None, gt=0)
+    """Таймаут запроса; не задан — max_tokens / LLM_MIN_TOKENS_PER_S + 60."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _defaults(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if data.get("thinking") is True and isinstance(data.get("temperature"), int | float):
+            data["temperature"] = safe_thinking_temperature(
+                data["temperature"], f"профиль {data.get('name')}"
+            )
+        if data.get("timeout_s") is None and isinstance(data.get("max_tokens"), int):
+            data["timeout_s"] = data["max_tokens"] / min_tokens_per_s() + TIMEOUT_MARGIN_S
+        return data
 
 
 DEFAULT_PROFILES: dict[str, Profile] = {
     p.name: p
     for p in (
-        Profile(name=ProfileName.ANALYSIS, thinking=True, temperature=0.6, top_p=0.95, top_k=20),
-        Profile(name=ProfileName.REVIEW, thinking=True, temperature=0.3, top_p=0.95, top_k=20),
-        Profile(name=ProfileName.CODE, thinking=False, temperature=0.2, top_p=0.8, top_k=20),
-        Profile(name=ProfileName.REPAIR, thinking=False, temperature=0.1, top_p=0.8, top_k=20),
+        Profile(
+            name=ProfileName.ANALYSIS,
+            thinking=True,
+            temperature=0.6,
+            top_p=0.95,
+            top_k=20,
+            max_tokens=16384,
+        ),
+        Profile(
+            name=ProfileName.REVIEW,
+            thinking=True,
+            temperature=0.6,
+            top_p=0.95,
+            top_k=20,
+            max_tokens=8192,
+        ),
+        Profile(
+            name=ProfileName.CODE,
+            thinking=False,
+            temperature=0.2,
+            top_p=0.8,
+            top_k=20,
+            max_tokens=8192,
+        ),
+        Profile(
+            name=ProfileName.REPAIR,
+            thinking=False,
+            temperature=0.1,
+            top_p=0.8,
+            top_k=20,
+            max_tokens=4096,
+        ),
     )
 }
 
@@ -51,7 +100,10 @@ def merge_profiles(
     merged = dict(base)
     for name, fields in overrides.items():
         current = merged.get(name)
-        data = {**(current.model_dump() if current else {}), **fields, "name": name}
+        base = current.model_dump() if current else {}
+        if "max_tokens" in fields and "timeout_s" not in fields:
+            base.pop("timeout_s", None)  # таймаут пересчитается от нового max_tokens
+        data = {**base, **fields, "name": name}
         try:
             merged[name] = Profile.model_validate(data)
         except ValidationError as exc:
@@ -62,11 +114,14 @@ def merge_profiles(
 def load_profiles(path: Path | None) -> dict[str, Profile]:
     """Профили по умолчанию с переопределениями из YAML (если файл есть).
 
+    Относительный путь считается от корня проекта, а не от текущего каталога.
     Формат файла:
         profiles:
           ANALYSIS: {temperature: 0.5}
           MY_PROFILE: {thinking: false, temperature: 0.0}
     """
+    if path is not None and not path.is_absolute():
+        path = PROJECT_ROOT / path
     if path is None or not path.is_file():
         return dict(DEFAULT_PROFILES)
     try:

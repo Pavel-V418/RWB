@@ -33,8 +33,8 @@ from openai.types.chat import (
 )
 from pydantic import BaseModel, Field, ValidationError
 
-from specforge.core.contracts import Usage
-from specforge.llm.profiles import DEFAULT_PROFILES, Profile, ProfileName, load_profiles
+from specforge.core.contracts import ProfileName, Usage, safe_thinking_temperature
+from specforge.llm.profiles import DEFAULT_PROFILES, Profile, load_profiles
 from specforge.llm.tool_parsing import (
     extract_json,
     extract_tool_calls,
@@ -258,15 +258,23 @@ class LLMClient:
         max_tokens: int | None,
     ) -> LLMRequest:
         p = self.profile(profile)
+        effective_thinking = p.thinking if thinking is None else thinking
+        effective_temperature = p.temperature if temperature is None else temperature
+        if effective_thinking:
+            effective_temperature = safe_thinking_temperature(
+                effective_temperature, f"вызов LLM с профилем {p.name}"
+            )
         return LLMRequest(
             messages=list(messages),
             tools=list(tools or []),
             profile=p.name,
-            temperature=p.temperature if temperature is None else temperature,
+            temperature=effective_temperature,
             top_p=p.top_p,
             top_k=p.top_k,
             max_tokens=max_tokens if max_tokens is not None else p.max_tokens,
-            thinking=p.thinking if thinking is None else thinking,
+            presence_penalty=p.presence_penalty,
+            timeout_s=p.timeout_s,
+            thinking=effective_thinking,
         )
 
     def _call(self, request: LLMRequest) -> LLMResponse:
@@ -316,6 +324,15 @@ class LLMClient:
             tool_calls, content = extract_tool_calls(content, request.tools)
             if tool_calls:
                 log.info("llm.tool_calls.fallback", count=len(tool_calls), **self._lb())
+        for call in tool_calls:
+            if call.error:
+                log.warning(
+                    "llm.tool_call.invalid",
+                    tool=call.name,
+                    error=call.error,
+                    raw_arguments=call.raw_arguments[:2000],
+                    **self._lb(),
+                )
         return LLMResponse(
             content=content,
             reasoning=reasoning or None,
@@ -385,6 +402,10 @@ class LLMClient:
                 temperature=request.temperature,
                 top_p=omit if request.top_p is None else request.top_p,
                 max_tokens=omit if request.max_tokens is None else request.max_tokens,
+                presence_penalty=(
+                    omit if request.presence_penalty is None else request.presence_penalty
+                ),
+                timeout=request.timeout_s or self.config.timeout_s,
                 tools=tools or omit,
                 tool_choice="auto" if tools else omit,
                 response_format=(
@@ -488,7 +509,12 @@ def _message_param(message: ChatMessage) -> ChatCompletionMessageParam:
                     ChatCompletionMessageFunctionToolCallParam(
                         id=c.id,
                         type="function",
-                        function={"name": c.name, "arguments": c.arguments_json()},
+                        # невалидный вызов: в историю — пустой объект, сырой текст только в логи
+                        # и события (ошибку модель получает в результате инструмента)
+                        function={
+                            "name": c.name,
+                            "arguments": "{}" if c.error else c.arguments_json(),
+                        },
                     )
                     for c in message.tool_calls
                 ]

@@ -107,6 +107,9 @@ class LLMRequest(BaseModel):
     top_p: float | None = None
     top_k: int | None = None
     max_tokens: int | None = None
+    presence_penalty: float | None = None
+    timeout_s: float | None = None
+    """Таймаут HTTP-запроса; None — LLMConfig.timeout_s."""
     thinking: bool = False
     response_schema_name: str | None = None
     response_schema: dict[str, Any] | None = None

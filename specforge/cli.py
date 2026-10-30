@@ -15,7 +15,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from specforge.core.agent_api import AgentContext
 from specforge.core.contracts import StageStatus
-from specforge.core.events import Event
+from specforge.core.events import Event, EventBus
 from specforge.llm import LLMClient, LLMError, NullLLM
 from specforge.orchestrator.nodes import execute_stage
 from specforge.orchestrator.registry import RegistryError, available_agents, load_agent
@@ -118,6 +118,8 @@ def run_agent(
     output_dir.mkdir(parents=True, exist_ok=True)
     workdir.mkdir(parents=True, exist_ok=True)
 
+    bus = EventBus()
+    bus.subscribe(_log_event)
     ctx = AgentContext(
         run_id=run_id,
         input_dir=input_dir,
@@ -125,7 +127,7 @@ def run_agent(
         workdir=workdir,
         llm=llm,
         budget_tokens=budget or spec.token_budget,
-        emit=_log_event,
+        emit=bus.emit,
     )
     result = execute_stage(agent, ctx)
     (workdir / f"{name}.result.json").write_text(result.model_dump_json(indent=2), "utf-8")

@@ -5,17 +5,46 @@
 не ломает совместимость).
 """
 
-import operator
+import warnings
 from enum import StrEnum
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from specforge.core.events import Event
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class _Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+# --- Профили LLM -----------------------------------------------------------------------------
+
+
+class ProfileName(StrEnum):
+    """Профиль генерации (параметры — в specforge.llm.profiles и config/profiles.yaml)."""
+
+    ANALYSIS = "ANALYSIS"
+    REVIEW = "REVIEW"
+    CODE = "CODE"
+    REPAIR = "REPAIR"
+
+
+THINKING_MIN_TEMPERATURE = 0.5
+THINKING_SAFE_TEMPERATURE = 0.6
+"""С включённым thinking низкая температура приводит к зацикливанию рассуждений (Qwen3)."""
+
+
+def safe_thinking_temperature(temperature: float, where: str) -> float:
+    """Температура для режима thinking: ниже THINKING_MIN_TEMPERATURE поднимается до
+    THINKING_SAFE_TEMPERATURE с предупреждением."""
+    if temperature >= THINKING_MIN_TEMPERATURE:
+        return temperature
+    warnings.warn(
+        f"{where}: thinking с temperature={temperature} запрещён — "
+        f"используется {THINKING_SAFE_TEMPERATURE}",
+        UserWarning,
+        stacklevel=3,
+    )
+    return THINKING_SAFE_TEMPERATURE
 
 
 # --- Шлюзы ---------------------------------------------------------------------------------
@@ -47,6 +76,10 @@ class GateResult(_Contract):
     log_path: str | None = None
     """Полный лог шлюза. В контекст LLM попадают только усечённые diagnostics."""
     duration_s: float = 0.0
+    failed_command_index: int | None = None
+    """Индекс упавшей команды в AgentSpec.gate_commands; None — все прошли."""
+    tests_executed: int | None = None
+    """Сколько тестов реально выполнилось (None — неизвестно)."""
 
 
 # --- Описание агента -----------------------------------------------------------------------
@@ -80,8 +113,12 @@ class AgentSpec(_Contract):
     выбирается по виду команды (см. docs/AGENT_SDK.md, «Шлюз»)."""
     protected_globs: list[str] = Field(default_factory=list)
     """Файлы, которые агенту и ремонту запрещено менять (например, тесты-эталоны)."""
-    thinking: bool = False
-    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    profile: ProfileName = ProfileName.CODE
+    """Профиль LLM: thinking, температура, top_p, max_tokens, таймаут."""
+    thinking: bool | None = None
+    """None — как в профиле."""
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    """None — как в профиле. С thinking=True меньше 0.5 нельзя: поднимается до 0.6."""
     max_steps: int = Field(default=30, ge=1)
     token_budget: int = Field(default=200_000, ge=1)
     max_repairs: int = Field(default=2, ge=0)
@@ -91,6 +128,17 @@ class AgentSpec(_Contract):
     parallel_group: str | None = None
     llm_free: bool = False
     """Детерминированный агент: любой вызов LLM из него — ошибка."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _thinking_temperature(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("thinking") is True:
+            temperature = data.get("temperature")
+            if isinstance(temperature, int | float):
+                fixed = safe_thinking_temperature(temperature, f"AgentSpec {data.get('name')}")
+                if fixed != temperature:
+                    data = {**data, "temperature": fixed}
+        return data
 
 
 # --- Результаты ----------------------------------------------------------------------------
@@ -133,6 +181,8 @@ class StageResult(_Contract):
     artifacts: list[str] = Field(default_factory=list)
     """Пути созданных файлов относительно output_dir."""
     summary: str = ""
+    stopped_reason: str | None = None
+    """Почему агент остановился (AgentOutcome.stopped_reason для tool-агента)."""
 
 
 # --- Кейс и запуск -------------------------------------------------------------------------
@@ -198,10 +248,11 @@ def add_usage(left: Usage, right: Usage) -> Usage:
 
 
 class PipelineState(TypedDict):
+    """Состояние графа. События сюда не пишутся — только через ctx.emit / EventBus."""
+
     run_id: str
     requirements_path: str
     workdir: str
     profile: CaseProfile
     stage_results: Annotated[dict[str, StageResult], merge_stage_results]
     usage_total: Annotated[Usage, add_usage]
-    events: Annotated[list[Event], operator.add]

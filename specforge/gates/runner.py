@@ -61,9 +61,11 @@ class GateRunner:
 
         started = time.monotonic()
         diagnostics: list[Diagnostic] = []
-        passed = True
+        failed_index: int | None = None
         with log_path.open("w", encoding="utf-8") as gate_log:
-            for command, parser in zip(spec.gate_commands, parsers, strict=True):
+            for index, (command, parser) in enumerate(
+                zip(spec.gate_commands, parsers, strict=True)
+            ):
                 command_started = time.time()
                 result = sandbox.exec(command, timeout_s=self.timeout_s)
                 _write_log(gate_log, result, parser)
@@ -84,14 +86,15 @@ class GateRunner:
                     diagnostics=len(found),
                 )
                 if result.exit_code != 0:
-                    passed = False
+                    failed_index = index
                     break
 
         selected, total_errors = prioritize(
             [normalize(d, sandbox.workspace) for d in diagnostics], self.max_diagnostics
         )
         return GateResult(
-            passed=passed,
+            passed=failed_index is None,
+            failed_command_index=failed_index,
             diagnostics=[with_code_window(d, sandbox.workspace) for d in selected],
             total_errors=total_errors,
             log_path=str(log_path),

@@ -1,3 +1,4 @@
+import json
 import threading
 import time
 from pathlib import Path
@@ -104,14 +105,51 @@ def test_prompt_mode_puts_schema_into_messages() -> None:
 def test_profile_sets_sampling_and_overrides_win() -> None:
     llm = FakeLLM(["a", "b", "c"])
     llm.chat(USER, profile=ProfileName.ANALYSIS)
-    llm.chat(USER, profile="REPAIR", temperature=0.5)
-    llm.chat(USER, thinking=True)
+    llm.chat(USER, profile="REPAIR", temperature=0.5, max_tokens=100)
+    llm.chat(USER, thinking=True, temperature=0.9)
     analysis, repair, default = llm.calls
     assert (analysis.thinking, analysis.temperature, analysis.top_k) == (True, 0.6, 20)
-    assert (repair.thinking, repair.temperature) == (False, 0.5)
-    assert (default.profile, default.thinking, default.temperature) == ("CODE", True, 0.2)
+    assert (analysis.max_tokens, analysis.timeout_s) == (16384, 16384 / 25 + 60)
+    assert (repair.thinking, repair.temperature, repair.max_tokens) == (False, 0.5, 100)
+    assert (default.profile, default.thinking, default.temperature) == ("CODE", True, 0.9)
     with pytest.raises(LLMConfigError, match="неизвестный профиль"):
         llm.chat(USER, profile="NOPE")
+
+
+def test_thinking_with_low_temperature_is_raised() -> None:
+    llm = FakeLLM(["a", "b"])
+    with pytest.warns(UserWarning, match="thinking с temperature=0.2"):
+        llm.chat(USER, thinking=True)  # CODE: t=0.2
+    with pytest.warns(UserWarning, match="thinking с temperature=0.1"):
+        llm.chat(USER, profile=ProfileName.ANALYSIS, temperature=0.1)
+    assert [c.temperature for c in llm.calls] == [0.6, 0.6]
+
+
+def test_history_with_invalid_call_sends_valid_json_arguments() -> None:
+    llm = FakeLLM(
+        [
+            FakeReply(
+                tool_calls=[
+                    FakeToolCall("read_file", "{битый json", id="bad"),
+                    FakeToolCall("read_file", {"path": "a"}, id="ok"),
+                ]
+            )
+        ]
+    )
+    response = llm.chat(USER, tools=[READ_FILE])
+    bad, _ok = response.tool_calls
+    assert bad.error is not None
+    assert bad.raw_arguments == "{битый json"  # сырой текст остаётся в модели для логов
+    history = [
+        *USER,
+        response.to_message(),
+        ChatMessage.tool_result("bad", "Ошибка вызова инструмента"),
+        ChatMessage.tool_result("ok", "содержимое"),
+    ]
+    params = [_message_param(m) for m in history]
+    sent = [c["function"]["arguments"] for c in params[1]["tool_calls"]]  # type: ignore[typeddict-item]
+    assert sent == ["{}", '{"path": "a"}']
+    assert all(isinstance(json.loads(a), dict) for a in sent)
 
 
 def test_reasoning_split_from_content() -> None:
@@ -356,6 +394,8 @@ def test_openai_request_shape_and_usage() -> None:
     assert sent["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}, "top_k": 20}
     assert sent["temperature"] == 0.6
     assert sent["top_p"] == 0.95
+    assert sent["max_tokens"] == 16384
+    assert sent["timeout"] == 16384 / 25 + 60
     assert llm.usage == Usage(prompt_tokens=100, completion_tokens=5, cached_tokens=64, calls=1)
 
 
