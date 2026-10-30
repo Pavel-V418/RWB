@@ -6,6 +6,7 @@ StructuredAgent (один вызов LLM → JSON по pydantic-схеме) ил
 и с пометкой BREAKING в коммите.
 """
 
+import dataclasses
 import inspect
 import time
 from abc import ABC, abstractmethod
@@ -20,8 +21,9 @@ from pydantic import BaseModel
 from specforge.core.contracts import AgentOutcome, AgentSpec, StageResult, StageStatus, Usage
 from specforge.core.events import Event
 from specforge.executor.react import run_react_loop
+from specforge.executor.structured import run_structured
 from specforge.llm import ChatMessage, LLMClient, LLMError
-from specforge.sandbox.base import Sandbox
+from specforge.sandbox.base import WORKDIR, Sandbox
 
 EmitFn = Callable[[Event], None]
 
@@ -44,7 +46,10 @@ class AgentContext:
     llm: LLMClient
     budget_tokens: int
     sandbox: Sandbox | None = None
+    """Песочница этапа (/work = output_dir). None — agent_loop создаст локальную."""
     emit: EmitFn = _discard
+    protected_globs: Sequence[str] = ()
+    """Файлы, которые инструментам запрещено менять (AgentSpec.protected_globs)."""
 
 
 @runtime_checkable
@@ -64,9 +69,11 @@ def agent_loop(
     temperature: float = 0.2,
     thinking: bool = False,
 ) -> AgentOutcome:
-    """ReAct-цикл tool-агента: модель вызывает инструменты `tools`, пока не даст финальный ответ.
+    """ReAct-цикл tool-агента: модель вызывает инструменты `tools` (имена из AgentSpec.tools,
+    finish доступен всегда), пока не вызовет finish или не упрётся в лимит.
 
-    Сигнатура окончательная. Текущая реализация временная — один вызов LLM без инструментов.
+    Инструменты работают в ctx.sandbox (/work); бюджет — ctx.budget_tokens. Остановка и её причина —
+    в AgentOutcome.stopped_reason. Реализация — specforge.executor.react.
     """
     return run_react_loop(
         ctx,
@@ -183,7 +190,8 @@ class StructuredAgent[T: BaseModel](BaseAgent):
             )
         with ctx.llm.track() as tracker:
             try:
-                value = ctx.llm.structured(
+                value = run_structured(
+                    ctx,
                     self.build_messages(ctx),
                     self.schema,
                     temperature=self.spec.temperature,
@@ -205,8 +213,10 @@ class StructuredAgent[T: BaseModel](BaseAgent):
 class ToolAgent(BaseAgent):
     """Агент с инструментами (ReAct): пишет файлы в output_dir через инструменты из spec.tools.
 
-    Автору достаточно задать `spec` и написать prompts/system.md и prompts/task.md
-    (в task.md доступны `$input_dir` и `$output_dir`).
+    Автору достаточно задать `spec` и написать prompts/system.md и prompts/task.md.
+    В task.md доступны `$inputs` (содержимое входных файлов), `$workdir` (/work — это output_dir),
+    `$input_dir` и `$output_dir` (пути на хосте). Задача — часть неизменного префикса запроса,
+    поэтому в ней не должно быть ничего, что меняется между шагами.
     """
 
     def system_prompt(self, ctx: AgentContext) -> str:
@@ -215,11 +225,18 @@ class ToolAgent(BaseAgent):
 
     def task(self, ctx: AgentContext) -> str:
         return self.load_prompt(
-            "task.md", input_dir=ctx.input_dir.as_posix(), output_dir=ctx.output_dir.as_posix()
+            "task.md",
+            inputs=render_inputs(self.read_inputs(ctx)),
+            workdir=WORKDIR,
+            input_dir=ctx.input_dir.as_posix(),
+            output_dir=ctx.output_dir.as_posix(),
         )
 
     def run(self, ctx: AgentContext) -> StageResult:
         started = time.monotonic()
+        ctx = dataclasses.replace(
+            ctx, protected_globs=[*ctx.protected_globs, *self.spec.protected_globs]
+        )
         try:
             outcome = agent_loop(
                 ctx,
@@ -232,13 +249,13 @@ class ToolAgent(BaseAgent):
             )
         except LLMError as exc:
             return self.result(StageStatus.failed, started=started, summary=str(exc))
-        status = StageStatus.passed if outcome.stop_reason == "final" else StageStatus.failed
+        status = StageStatus.passed if outcome.stopped_reason == "finish" else StageStatus.failed
         return self.result(
             status,
             started=started,
             usage=outcome.usage,
             artifacts=self.collect_artifacts(ctx),
-            summary=outcome.final_message[:500],
+            summary=f"[{outcome.stopped_reason}] {outcome.summary}"[:500],
         )
 
 

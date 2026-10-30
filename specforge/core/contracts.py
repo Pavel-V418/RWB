@@ -158,14 +158,22 @@ class RunConfig(_Contract):
     max_concurrency: int = Field(default=2, ge=1)
 
 
+StopReason = Literal["finish", "max_steps", "token_budget", "loop", "error"]
+
+
 class AgentOutcome(_Contract):
     """Итог agent_loop для tool-агента."""
 
-    final_message: str
-    usage: Usage = Field(default_factory=Usage)
+    summary: str
+    """Аргумент finish(summary) или причина остановки."""
     steps: int = 0
-    stop_reason: Literal["final", "max_steps", "budget", "error"] = "final"
+    """Число вызовов LLM."""
+    usage: Usage = Field(default_factory=Usage)
+    stopped_reason: StopReason = "finish"
+    """finish — модель вызвала finish; max_steps / token_budget — исчерпан лимит;
+    loop — зацикливание; error — LLM недоступна или неверный набор инструментов."""
     changed_files: list[str] = Field(default_factory=list)
+    """Файлы, созданные или изменённые инструментами (относительно /work)."""
 
 
 # --- Состояние LangGraph -------------------------------------------------------------------

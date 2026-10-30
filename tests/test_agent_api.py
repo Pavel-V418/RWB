@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from specforge.core.agent_api import Agent, StructuredAgent, ToolAgent, agent_loop
 from specforge.core.contracts import AgentSpec, StageStatus
 from specforge.core.events import Event
-from specforge.llm import FakeLLM
+from specforge.llm import FakeLLM, FakeReply, FakeToolCall
 from tests.conftest import MakeCtx
 
 PROMPTS = Path(__file__).parent / "fixtures" / "prompts"
@@ -30,14 +30,16 @@ class WriterAgent(ToolAgent):
     )
 
 
-def test_agent_loop_single_call(make_ctx: MakeCtx, events: list[Event]) -> None:
-    llm = FakeLLM(["<think>план</think>Готово."])
+def test_agent_loop_finish_on_first_step(make_ctx: MakeCtx, events: list[Event]) -> None:
+    llm = FakeLLM(
+        [FakeReply(reasoning="план", tool_calls=[FakeToolCall("finish", {"summary": "ok"})])]
+    )
     outcome = agent_loop(make_ctx(llm), "система", "задача", ["read_file"])
-    assert outcome.final_message == "Готово."
-    assert outcome.steps == 1
+    assert (outcome.summary, outcome.steps, outcome.stopped_reason) == ("ok", 1, "finish")
     assert outcome.usage.calls == 1
     assert [m.role for m in llm.calls[0].messages] == ["system", "user"]
-    assert events[0].kind == "agent.step"
+    assert llm.calls[0].tool_names == ["read_file", "finish"]
+    assert [e.kind for e in events] == ["step_started", "agent_finished"]
 
 
 def test_structured_agent_reads_inputs_and_writes_json(make_ctx: MakeCtx) -> None:
@@ -79,11 +81,18 @@ def test_structured_agent_reports_llm_failure(make_ctx: MakeCtx) -> None:
 
 
 def test_tool_agent_uses_task_template(make_ctx: MakeCtx) -> None:
-    llm = FakeLLM(["сделано"])
+    finish = FakeReply(tool_calls=[FakeToolCall("finish", {"summary": "сделано"})])
+    llm = FakeLLM([finish])
     ctx = make_ctx(llm)
     (ctx.output_dir / "notes.md").write_text("x", "utf-8")
     result = WriterAgent().run(ctx)
     assert result.status == StageStatus.passed
-    assert result.summary == "сделано"
+    assert result.summary == "[finish] сделано"
     assert result.artifacts == ["notes.md"]
     assert ctx.output_dir.as_posix() in llm.calls[0].messages[1].content
+
+
+def test_tool_agent_not_finished_is_failed(make_ctx: MakeCtx) -> None:
+    result = WriterAgent().run(make_ctx(FakeLLM(["думаю", "думаю", "думаю"])))
+    assert result.status == StageStatus.failed
+    assert result.summary.startswith("[loop]")

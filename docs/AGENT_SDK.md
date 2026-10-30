@@ -122,7 +122,7 @@ class BackendCoder(ToolAgent):
         kind="tool",
         inputs=["analysis/*.json"],
         outputs=["backend/**/*.cs"],
-        tools=["read_file", "write_file", "str_replace", "shell"],
+        tools=["read_file", "write_file", "str_replace", "list_dir", "grep", "run"],
         sandbox_image="specforge/dotnet:10",
         gate_commands=["dotnet build backend -warnaserror"],
         protected_globs=["backend/tests/contract/**"],
@@ -135,8 +135,9 @@ class BackendCoder(ToolAgent):
 AGENT = BackendCoder()
 ```
 
-Промпты: `prompts/system.md` и `prompts/task.md` (в `task.md` доступны `$input_dir` и
-`$output_dir`). Для динамической задачи переопределите `task(ctx) -> str`.
+Промпты: `prompts/system.md` и `prompts/task.md`. В `task.md` доступны `$inputs` (содержимое
+входных файлов по `spec.inputs`), `$workdir` (`/work`), `$input_dir` и `$output_dir` (пути на хосте).
+Для динамической задачи переопределите `task(ctx) -> str`.
 
 `ToolAgent.run` вызывает
 
@@ -145,9 +146,66 @@ agent_loop(ctx, system_prompt, task, spec.tools,
            max_steps=..., temperature=..., thinking=...) -> AgentOutcome
 ```
 
-> ⚠️ **Сейчас `agent_loop` временный**: один вызов LLM без инструментов, `final_message` —
-> ответ модели. Сигнатура окончательная: полноценный ReAct-цикл с инструментами,
-> `str_replace`-правками и компакцией контекста заменит реализацию, ваш код менять не придётся.
+и считает этап выполненным (`passed`, дальше — шлюз), только если модель вызвала `finish`.
+
+### Цикл (ReAct)
+
+Шаг — один вызов LLM. Вызовы инструментов из ответа выполняются по порядку, результаты
+возвращаются модели. Ошибка инструмента (нет файла, неуникальный `old`, путь вне `/work`,
+невалидные аргументы) приходит модели текстом — цикл не падает.
+
+`AgentOutcome`:
+
+| Поле | Что это |
+|---|---|
+| `summary` | Аргумент `finish(summary)` или описание причины остановки |
+| `steps` | Число вызовов LLM |
+| `usage` | Токены цикла |
+| `stopped_reason` | `finish` · `max_steps` (`spec.max_steps`) · `token_budget` (`ctx.budget_tokens`) · `loop` (один и тот же вызов 3 раза подряд или 3 ответа подряд без инструментов) · `error` (LLM недоступна, неизвестный инструмент в `spec.tools`) |
+| `changed_files` | Файлы, созданные или изменённые `write_file`/`str_replace` |
+
+### Инструменты (`spec.tools`; `finish` доступен всегда)
+
+| Имя | Аргументы | Поведение |
+|---|---|---|
+| `read_file` | `path, start_line?, end_line?` | Текст с номерами строк, не больше 400 строк за вызов |
+| `write_file` | `path, content` | Только новый файл; существующий — ошибка «используй str_replace» |
+| `str_replace` | `path, old, new` | `old` должен встречаться ровно один раз, иначе ошибка с числом совпадений |
+| `list_dir` | `path=".", depth=2` | Дерево каталога; `node_modules`, `.git`, `bin`, `obj`… не раскрываются |
+| `grep` | `pattern, glob="**/*"` | Регулярное выражение, до 100 совпадений |
+| `run` | `cmd, timeout=300` | Команда в песочнице; в контекст — первые 2000 и последние 4000 символов вывода, полный лог — `runs/<run_id>/logs/` |
+| `finish` | `summary` | Завершить работу |
+
+Все пути — внутри `/work` (= `output_dir`): `src/a.py`, `./src/a.py` и `/work/src/a.py`
+равнозначны, выход наружу через `..`, абсолютные пути и симлинки запрещён. Файлы из
+`spec.protected_globs` менять нельзя.
+
+### Песочница
+
+Платформа создаёт песочницу на этап; в ней работают и инструменты, и шлюз:
+- задан `sandbox_image` → контейнер Docker: `/work` смонтирован из `output_dir`, кэши
+  nuget/npm/gradle/pip — общие именованные volumes, лимиты `SANDBOX_CPUS`, `SANDBOX_MEMORY`,
+  сеть `SANDBOX_NETWORK`; после этапа контейнер удаляется;
+- иначе — локальный subprocess на хосте (без изоляции; для разработки и тестов).
+
+`SPECFORGE_SANDBOX=local` заставляет работать локально даже с `sandbox_image`.
+
+### Prefix caching и компакция
+
+Запрос всегда начинается с одного и того же: system, задача, описания инструментов —
+байт-в-байт. Поэтому в `system.md`/`task.md` не должно быть ничего изменчивого (время, номер
+шага, случайные id), а большие неизменные входы кладите в задачу через `$inputs`.
+
+Когда история превышает `SPECFORGE_COMPACT_AT` токенов (по умолчанию 60000), результаты
+инструментов старше `SPECFORGE_KEEP_LAST` шагов (по умолчанию 4) заменяются заглушками вида
+`[run: exit 0, 340 строк, лог: runs/…/logs/….log]`, длинные аргументы старых вызовов — пометкой
+о пропуске. Модель может перечитать нужное через `read_file`.
+
+### События (`ctx.emit`)
+
+`step_started` (step, tokens) · `tool_called` (tool, arguments) · `tool_result` (tool, ok,
+result — усечён до 500 символов) · `history_compacted` · `agent_finished` (stopped_reason,
+steps, tokens, changed_files). Structured-агенты шлют `step_started` и `agent_finished`.
 
 Правила для tool-агентов:
 - Правка существующих файлов — через `str_replace`, а не переписывание целиком.
@@ -166,7 +224,7 @@ agent_loop(ctx, system_prompt, task, spec.tools,
 | `inputs` | `[]` | Glob-шаблоны относительно `artifacts/` (локально — `--in`): `["analysis/*.json"]` |
 | `outputs` | `[]` | Glob-шаблоны создаваемых файлов относительно `output_dir`: `["web/src/**/*.ts"]` |
 | `prompt_dir` | `"prompts"` | Каталог промптов относительно каталога агента |
-| `tools` | `[]` | Инструменты tool-агента: `["read_file", "str_replace", "shell"]` |
+| `tools` | `[]` | Инструменты tool-агента (§3): `["read_file", "str_replace", "run"]` |
 | `sandbox_image` | `None` | Docker-образ для инструментов и шлюза: `"specforge/node:22"` |
 | `gate_commands` | `[]` | Команды шлюза, см. §5: `["npx tsc --noEmit", "npm test"]` |
 | `protected_globs` | `[]` | Что нельзя менять агенту и ремонту: `["**/*.spec.ts"]` |
@@ -191,7 +249,7 @@ agent_loop(ctx, system_prompt, task, spec.tools,
 ## 5. Шлюз
 
 Шлюз — список shell-команд в `spec.gate_commands`. Платформа запускает их после агента,
-каждую в песочнице с рабочим каталогом `output_dir`; этап пройден, если все завершились
+каждую в песочнице этапа (той же, где работал агент) с рабочим каталогом `/work` (= `output_dir`); этап пройден, если все завершились
 с кодом 0.
 
 ```python
@@ -298,7 +356,8 @@ def test_my_analyzer(tmp_path):
 | `output_dir` | Куда писать результаты |
 | `workdir` | Служебный каталог запуска (логи, временные файлы) |
 | `llm` | `LLMClient` — единственный способ вызвать модель |
-| `sandbox` | Песочница для команд или `None` |
+| `sandbox` | Песочница этапа (`/work` = `output_dir`) или `None` — тогда `agent_loop` создаст локальную |
+| `protected_globs` | Файлы, закрытые для изменений инструментами (из `spec.protected_globs`) |
 | `emit(event)` | Отправить `Event` в телеметрию: `ctx.emit(Event(kind="my.progress", message="..."))` |
 | `budget_tokens` | Бюджет токенов этапа |
 
