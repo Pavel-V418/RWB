@@ -44,7 +44,7 @@ def assemble_repo(
         source = artifacts / stage
         if not source.is_dir():
             continue
-        prefix = layout.dir_of(stage) or f"_unmapped/{stage}/"
+        prefix = layout.dir_of(stage)
         for path in sorted(source.rglob("*")):
             rel = path.relative_to(source)
             if (
@@ -53,12 +53,15 @@ def assemble_repo(
                 or rel.as_posix() == MANIFEST_FILE
             ):
                 continue
-            dest = target / prefix / rel
+            placed_path = layout.place(stage, rel.as_posix())
+            dest = target / (placed_path or f"_unmapped/{stage}/{rel.as_posix()}")
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, dest)
         for agent in order:
             if agent in specs and specs[agent].stage == stage:
-                placed[agent] = prefix.rstrip("/")
+                placed[agent] = (prefix if prefix is not None else f"_unmapped/{stage}/").rstrip(
+                    "/"
+                )
     return placed
 
 
@@ -87,6 +90,7 @@ def rerun_gates(
     logs_dir: Path,
     run_id: str,
     max_workers: int = 4,
+    layout: RepoLayout | None = None,
 ) -> list[GateCheck]:
     """Шлюзы passed/degraded этапов на итоговом репозитории; каждый — в своей копии каталога
     этапа и своей песочнице, независимые этапы — параллельно."""
@@ -104,7 +108,8 @@ def rerun_gates(
         state = results[name].status
         with tempfile.TemporaryDirectory(prefix=f"acceptance-{name}-") as tmp:
             workspace = Path(tmp) / "work"
-            shutil.copytree(repo / placed[name], workspace)
+            shutil.copytree(repo / placed[name], workspace, dirs_exist_ok=True)
+            _restore_root_files(repo, workspace, layout, specs[name].stage)
             try:
                 sandbox = create_sandbox(spec, workspace, logs_dir)
                 try:
@@ -130,6 +135,17 @@ def rerun_gates(
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         return list(pool.map(check, todo))
+
+
+def _restore_root_files(repo: Path, workspace: Path, layout: RepoLayout | None, stage: str) -> None:
+    """Файлы, которые раскладка подняла в корень репозитория (repo_layout `root`), шлюз этапа
+    ждёт в корне своего каталога — вернуть их туда."""
+    target = layout.target(stage) if layout else None
+    if target is None or not target.root or layout is None or layout.dir_of(stage) == "":
+        return
+    for path in sorted(repo.iterdir()):
+        if path.is_file() and layout.place(stage, path.name) == path.name:
+            shutil.copy2(path, workspace / path.name)
 
 
 # --- docker compose и healthcheck --------------------------------------------------------------

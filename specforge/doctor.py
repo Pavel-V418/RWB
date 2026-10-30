@@ -31,6 +31,7 @@ from specforge.core.contracts import AgentSpec, CaseProfile
 from specforge.llm import ChatMessage, LLMClient, LLMConfig, LLMError, ToolSpec
 from specforge.llm.profiles import AgentLLMSettings, load_agent_settings
 from specforge.orchestrator.cache import agent_dir
+from specforge.orchestrator.publisher import RepoLayout
 from specforge.orchestrator.registry import (
     PROFILE_STAGE,
     Registry,
@@ -74,6 +75,7 @@ class DoctorDeps:
     agent_settings_factory: Callable[[], AgentLLMSettings] = lambda: load_agent_settings(
         LLMConfig.from_env().profiles_path
     )
+    layout_factory: Callable[[], RepoLayout] = RepoLayout.load
 
 
 def check_agent_settings(registry: Registry, deps: DoctorDeps) -> Check:
@@ -97,6 +99,30 @@ def check_agent_settings(registry: Registry, deps: DoctorDeps) -> Check:
     return Check("граф", "thinking агентов", "OK", f"thinking on: {', '.join(on) or '—'}")
 
 
+def check_repo_layout(registry: Registry, deps: DoctorDeps) -> Check:
+    """Этапы реестра без записи в config/repo_layout.yaml не попадут ни в GitLab, ни в итоговый
+    репозиторий приёмщика (там — _unmapped/)."""
+    try:
+        layout = deps.layout_factory()
+    except (OSError, ValueError) as exc:
+        return Check(
+            "граф", "repo_layout", "FAIL", str(exc)[:200], "исправьте config/repo_layout.yaml"
+        )
+    stages = sorted({s.stage for s in registry.specs.values()})
+    missing = [s for s in stages if layout.dir_of(s) is None]
+    if missing:
+        return Check(
+            "граф",
+            "repo_layout",
+            "FAIL",
+            f"этапов нет в config/repo_layout.yaml: {', '.join(missing)}",
+            "добавьте их в stages — иначе артефакты этих этапов не публикуются",
+        )
+    root = [s for s in stages if layout.dir_of(s) == ""]
+    detail = f"этапов: {len(stages)}" + (f"; в корне: {', '.join(root)}" if root else "")
+    return Check("граф", "repo_layout", "OK", detail)
+
+
 def run_doctor(deps: DoctorDeps | None = None) -> list[Check]:
     deps = deps or DoctorDeps()
     checks: list[Check] = []
@@ -114,6 +140,7 @@ def run_doctor(deps: DoctorDeps | None = None) -> list[Check]:
     if registry is not None:
         checks += check_graph(registry)
         checks.append(check_agent_settings(registry, deps))
+        checks.append(check_repo_layout(registry, deps))
     return checks
 
 

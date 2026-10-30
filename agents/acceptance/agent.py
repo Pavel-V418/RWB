@@ -223,6 +223,7 @@ class AcceptanceAgent(BaseAgent):
             ctx.workdir / "logs",
             ctx.run_id,
             self.max_workers,
+            layout=layout,
         )
         verdict = build_verdict(
             snapshot,

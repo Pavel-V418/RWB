@@ -4,15 +4,21 @@
   от целевой ветки; без GITLAB_PROJECT создаётся проект specforge-<run_id>;
 - stage_passed / stage_degraded / stage_cached — один коммит через commits API (create/update)
   с файлами artifacts/<stage>/ по config/repo_layout.yaml, сообщение `stage(<agent>): <summary>`;
-- run_finished — коммит отчёта (telemetry.report) и verdict.json, затем один раз MR в target_branch
-  с таблицей этапов. MR не обновляется и не сливается.
+- run_finished — коммит отчёта (telemetry.report), verdict.json с вердиктом приёмщика и его
+  verdict.json / summary.md (docs/report/acceptance/), затем один раз MR в target_branch
+  с таблицей этапов и блокерами приёмки. MR не обновляется и не сливается.
+
+Раскладка (RepoLayout) — каталог этапа, "." — корень, `root` — файлы верхнего уровня этапа,
+которые идут в корень (.gitlab-ci.yml, docker-compose.yml); её же использует приёмщик.
 
 Нет GITLAB_URL / GITLAB_TOKEN или GitLab недоступен — событие publish_warning, публикация
 прогона пропускается. Локальный git не трогается: артефакты и так лежат в runs/<run_id>.
 """
 
 import base64
+import fnmatch
 import hashlib
+import json
 import os
 import threading
 from collections.abc import Callable, Mapping
@@ -27,6 +33,7 @@ from specforge.core.artifacts import MANIFEST_FILE, RunWorkspace, artifact_files
 from specforge.core.contracts import StageStatus
 from specforge.core.events import Event, EventBus, EventType
 from specforge.orchestrator.nodes import PIPELINE_FILE, PipelineSummary
+from specforge.orchestrator.registry import ACCEPTANCE_STAGE
 from specforge.paths import PROJECT_ROOT
 
 log = structlog.get_logger(__name__)
@@ -36,10 +43,24 @@ WARNING = "publish_warning"
 PUBLISHED = "published"
 STAGE_EVENTS = {EventType.stage_passed, EventType.stage_degraded, "stage_cached"}
 COMMIT_SUMMARY_CHARS = 72
+ACCEPTANCE_VERDICT = "verdict.json"
+MAX_BLOCKERS = 20
+
+
+ROOT_DIRS = frozenset({"", ".", "./", "/"})
+"""Значения dir, означающие корень репозитория."""
+
+
+class StageTarget(BaseModel):
+    """Куда попадают файлы этапа: каталог `dir` ("." — корень репозитория) и файлы верхнего
+    уровня этапа по шаблонам `root` — в корень (.gitlab-ci.yml, docker-compose.yml, README.md)."""
+
+    dir: str = "."
+    root: list[str] = Field(default_factory=list)
 
 
 class RepoLayout(BaseModel):
-    stages: dict[str, str] = Field(default_factory=dict)
+    stages: dict[str, str | StageTarget] = Field(default_factory=dict)
     report: str = "docs/report/"
     target_branch: str = "main"
 
@@ -47,9 +68,33 @@ class RepoLayout(BaseModel):
     def load(cls, path: Path = LAYOUT_PATH) -> "RepoLayout":
         return cls.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
 
+    def target(self, stage: str) -> StageTarget | None:
+        value = self.stages.get(stage)
+        return StageTarget(dir=value) if isinstance(value, str) else value
+
     def dir_of(self, stage: str) -> str | None:
-        target = self.stages.get(stage)
-        return target.rstrip("/") + "/" if target else None
+        """Префикс каталога этапа в репозитории: "" — корень, None — этапа нет в раскладке."""
+        target = self.target(stage)
+        if target is None:
+            return None
+        return "" if target.dir.strip() in ROOT_DIRS else target.dir.strip().rstrip("/") + "/"
+
+    def place(self, stage: str, rel: str) -> str | None:
+        """Путь файла этапа (rel — относительно artifacts/<stage>/) в репозитории."""
+        target, prefix = self.target(stage), self.dir_of(stage)
+        if target is None or prefix is None:
+            return None
+        if "/" not in rel and any(fnmatch.fnmatchcase(rel, g) for g in target.root):
+            return rel
+        return prefix + rel
+
+    def manifest_path(self, stage: str) -> str | None:
+        """manifest.json этапа: в каталоге этапа, у этапа в корне — .specforge/<stage>.manifest.json
+        (иначе манифесты корневых этапов перетирали бы друг друга)."""
+        prefix = self.dir_of(stage)
+        if prefix is None:
+            return None
+        return prefix + MANIFEST_FILE if prefix else f".specforge/{stage}.{MANIFEST_FILE}"
 
 
 ClientFactory = Callable[[str, str], Any]
@@ -165,26 +210,25 @@ class GitLabPublisher:
         if target is None:
             self._warn(run_id, f"этап {stage!r} нет в config/repo_layout.yaml — не опубликован")
             return
-        files = self._stage_files(run_id, stage)
         lines = event.message.strip().splitlines()
         summary = lines[0] if lines else ("из кэша" if event.kind == "stage_cached" else "готово")
         message = f"stage({event.agent or stage}): {summary[:COMMIT_SUMMARY_CHARS]}"
-        self._commit(repo, run_id, {target + rel: data for rel, data in files.items()}, message)
-        input_dir = self.layout.dir_of("input")
-        if input_dir and not any(p.startswith(input_dir) for p in repo.published):
-            self._commit(
-                repo,
-                run_id,
-                {input_dir + rel: data for rel, data in self._stage_files(run_id, "input").items()},
-                "stage(input): ТЗ прогона",
-            )
+        self._commit(repo, run_id, self._stage_files(run_id, stage), message)
+        input_files = self._stage_files(run_id, "input")
+        if input_files and not any(p in repo.published for p in input_files):
+            self._commit(repo, run_id, input_files, "stage(input): ТЗ прогона")
 
     def _stage_files(self, run_id: str, stage: str) -> dict[str, bytes]:
+        """Файлы этапа по путям в репозитории (repo_layout); этапа нет в раскладке — пусто."""
         root = RunWorkspace(self.runs_dir / run_id).stage_dir(stage)
-        files = {p.relative_to(root).as_posix(): p.read_bytes() for p in artifact_files(root)}
-        manifest = root / MANIFEST_FILE
-        if manifest.is_file():
-            files[MANIFEST_FILE] = manifest.read_bytes()
+        files: dict[str, bytes] = {}
+        for p in artifact_files(root):
+            path = self.layout.place(stage, p.relative_to(root).as_posix())
+            if path is not None:
+                files[path] = p.read_bytes()
+        manifest, target = root / MANIFEST_FILE, self.layout.manifest_path(stage)
+        if manifest.is_file() and target is not None:
+            files[target] = manifest.read_bytes()
         return files
 
     def _commit(self, repo: _RunRepo, run_id: str, files: dict[str, bytes], message: str) -> bool:
@@ -220,9 +264,18 @@ class GitLabPublisher:
             (run_dir / PIPELINE_FILE).read_text(encoding="utf-8")
         )
         report = build_report(run_dir)
-        verdict = _verdict(summary)
+        acceptance = _load_acceptance(run_dir)
+        verdict = _verdict(summary, acceptance)
         prefix = self.layout.report.rstrip("/") + "/"
         files = {prefix + p.name: p.read_bytes() for p in sorted(report.markdown.parent.iterdir())}
+        if acceptance is not None:
+            # этап acceptance мог не опубликоваться (нет в repo_layout или failed) — вердикт
+            # приёмщика кладём рядом с отчётом всегда
+            source = RunWorkspace(run_dir).stage_dir(ACCEPTANCE_STAGE)
+            for name in (ACCEPTANCE_VERDICT, "summary.md"):
+                if (source / name).is_file():
+                    files[f"{prefix}acceptance/{name}"] = (source / name).read_bytes()
+            verdict.acceptance = f"{prefix}acceptance/{ACCEPTANCE_VERDICT}"
         files[prefix + "verdict.json"] = verdict.model_dump_json(indent=2).encode()
         self._commit(repo, run_id, files, f"report: {verdict.verdict} — {verdict.headline}")
         if repo.mr_created or self._mr_exists(repo):
@@ -258,12 +311,19 @@ class GitLabPublisher:
 class Verdict(BaseModel):
     run_id: str
     verdict: str
-    """passed — все этапы зелёные; degraded — есть degraded; failed — есть failed."""
+    """passed — все этапы зелёные и приёмщик (если есть) считает продукт готовым;
+    degraded — есть degraded или приёмщик нашёл блокеры; failed — есть failed."""
     headline: str
     counts: dict[str, int]
+    ready: bool | None = None
+    """Вердикт приёмщика (agents/acceptance); None — приёмщика в прогоне не было."""
+    blockers: list[str] = Field(default_factory=list)
+    regressions: list[str] = Field(default_factory=list)
+    acceptance: str | None = None
+    """Путь полного verdict.json приёмщика в репозитории."""
 
 
-def _verdict(summary: PipelineSummary) -> Verdict:
+def _verdict(summary: PipelineSummary, acceptance: Mapping[str, Any] | None = None) -> Verdict:
     counts = summary.counts
     if counts.get(StageStatus.failed.value):
         verdict = "failed"
@@ -272,7 +332,31 @@ def _verdict(summary: PipelineSummary) -> Verdict:
     else:
         verdict = "passed"
     headline = ", ".join(f"{k} {v}" for k, v in counts.items() if v) or "этапов нет"
-    return Verdict(run_id=summary.run_id, verdict=verdict, headline=headline, counts=counts)
+    result = Verdict(run_id=summary.run_id, verdict=verdict, headline=headline, counts=counts)
+    if acceptance is None:
+        return result
+    ready = bool(acceptance.get("ready"))
+    blockers = [str(b) for b in acceptance.get("blockers") or []]
+    if not ready and verdict == "passed":
+        result.verdict = "degraded"
+    result.ready = ready
+    result.blockers = blockers[:MAX_BLOCKERS]
+    result.regressions = [str(r) for r in acceptance.get("regressions") or []][:MAX_BLOCKERS]
+    result.headline += "; приёмка: " + (
+        "готово" if ready else f"не готово ({len(blockers)} блокер(ов))"
+    )
+    return result
+
+
+def _load_acceptance(run_dir: Path) -> dict[str, Any] | None:
+    path = RunWorkspace(run_dir).stage_dir(ACCEPTANCE_STAGE) / ACCEPTANCE_VERDICT
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _mr_description(summary: PipelineSummary, verdict: Verdict, report_dir: str) -> str:
@@ -286,6 +370,11 @@ def _mr_description(summary: PipelineSummary, verdict: Verdict, report_dir: str)
         f"| {name} | {r.status.value} | {r.attempts} | {r.usage.total_tokens} |"
         for name, r in summary.stages.items()
     ]
+    if verdict.ready is not None:
+        lines += ["", f"**Приёмка:** {'готово' if verdict.ready else 'не готово'}."]
+        lines += [f"- {b}" for b in verdict.blockers]
+        if verdict.acceptance:
+            lines.append(f"Полный вердикт: `{verdict.acceptance}`.")
     lines += ["", f"Отчёт: `{report_dir}report.md`. Создано SpecForge; MR не обновляется."]
     return "\n".join(lines)
 

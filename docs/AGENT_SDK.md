@@ -658,6 +658,29 @@ runs/<run_id>/pipeline.json               — итог (статусы, usage)
 `["analysis/*.json"]`, ТЗ — `["input/*.md"]`. Перед запуском этапа удаляются прежние файлы
 агента (под его `outputs`).
 
+### Итоговый репозиторий (`config/repo_layout.yaml`)
+
+`artifacts/<stage>/` попадает в каталог итогового репозитория по раскладке — так публикует
+GitLab-публикатор и так собирает репозиторий приёмщик. Ключ — `AgentSpec.stage`:
+
+| Этап | Каталог | Этап | Каталог |
+|---|---|---|---|
+| `input` | `docs/tz/` | `backend` | `backend/` |
+| `analysis` | `analysis/` | `web` | `web/` |
+| `ux` | `design/` | `mobile`, `android` | `android/` |
+| `api` | `docs/api/` | `mocks` | `mocks/` |
+| `adr` | `docs/adr/` | `tests` | `tests/` |
+| `services` | `docs/services/` | `e2e` | `e2e/` |
+| `db` | `db/` | `security` | `docs/security/` |
+| `infra`, `devops` | `infra/` + в корень: `.gitlab-ci.yml`, `docker-compose*.yml`, `compose*.yml`, `.env.example`, `Makefile` | `docs` | `docs/` + в корень: `README.md` |
+| `ci` | корень репозитория | `acceptance` | `docs/report/acceptance/` |
+
+Файлы для корня кладите в **верхний уровень** своего `output_dir` (`/work/.gitlab-ci.yml`) —
+GitLab запускает CI только из корня. Этап без записи не публикуется (`publish_warning`), а у
+приёмщика оказывается в `_unmapped/`; `specforge doctor` показывает такие этапы. Нужен новый
+этап — добавьте его в `config/repo_layout.yaml`: каталог, `"."` (корень) или
+`{dir: <каталог>, root: [<шаблоны>]}`.
+
 ### Бюджет
 
 Глобальный лимит токенов и времени (`SPECFORGE_TOKEN_BUDGET`, `SPECFORGE_WALL_CLOCK_S`,

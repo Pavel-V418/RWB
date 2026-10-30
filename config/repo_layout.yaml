@@ -1,18 +1,48 @@
-# Раскладка артефактов прогона в GitLab-репозитории (orchestrator/publisher.py).
-# Файлы runs/<run_id>/artifacts/<stage>/ попадают в <путь>/ ветки run/<run_id>.
-# Этап без записи не публикуется (событие publish_warning) — добавьте его сюда.
+# Раскладка артефактов прогона в итоговом репозитории — её используют публикатор GitLab
+# (orchestrator/publisher.py) и приёмщик (agents/acceptance) при сборке репозитория.
+#
+# Файлы runs/<run_id>/artifacts/<stage>/ попадают в <каталог>/ ветки run/<run_id>.
+# Значение этапа — каталог ("." — корень репозитория) или объект:
+#   {dir: <каталог>, root: [<шаблоны>]} — файлы верхнего уровня этапа, совпавшие с шаблонами
+#   (fnmatch), кладутся в корень репозитория: .gitlab-ci.yml (GitLab запускает CI только из
+#   корня), docker-compose.yml, README.md с инструкцией запуска.
+# Этап без записи не публикуется (событие publish_warning), у приёмщика попадает в _unmapped/;
+# `specforge doctor` показывает такие этапы. Имя ключа — AgentSpec.stage, не имя агента.
 stages:
-  input: docs/tz/          # ТЗ: оригинал и извлечённый текст
+  input: docs/tz/            # ТЗ: оригинал и извлечённый текст
   profile: analysis/profile/
-  analysis: analysis/
+  analysis: analysis/        # анализ требований, системный анализ
+  ux: design/                # потоки, экраны, макеты и их исходники
+  api: docs/api/             # OpenAPI / AsyncAPI и описание API
+  adr: docs/adr/
+  services: docs/services/
+  db: db/                    # схема, миграции, тестовые данные
   backend: backend/
   web: web/
   mobile: android/
   android: android/
-  infra: infra/
-  adr: docs/adr/
-  api: docs/api/
-  services: docs/services/
+  mocks: mocks/              # mock-сервисы недоступных интеграций
+  tests: tests/
+  e2e: e2e/                  # демо-сценарий: e2e/run.sh запускает приёмщик
+  security: docs/security/   # отчёт по безопасности, отчёты Trivy
+  infra:
+    dir: infra/
+    root: &root_files
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.*.yml
+      - compose.yml
+      - compose.*.yml
+      - .env.example
+      - Makefile
+  devops:
+    dir: infra/
+    root: *root_files
+  ci: .                      # этап целиком в корне
+  docs:                      # продуктовая, пользовательская и техническая документация
+    dir: docs/
+    root: [README.md]
+  acceptance: docs/report/acceptance/   # verdict.json и summary.md приёмщика
 
 # Отчёт о прогоне (report.md, report.json, графики) и verdict.json.
 report: docs/report/

@@ -22,6 +22,7 @@
 | 11 эффективность | `b524278` | Стабильные префиксы, thinking по агентам (profiles.yaml), dedup_hits, селекторы входов, bench_concurrency, «до/после» |
 | 12 приёмка | `3fbd867`, `0b80436` | agents/acceptance (verdict.json), таймаут этапа, инфра-повторы, ожидание LLM; словарь доменной утечки |
 | 13 репетиция | — | `scripts/rehearse.py`: все ТЗ из examples/ → rehearsal.md (этап × ТЗ, топ-10 ошибок шлюзов с исправлениями по `config/rehearse_rules.yaml`); diagnostics в событиях gate_failed/repair_attempt |
+| — публикация | — | `repo_layout.yaml`: корень (`.`) и файлы в корень (`root`: .gitlab-ci.yml, docker-compose, README), этапы ux/db/mocks/tests/e2e/security/devops/ci/docs/acceptance; вердикт приёмщика в docs/report/ и MR; `doctor` — этапы без раскладки; парсер `diagnostics-json` |
 
 ## Начато и не доделано
 
@@ -48,7 +49,8 @@
 - Этап 11, тест префикса: совпадение байт-в-байт — только первого запроса; дальше расходятся id вызовов инструментов
   (ответ модели).
 - Этап 5: пересечение `outputs` проверяется приближённо (совпадение, вложенность, префикс с `**`).
-- Этап 8: этапы из кэша публикуются (`stage_cached`), этапы без записи в `repo_layout.yaml` — нет (`publish_warning`).
+- Этап 8: этапы из кэша публикуются (`stage_cached`), этапы без записи в `repo_layout.yaml` — нет (`publish_warning`,
+  `doctor` — FAIL). Имена этапов в `repo_layout.yaml` (ux, db, tests, e2e, security, devops, docs…) — предложение, сверить с командой.
 - Этап 12: шаблоны `config/doc_templates.yaml` — заглушки; frontend-сервисы в healthcheck отсекаются по имени
   (web|front|ui|nginx|console|admin).
 - Этап 6: поведение по умолчанию — автопилот (без `--approve-after` остановок нет); `--only` добавляет зависимости.
