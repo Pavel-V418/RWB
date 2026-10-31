@@ -869,17 +869,27 @@ uv-workspace и подключаются в граф тонкими агента
 | | `tech_writer` | `09_docs` | `stage_docs.run` |
 | `packages/specforge-web` (участник 4) | `ux_designer` | `03_ux` | `agents.ux_designer.agent.run` |
 | | `frontend_coder` | `05_web` | `agents.frontend.agent.run` |
+| `packages/specforge-backend` (участник 3) | `backend_coder` | `04_backend` | `specforge_backend.backend.agent.run` |
+| | `devops` | `08_infra` | `specforge_backend.devops.agent.run` |
+| `packages/specforge-mobile` (участник 5) | `android_coder` | `06_android` | `specforge_mobile.android_agent.run` |
+| | `qa` | `07_tests` | `specforge_mobile.qa.run` |
 
-План: `analyst → system_architect → ux_designer → frontend_coder → tech_writer → acceptance`.
+План: `analyst → system_architect → ux_designer → {frontend_coder, backend_coder → devops → qa,
+android_coder} → tech_writer → acceptance`. `android_coder` строит приложение, только если
+`01_requirements/profile.json → needs_mobile_app`; иначе проходит без работы (не через `enabled_if`,
+чтобы выключенный этап не блокировал `tech_writer`).
 
 - **Модель — только через `LLMClient`.** Адаптеры `agents/_team/bridge.py` реализуют протоколы
   частей поверх `ctx.llm`: `AnalysisLLM.structured(name, messages, schema, thinking,
   max_tokens)` (профиль ANALYSIS, строки `metrics.jsonl` для страницы эффективности) и
   `WebLLM.complete(messages, json_schema, thinking, max_tokens, temperature, tag)` (профиль
-  CODE, JSON Schema — `LLMClient.chat(response_schema=...)`). Собственные клиенты частей
+  CODE, JSON Schema — `LLMClient.chat(response_schema=...)`); `agents/_team/backend.py`
+  `BackendLLM.chat(system, user)` и `agents/_team/mobile.py` `MobileLLM.chat(messages, **opts)`
+  (профиль CODE, без thinking). Собственные клиенты частей
   (`OpenAICompatLLM`) в конвейере не используются — только в их автономных CLI.
 - **Шлюз.** Шлюзы частей внутренние (свои ремонты): их ошибки и предупреждения — в
-  `StageResult.gate.diagnostics` (`tool`: `requirements`, `system`, `docs`, `ux`, `frontend`).
+  `StageResult.gate.diagnostics` (`tool`: `requirements`, `system`, `docs`, `ux`, `frontend`,
+  `backend`, `stand`, `android`, `qa`).
   Шлюз пройден — `passed`; не пройден, но артефакты есть — `degraded`; нет артефактов или
   исключение — `failed`. Исключение: `frontend_coder` — сборку (`npm run gate`: kit-lint +
   `ng build` + jest) проверяет шлюз платформы в `specforge/node:22`, красный чинит ремонтник.

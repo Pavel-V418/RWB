@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "514725",
+      "properties": { "externalZoneId": "514725", "displayName": "Казанская пл. дом 2", "landmark": "Казанский собор", "pricePerHourKopecks": 36000, "detectionRadiusM": 20 },
+      "geometry": { "type": "LineString", "coordinates": [[30.324046611786, 59.933809392616], [30.324540138245, 59.933723390131]] }
+    },
+    {
+      "type": "Feature",
+      "id": "514660",
+      "properties": { "externalZoneId": "514660", "displayName": "Садовая ул. дом 17", "landmark": "Гостиный двор", "pricePerHourKopecks": 36000, "detectionRadiusM": 20 },
+      "geometry": { "type": "LineString", "coordinates": [[30.334153175354, 59.933779829287], [30.333450436592, 59.933486882148]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "stop", "zone": "514725", "note": "точка стоянки в зоне (≈0 м от линии)" },
+      "geometry": { "type": "Point", "coordinates": [30.324293, 59.933766] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "stop", "zone": "514660", "note": "точка стоянки в зоне (≈0 м от линии)" },
+      "geometry": { "type": "Point", "coordinates": [30.333802, 59.933633] }
+    }
+  ]
+}

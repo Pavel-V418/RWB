@@ -103,5 +103,6 @@ stand:smoke:
   script:
     - curl -sf "$STAND_URL/health/ready"
     - curl -sf -o /dev/null "$STAND_URL/swagger/v1/swagger.json"
-    # сценарии e2e продукта (07_tests/e2e/*.py) — код выхода ≠ 0 роняет задачу
-    - for f in 07_tests/e2e/*.py; do [ -f "$f" ] && python3 "$f" --base "$STAND_URL"; done
+    # сценарии e2e продукта — код выхода ≠ 0 роняет задачу; reports/tests/e2e — этап 07_tests,
+    # опубликованный платформой (config/repo_layout.yaml), 07_tests/e2e — раскладка без публикатора
+    - for f in reports/tests/e2e/*.py 07_tests/e2e/*.py; do [ -f "$f" ] && python3 "$f" --base "$STAND_URL"; done

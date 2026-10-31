@@ -10,12 +10,17 @@ from specforge_analysis.llm import LLMError as AnalysisLLMError
 from specforge_analysis.schemas import Requirements
 
 from agents._team.bridge import AnalysisLLM, WebLLM
+from agents._team.mobile import MobileLLM
 from agents._team.web import platforms, write_team_inputs
 from agents.analyst.agent import AGENT as ANALYST
+from agents.android_coder.agent import AGENT as ANDROID
+from agents.android_coder.agent import AndroidCoder
 from agents.backend_coder.agent import BackendCoder
 from agents.devops.agent import DevOps
 from agents.frontend_coder.agent import AGENT as FRONTEND
 from agents.frontend_coder.agent import FrontendCoder
+from agents.qa.agent import AGENT as QA
+from agents.qa.agent import Qa
 from agents.system_architect.agent import AGENT as ARCHITECT
 from agents.tech_writer.agent import AGENT as WRITER
 from agents.ux_designer.agent import AGENT as UX
@@ -69,12 +74,51 @@ class NoDockerDevOps(DevOps):
         return self.result(StageStatus.passed, started=0.0, artifacts=self.collect_artifacts(ctx))
 
 
+class NoGradleAndroid(AndroidCoder):
+    """Без Gradle и образа сборки (в тестах их нет): этап отдаёт метку; шлюз — внутри части."""
+
+    def run(self, ctx: AgentContext) -> StageResult:
+        (ctx.output_dir / "README.md").write_text("android\n", encoding="utf-8")
+        return self.result(StageStatus.passed, started=0.0, artifacts=self.collect_artifacts(ctx))
+
+
+class NoStandQa(Qa):
+    """Без стенда и сканеров: этап отдаёт метку."""
+
+    def run(self, ctx: AgentContext) -> StageResult:
+        (ctx.output_dir / "report.md").write_text("qa\n", encoding="utf-8")
+        return self.result(StageStatus.passed, started=0.0, artifacts=self.collect_artifacts(ctx))
+
+
+def _context(tmp_path: Path, llm: FakeLLM) -> AgentContext:
+    (tmp_path / "art").mkdir(exist_ok=True)
+    (tmp_path / "out").mkdir(exist_ok=True)
+    return AgentContext(
+        run_id="r1",
+        input_dir=tmp_path / "art",
+        output_dir=tmp_path / "out",
+        workdir=tmp_path,
+        llm=llm,
+        budget_tokens=10_000,
+    )
+
+
 def test_team_pipeline_end_to_end(tmp_path: Path) -> None:
     h = Harness(tmp_path)
     h.requirements = CASE1
     llm = FakeLLM([golden_answer] * 80)
     state = h.run(
-        [ANALYST, ARCHITECT, UX, NoBuildFrontend(), NoDotnetBackend(), NoDockerDevOps(), WRITER],
+        [
+            ANALYST,
+            ARCHITECT,
+            UX,
+            NoBuildFrontend(),
+            NoDotnetBackend(),
+            NoDockerDevOps(),
+            NoGradleAndroid(),
+            NoStandQa(),
+            WRITER,
+        ],
         llm=llm,
         use_cache=False,
     )
@@ -186,3 +230,55 @@ def test_layout_maps_team_stages_and_cache_tracks_package_code(tmp_path: Path) -
     (source / "module.py").write_text("A = 2", encoding="utf-8")
     assert stage_key(agent, tmp_path) != before
     assert FRONTEND.spec.gate_commands  # в бою сборку проверяет шлюз платформы
+
+
+def test_mobile_llm_bridge_goes_through_platform_client() -> None:
+    llm = FakeLLM(["экраны"])
+    bridge = MobileLLM(llm)
+    reply = bridge.chat(
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], max_tokens=100
+    )
+    assert reply.text == "экраны"
+    assert bridge.usage.calls == 1
+    request = llm.calls[0]
+    assert request.profile == "CODE"
+    assert [m.role for m in request.messages] == ["system", "user"]
+
+
+def test_android_coder_skips_when_mobile_not_needed(tmp_path: Path) -> None:
+    llm = FakeLLM([])
+    ctx = _context(tmp_path, llm)
+    (ctx.input_dir / "01_requirements").mkdir()
+    (ctx.input_dir / "01_requirements" / "profile.json").write_text(
+        '{"needs_mobile_app": false}', "utf-8"
+    )
+    result = ANDROID.run(ctx)
+    assert result.status == StageStatus.passed
+    assert (ctx.output_dir / "README.md").is_file()
+    assert not llm.calls  # модель не вызывалась
+
+
+def test_android_coder_without_ux_spec_fails_cleanly(tmp_path: Path) -> None:
+    ctx = _context(tmp_path, FakeLLM([]))
+    result = ANDROID.run(ctx)  # профиля нет — строим, но спеки экранов нет
+    assert result.status == StageStatus.failed
+    assert result.gate is not None
+    assert "screen-spec.android.json" in result.gate.diagnostics[0].message
+
+
+def test_qa_without_stand_reports_and_publishes_ci(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPECFORGE_QA_STAND", "off")
+    monkeypatch.setattr("shutil.which", lambda _name: None)  # сканеров нет — пропускаются
+    ctx = _context(tmp_path, FakeLLM([]))
+    result = QA.run(ctx)
+    assert result.status == StageStatus.passed, result.summary
+    for name in ("security.json", "report.md", "ci/security.gitlab-ci.yml", "e2e/route_e2e.py"):
+        assert (ctx.output_dir / name).is_file(), name
+    assert result.gate is not None
+    assert any(d.severity == "warning" for d in result.gate.diagnostics)  # стенд не поднимался
+    layout = RepoLayout.load()
+    assert (
+        layout.place("07_tests", "ci/tests.gitlab-ci.yml") == "reports/tests/ci/tests.gitlab-ci.yml"
+    )

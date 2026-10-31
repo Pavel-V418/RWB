@@ -1,0 +1,184 @@
+{
+  "name": "case1-demo: Невский проспект, две соседние зоны",
+  "vehicleId": "0192f000-0000-7000-8000-00000000de01",
+  "baseTime": "2026-10-31T09:00:00+03:00",
+  "sampleSec": 1,
+  "jitterM": 3,
+  "seed": 7,
+  "accuracyM": 5,
+  "_comment_eventTypes": "Имена событий — как в журнале стенда (GET /events, enum EventType участника 3). Код генератора их не знает.",
+  "eventTypes": {
+    "zoneEntered": "ZoneEntered",
+    "zoneExited": "ZoneExited",
+    "zoneChanged": "ZoneChanged",
+    "sessionStarted": "SessionStarted",
+    "sessionExtended": "SessionExtended",
+    "sessionExpiring": "SessionExpiringSoon",
+    "sessionExpired": "SessionExpired",
+    "sessionClosed": "SessionClosed"
+  },
+  "optionalEvents": [],
+  "_comment_pointFieldMap": "Сверено со схемой PositionPoint (участник 3): headingDeg, лишние поля дают 400",
+  "pointFieldMap": {
+    "lat": "lat",
+    "lon": "lon",
+    "recordedAt": "recordedAt",
+    "speedKmh": "speedKmh",
+    "heading": "headingDeg",
+    "accuracyM": "accuracyM"
+  },
+  "timer": {
+    "warnBeforeSec": 600
+  },
+  "toleranceSec": {
+    "geo": 5,
+    "action": 5,
+    "timer": 30
+  },
+  "start": [
+    30.315,
+    59.9362
+  ],
+  "legs": [
+    {
+      "_comment": "0: от Адмиралтейства по Невскому, поворот к Казанской пл., 2",
+      "via": [
+        [
+          30.3243,
+          59.9348
+        ]
+      ],
+      "to": [
+        30.324293,
+        59.933766
+      ],
+      "speedKmh": 30
+    },
+    {
+      "_comment": "1: стоянка 17 мин в зоне 514725",
+      "dwellSec": 1020
+    },
+    {
+      "_comment": "2: на Невский, до Садовой, к Садовой ул., 17 (смена зоны)",
+      "via": [
+        [
+          30.3243,
+          59.9348
+        ],
+        [
+          30.3337,
+          59.9343
+        ]
+      ],
+      "to": [
+        30.333802,
+        59.933633
+      ],
+      "speedKmh": 20
+    },
+    {
+      "_comment": "3: стоянка 3 мин в зоне 514660",
+      "dwellSec": 180
+    },
+    {
+      "_comment": "4: на Невский и к Аничкову мосту (выезд из зоны)",
+      "via": [
+        [
+          30.3337,
+          59.9343
+        ]
+      ],
+      "to": [
+        30.3434,
+        59.933
+      ],
+      "speedKmh": 30
+    },
+    {
+      "_comment": "5: пауза в конце, чтобы добежали последние события",
+      "dwellSec": 30
+    }
+  ],
+  "actions": [
+    {
+      "type": "startSession",
+      "leg": 1,
+      "offsetSec": 20,
+      "paidMinutes": 15
+    },
+    {
+      "type": "extendSession",
+      "leg": 1,
+      "offsetSec": 120,
+      "addMinutes": 10
+    }
+  ],
+  "vehiclePlate": "А001АА178",
+  "requestBody": {
+    "source": "mock"
+  },
+  "_comment_zones": "Зоны берутся из сида участника 3: линия бордюра + detectionRadiusM. id = externalZoneId.",
+  "zonesFrom": {
+    "file": "../seed/demo-zones.geojson",
+    "idProp": "externalZoneId",
+    "nameProp": "displayName",
+    "radiusProp": "detectionRadiusM"
+  },
+  "notificationKinds": {
+    "zoneEntered": "zone_entered",
+    "zoneExited": "zone_exited",
+    "zoneChanged": "zone_changed",
+    "sessionStarted": "session_paid",
+    "sessionExpiring": "session_expiring",
+    "sessionExpired": "session_expired"
+  },
+  "_comment_zoneRules": "Правила backend (участник 3, AC-FR-7/8, UC_005): зона меняется после 2 подряд согласных точек; выезд → ZoneExited и закрытие сессии (zone_exit); въезд в другую зону ≤300 с после выезда → ZoneChanged.",
+  "zoneRules": {
+    "confirmPoints": 2,
+    "changeAfterExitSec": 300,
+    "exitBeforeChange": true,
+    "closeSessionOnExit": "zone_exit"
+  },
+  "_comment_requirementTags": "Требования кейса для каждого шага e2e (матрица трассируемости участника 2).",
+  "requirementTags": {
+    "positions": [
+      "FR-1",
+      "FR-6",
+      "FR-18"
+    ],
+    "zoneEntered": [
+      "FR-2",
+      "FR-13"
+    ],
+    "sessionStarted": [
+      "FR-19",
+      "FR-5"
+    ],
+    "sessionExtended": [
+      "FR-19",
+      "FR-14"
+    ],
+    "sessionExpiring": [
+      "FR-9"
+    ],
+    "zoneExited": [
+      "FR-7"
+    ],
+    "sessionClosed": [
+      "FR-5",
+      "FR-7"
+    ],
+    "zoneChanged": [
+      "FR-8",
+      "FR-10"
+    ],
+    "journal": [
+      "FR-20",
+      "FR-15"
+    ],
+    "notifications": [
+      "FR-13",
+      "FR-10"
+    ]
+  }
+}

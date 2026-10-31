@@ -1,0 +1,24 @@
+# Тесты участника 5: контрактные проверки API на развёрнутом стенде.
+# Подключается автоматически (include + rules: exists, участник 3). Раннер: shell на vm5, тег vm5.
+# e2e-сценарии (07_tests/e2e/*.py) запускает задача участника 3 в стадии e2e.
+#
+# Переменные CI/CD (masked): CONTRACT_PASSWORD_DRIVER, CONTRACT_PASSWORD_ADMIN — пароли учёток стенда.
+
+variables:
+  TESTS_OUT: artifacts/07_tests
+  REQUIREMENTS_JSON: artifacts/01_requirements/requirements.json
+
+tests:contract:
+  stage: e2e
+  tags: [vm5]
+  needs: []
+  script:
+    # спека — с самого стенда: точно совпадает с развёрнутым backend и не требует pyyaml
+    - python3 -m tools.contract.run --openapi "$STAND_URL/swagger/v1/swagger.json" --base "$STAND_URL"
+      --out "$TESTS_OUT" --user driver=driver.demo --user admin=admin --requirements "$REQUIREMENTS_JSON"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [$TESTS_OUT/contract-junit.xml, $TESTS_OUT/contract.json, $TESTS_OUT/raw/contract.sarif]
+    reports:
+      junit: $TESTS_OUT/contract-junit.xml

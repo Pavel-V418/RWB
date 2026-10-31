@@ -1,0 +1,104 @@
+{
+  "scenario": "case1-demo: Невский проспект, две соседние зоны",
+  "vehicleId": "0192f000-0000-7000-8000-00000000de01",
+  "durationSec": 1516.0,
+  "sampleSec": 1,
+  "orderCheck": [
+    "ZoneEntered",
+    "SessionStarted",
+    "SessionExtended",
+    "SessionExpiringSoon",
+    "ZoneExited",
+    "SessionClosed",
+    "ZoneChanged",
+    "ZoneExited"
+  ],
+  "events": [
+    {
+      "logical": "zoneEntered",
+      "type": "ZoneEntered",
+      "atSec": 78.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "zoneId": "514725"
+      }
+    },
+    {
+      "logical": "sessionStarted",
+      "type": "SessionStarted",
+      "atSec": 99.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "zoneId": "514725",
+        "paidUntilSec": 999.0
+      }
+    },
+    {
+      "logical": "sessionExtended",
+      "type": "SessionExtended",
+      "atSec": 199.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "paidUntilSec": 1599.0,
+        "addMinutes": 10
+      }
+    },
+    {
+      "logical": "sessionExpiring",
+      "type": "SessionExpiringSoon",
+      "atSec": 999.0,
+      "toleranceSec": 30,
+      "required": true,
+      "data": {
+        "paidUntilSec": 1599.0,
+        "minutesLeft": 10
+      }
+    },
+    {
+      "logical": "zoneExited",
+      "type": "ZoneExited",
+      "atSec": 1104.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "zoneId": "514725"
+      }
+    },
+    {
+      "logical": "sessionClosed",
+      "type": "SessionClosed",
+      "atSec": 1104.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "reason": "zone_exit"
+      }
+    },
+    {
+      "logical": "zoneChanged",
+      "type": "ZoneChanged",
+      "atSec": 1225.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "fromZoneId": "514725",
+        "toZoneId": "514660",
+        "requiresPaymentCheck": true
+      }
+    },
+    {
+      "logical": "zoneExited",
+      "type": "ZoneExited",
+      "atSec": 1413.0,
+      "toleranceSec": 5,
+      "required": true,
+      "data": {
+        "zoneId": "514660"
+      }
+    }
+  ],
+  "note": "atSec — секунды сценария от первой точки. Реальное время = atSec / TIME_SCALE."
+}

@@ -19,7 +19,10 @@ stages:
   04_backend: 04_backend/                   # backend_coder (участник 3): имя каталога сохраняется —
                                             # на него ссылаются .gitlab-ci.yml и compose (../04_backend)
   05_web: web/                              # frontend_coder: web/admin — Angular-проект
-  06_android: android/
+  06_android:                               # android_coder (участник 5): проект — android/project/,
+    dir: android/                           # снимки — android/screenshots/; служебное — не публикуется
+    exclude: [gate_report.json, agent_log.json, plan.json, "llm/*", "project/build/*",
+              "project/app/build/*", "project/.gradle/*", "project/.kotlin/*", project/local.properties]
   07_tests: reports/tests/                  # отчёты тестов и безопасности (JUnit, SARIF, Trivy)
   08_infra:                                 # devops (участник 3): compose остаётся в 08_infra/
     dir: 08_infra/                          # (относительные пути ./db-init, ../04_backend), в корень —

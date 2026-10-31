@@ -1,0 +1,24 @@
+# sha256 замороженных файлов каркаса. Пересоздать: android_gate.py <dir> --freeze
+a349a5ea4dfac94c834bc8732bd199f187d3830a03f02b93faced946cf45ee4e  app/build.gradle.kts
+728cf9aca8ac031e052de4554e36796cd4e36a677ff8d5e7a92baf2c31ed12e8  app/src/main/AndroidManifest.xml
+eb5f1bba9a1e28dabf63e17e31750b4d62cba503375a8a5e005a42fb00df7355  app/src/main/kotlin/com/specforge/app/App.kt
+929ea6d158919d02e7374589eddb08ca0b4d805f998df51f4c9f960b37a5f78f  app/src/main/kotlin/com/specforge/app/MainActivity.kt
+9f361d5cb3a8d2b4842552786e9642048a34e3560244094a19e1f920b9bcbabc  app/src/main/kotlin/com/specforge/app/core/auth/TokenStore.kt
+dd03206a20f76e80505f5217e1c251648bac548f90d68e8c77f80d036abe6481  app/src/main/kotlin/com/specforge/app/core/config/AppConfig.kt
+6e4f729896aed83304dd36814e4f0f537cdc5bfb1eeb39d645ce178f9dec94d8  app/src/main/kotlin/com/specforge/app/core/di/AppContainer.kt
+2955c71e8792ff393581a5ab1295aa845a88ba9c6a02d26ccff0966ab73dd4be  app/src/main/kotlin/com/specforge/app/core/location/FusedLocationSource.kt
+0eab976287728abdbdf5be8bb9ab69985dd2cf0fb4307494fefe8400ba8bf315  app/src/main/kotlin/com/specforge/app/core/location/LocationSource.kt
+ebdf6970caabad3b6edf6d9d0de7d5e9002b22cda67b091cab542490dd4cb5ce  app/src/main/kotlin/com/specforge/app/core/location/MockRouteLocationSource.kt
+a3e40b1a6ebf6520290eb1d5e27310f677337dfa48ff1d78ea300b99f2845c4c  app/src/main/kotlin/com/specforge/app/core/network/HttpClients.kt
+48311116b05686e83c8e9c068aa7b92f8c4788aaae5c962e90a3d74b6dee8bba  app/src/main/kotlin/com/specforge/app/core/time/Countdown.kt
+2fadacdb8139cebd7e387197e4e1b64e42899f34ba9ccc77b3c82edbd832b17a  app/src/main/kotlin/com/specforge/app/core/tracking/Notifier.kt
+ff42c961f865e398729eca36c211449597099d19f6d21ca970bae09768f5a2c7  app/src/main/kotlin/com/specforge/app/core/tracking/PositionSink.kt
+ab6732351fe506642a867b6d3a19f627e02c06acfe1ee0133f20cbfc6eefdc84  app/src/main/kotlin/com/specforge/app/core/tracking/TrackingService.kt
+b1cd900b01db57e284377e729cc71f872afa6706815bd30617144dbfc6fc24aa  app/src/main/kotlin/com/specforge/app/core/ui/StateContainer.kt
+5cac6eeb9a4fcecbac5aaa8058d697afbe2eb574c30b60497231c842698b59f8  app/src/main/kotlin/com/specforge/app/core/ui/UiState.kt
+eb76aac255867529ac07e424026d6185774805dca2bb6837ec16379cff40ff90  app/src/main/kotlin/com/specforge/app/core/ui/theme/Theme.kt
+606f1df874467342a5818cea05b58bb15211aec13a99a57ceba2a293ef42a795  app/src/main/res/xml/network_security_debug.xml
+8bbbddb16cb60bc1767fb4cb5bca588e5b544c32c1ac9dbe62dea7e148f14687  app/src/main/res/xml/network_security_release.xml
+39861cc0b5739ab2f5f7932d8deb6777f4ec7f0d60886b11b2dfc01d1e3dcd5a  build.gradle.kts
+1b0c172417b88ca11c1990fecdac85c0fec226f06471a3df7f32f59ecb3131af  gradle/libs.versions.toml
+1bde2a4589fc9c1e42c27b2facffa7f9fcc410efcb521be1555c2b339a06befb  settings.gradle.kts

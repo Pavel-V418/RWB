@@ -1,0 +1,68 @@
+# Свои правила под типовые SEC-требования (без доменных слов). Категория требования — в metadata.cwe.
+rules:
+  - id: log-of-secret-or-token
+    languages: [kotlin, java]
+    severity: ERROR
+    message: В лог попадает токен/пароль/ключ — секреты и персональные данные не должны логироваться
+    metadata: {cwe: "CWE-532: Insertion of Sensitive Information into Log File", category: security}
+    patterns:
+      - pattern-either:
+          - pattern: Log.$L(..., <... $X ...>, ...)
+          - pattern: println(<... $X ...>)
+          - pattern: Timber.$L(..., <... $X ...>, ...)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i).*(password|passwd|token|secret|apikey|api_key|authorization).*
+
+  - id: py-log-of-secret-or-token
+    languages: [python]
+    severity: ERROR
+    message: В лог/вывод попадает токен/пароль/ключ
+    metadata: {cwe: "CWE-532: Insertion of Sensitive Information into Log File", category: security}
+    patterns:
+      - pattern-either:
+          - pattern: print(..., <... $X ...>, ...)
+          - pattern: logging.$L(..., <... $X ...>, ...)
+          - pattern: $LOG.$L(..., <... $X ...>, ...)
+      - metavariable-regex:
+          metavariable: $L
+          regex: ^(print|debug|info|warning|warn|error|exception|critical|log)$
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i).*(password|passwd|api_key|apikey|secret|access_token).*
+
+  - id: okhttp-body-logging
+    languages: [kotlin, java]
+    severity: WARNING
+    message: HttpLoggingInterceptor с уровнем BODY/HEADERS пишет токены и тела запросов в logcat
+    metadata: {cwe: "CWE-532: Insertion of Sensitive Information into Log File", category: security}
+    pattern-either:
+      - pattern: HttpLoggingInterceptor.Level.BODY
+      - pattern: HttpLoggingInterceptor.Level.HEADERS
+
+  - id: tls-verification-disabled
+    languages: [kotlin, java]
+    severity: ERROR
+    message: Отключена проверка TLS-сертификата/имени хоста
+    metadata: {cwe: "CWE-295: Improper Certificate Validation", category: security}
+    pattern-either:
+      - pattern: "hostnameVerifier { $A, $B -> true }"
+      - pattern: "HostnameVerifier { $A, $B -> true }"
+      - pattern: "override fun checkServerTrusted(...) {}"
+
+  - id: py-requests-verify-false
+    languages: [python]
+    severity: ERROR
+    message: Запрос без проверки TLS-сертификата (verify=False)
+    metadata: {cwe: "CWE-295: Improper Certificate Validation", category: security}
+    pattern: requests.$M(..., verify=False, ...)
+
+  - id: android-cleartext-traffic
+    languages: [generic]
+    paths: {include: ["*AndroidManifest.xml", "*network_security*.xml"]}
+    severity: WARNING
+    message: Разрешён незашифрованный HTTP — в release-сборке трафик должен идти только по TLS
+    metadata: {cwe: "CWE-319: Cleartext Transmission of Sensitive Information", category: security}
+    pattern-either:
+      - pattern: android:usesCleartextTraffic="true"
+      - pattern: cleartextTrafficPermitted="true"

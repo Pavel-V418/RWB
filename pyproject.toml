@@ -30,6 +30,7 @@ dependencies = [
     "specforge-analysis",
     "specforge-web",
     "specforge-backend",
+    "specforge-mobile",
 ]
 
 [tool.uv.workspace]
@@ -39,6 +40,7 @@ members = ["packages/*"]
 specforge-analysis = { workspace = true }
 specforge-web = { workspace = true }
 specforge-backend = { workspace = true }
+specforge-mobile = { workspace = true }
 
 [project.scripts]
 specforge = "specforge.cli:app"
@@ -90,7 +92,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = [
     "specforge_analysis", "specforge_analysis.*", "specforge_web", "specforge_web.*",
-    "specforge_backend", "specforge_backend.*",
+    "specforge_backend", "specforge_backend.*", "specforge_mobile", "specforge_mobile.*",
 ]
 ignore_missing_imports = true
 follow_imports = "skip"
@@ -106,6 +108,7 @@ testpaths = [
     "packages/specforge-analysis/tests",
     "packages/specforge-web/specforge_web/tests",
     "packages/specforge-backend/tests",
+    "packages/specforge-mobile/specforge_mobile",
 ]
 # importlib: у пакетов команды свои tests/ с совпадающими именами модулей
 addopts = "-ra --import-mode=importlib"

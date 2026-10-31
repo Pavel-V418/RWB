@@ -1,0 +1,29 @@
+{
+  "_comment": "ЧЕРНОВИК участника 5 для отладки Android-агента. Заменить на спеку участника 4, когда придёт.",
+  "platform": "android",
+  "screens": [
+    {
+      "screenId": "login",
+      "title": "Вход",
+      "states": ["ready", "error"],
+      "elements": [
+        {"testTag": "login-field-login", "type": "textField", "label": "Логин"},
+        {"testTag": "login-field-password", "type": "passwordField", "label": "Пароль"},
+        {"testTag": "login-submit", "type": "button", "label": "Войти"}
+      ],
+      "navigatesTo": ["session"]
+    },
+    {
+      "screenId": "session",
+      "title": "Парковка",
+      "states": ["ready", "loading", "empty", "error", "forbidden"],
+      "elements": [
+        {"testTag": "session-tracking", "type": "switch", "label": "Отслеживание"},
+        {"testTag": "session-zone", "type": "card", "label": "Текущая зона и тариф"},
+        {"testTag": "session-start", "type": "button", "label": "Начать сессию"},
+        {"testTag": "session-extend", "type": "button", "label": "Продлить"},
+        {"testTag": "session-countdown", "type": "text", "label": "Обратный отсчёт до конца оплаты"}
+      ]
+    }
+  ]
+}

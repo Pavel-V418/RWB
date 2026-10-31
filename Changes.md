@@ -51,3 +51,55 @@
 ## Что нужно на хосте конвейера
 
 `backend_coder` и `devops` вызывают `dotnet` (SDK 10) и `docker compose` напрямую на хосте, а не в песочнице платформы. Без них этап завершится `failed`/`degraded` с понятной диагностикой, конвейер пойдёт дальше. На vm5 .NET лежит в `~/.dotnet` (нужны `DOTNET_ROOT` и `PATH`).
+
+---
+
+# Changes — интеграция части участника 5 (Android, тесты, безопасность), 31.10
+
+Подключено по `docs/INTEGRATION-participant5.pdf` тем же путём, что части участников 2, 3 и 4: пакет в
+`packages/` и тонкие адаптеры в `agents/`. Код участников 2, 3 и 4 не менялся, кроме одной строки CI
+участника 3 (ниже).
+
+## Новое
+
+| Путь | Что |
+|---|---|
+| `packages/specforge-mobile/` | Часть участника 5 целиком: Android-агент, шлюз Gradle и генератор скриншот-тестов, контрактные тесты, e2e, генератор маршрута, security-контур, каркас Android (`android/`), эталон кейса 1 (`reference/`), образ сборки (`infra/android/`), документы участника (`docs/`). Python-пакет переименован `agents.android_agent` → `specforge_mobile.android_agent`, `tools.*` → `specforge_mobile.tools.*` (конфликт с `agents/` и `tools` платформы). Тесты — 42, без Gradle, Docker и стенда. |
+| `packages/specforge-mobile/specforge_mobile/android_agent/toolchain.py` | Где собирать: образ `specforge/android:jdk21-api36` (без сети, лимиты, не root; пути `/work` в логе → пути хоста), локальный Gradle или нечем — тогда код генерируется без ремонтов вслепую и этап честно `degraded`. |
+| `packages/specforge-mobile/specforge_mobile/qa.py` | Этап `07_tests` целиком: security-контур по дереву артефактов → стенд из `08_infra` (если есть Docker) → контракт из OpenAPI и e2e по сценарию → стенд гасится → файлы CI продукта. |
+| `packages/specforge-mobile/ci/` | CI продукта под раскладку публикатора: `tests.gitlab-ci.yml`, `security.gitlab-ci.yml` (пути `reports/tests`, `analysis/requirements`, `analysis/system`, код — `PYTHONPATH=reports/tests`), `e2e/route_e2e.py`. Исходные файлы участника 5 — `docs/original-ci/`. |
+| `agents/android_coder/` | Адаптер, этап `06_android`, `depends_on=["system_architect", "ux_designer"]`. Приложение — только если `profile.json → needs_mobile_app` (проверка при запуске, не `enabled_if`: иначе `tech_writer` был бы заблокирован выключенным этапом). Kotlin-клиент — генератором участника 3 (`gen-clients.sh`, `CLIENTS=kotlin`); не вышло — клиент каркаса и предупреждение. |
+| `agents/qa/` | Адаптер, этап `07_tests`, `depends_on=["backend_coder", "devops"]`. |
+| `agents/_team/mobile.py` | Мост: `MobileLLM.chat(messages, **opts) -> LLMReply` поверх `ctx.llm` (профиль CODE, без thinking) — для Android-агента и LLM-триажа находок. |
+
+## Изменено в общих файлах
+
+| Файл | Изменение | Почему |
+|---|---|---|
+| `pyproject.toml` | `specforge-mobile` в `dependencies`, `[tool.uv.sources]`, `testpaths`, mypy-override | как у остальных пакетов |
+| `uv.lock` | добавлен workspace-пакет `specforge-mobile` (зависимость — только `pyyaml`, уже в lock); `uv lock --check` проходит | при `uv sync` пересоберётся сам, если что |
+| `config/repo_layout.yaml` | `06_android` → `android/` с `exclude`: служебные файлы агента (`gate_report.json`, `agent_log.json`, `plan.json`, сырые ответы `llm/*`) и результаты Gradle (`project/build`, `project/app/build`, `.gradle`, `.kotlin`, `local.properties`) | в продуктовый репозиторий — исходники и снимки, не сотни МБ сборки |
+| `agents/tech_writer/agent.py` | `depends_on` += `android_coder`, `qa` | документация собирается после них и видит `06_android/screenshots`, `07_tests/**` (§6 п.1 инструкции участника 3) |
+| `tests/test_team_agents.py` | в сквозной прогон добавлены `NoGradleAndroid`, `NoStandQa`; тесты моста `MobileLLM`, пропуска `android_coder` без мобильного приложения, отказа без UX-спеки, `qa` без стенда и раскладки `07_tests` | по образцу `NoDotnetBackend` / `NoDockerDevOps` |
+| `packages/specforge-backend/templates/ci/gitlab-ci.yml` | `stand:smoke` запускает `reports/tests/e2e/*.py` и `07_tests/e2e/*.py` | так требует инструкция участника 3 (§5): в опубликованном репозитории e2e лежит в `reports/tests/e2e` |
+| `docs/AGENT_SDK.md` §13 | строки участников 3 и 5 в таблице частей, план графа, мосты, `tool` диагностик | таблица была только про участников 2 и 4 |
+
+## Настройки хоста конвейера
+
+`SPECFORGE_ANDROID_GATE` (`auto` / `docker` / `local` / `none`), `SPECFORGE_ANDROID_IMAGE`, `ANDROID_APP_ID`,
+`SPECFORGE_QA_STAND` (`auto` / `on` / `off`), `STAND_URL`, `SPECFORGE_QA_USERS` (`роль=логин,…`, пароли —
+`CONTRACT_PASSWORD_<РОЛЬ>`), `E2E_SCENARIO`. Подробно — `packages/specforge-mobile/README.md`. Образ сборки:
+`docker build -f packages/specforge-mobile/infra/android/Dockerfile -t specforge/android:jdk21-api36 packages/specforge-mobile`
+(на vm5 он уже есть). Для кейса 1: `SPECFORGE_QA_USERS=driver=driver.demo,admin=admin`,
+`E2E_SCENARIO=packages/specforge-mobile/reference/case1/mock_route/scenario.json`.
+
+## Что проверено и что нет
+
+Проверено в среде без доступа к PyPI: тесты частей — `specforge-mobile` 42, `specforge-analysis` 67, `specforge-backend`
+3 (ещё 5 требуют `dotnet` и падают так же на исходной версии); совместимость `security.json` с модулем участника 2;
+скопированный в `07_tests` код запускается из раскладки опубликованного репозитория; `ruff check .` и
+`ruff format --check` по `agents/` и `tests/` — чисто; `mypy --strict` по новым адаптерам — ошибок нет (13 ошибок —
+только отсутствующие в этой среде зависимости платформы, как и у адаптеров участника 3); `uv lock --check`.
+
+**Не проверено (нужен `uv sync`):** `uv run pytest -q` всей платформы, включая `tests/test_team_agents.py`,
+`uv run mypy specforge agents`, `uv run specforge doctor`. Запустить на vm5 перед отправкой в `main`.

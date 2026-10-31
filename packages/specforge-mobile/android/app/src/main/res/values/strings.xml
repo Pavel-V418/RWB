@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Все тексты экранов — здесь. app_name задаётся в gradle.properties (specforge.appName). -->
+<resources>
+    <string name="login_title">Вход</string>
+    <string name="login_field_login">Логин</string>
+    <string name="login_field_password">Пароль</string>
+    <string name="login_submit">Войти</string>
+    <string name="login_busy">Входим…</string>
+
+    <string name="session_vehicle_unknown">Автомобиль</string>
+    <string name="session_tracking_on">Отслеживание включено</string>
+    <string name="session_tracking_off">Отслеживание выключено</string>
+    <string name="session_no_zone">Вы вне платной зоны</string>
+    <string name="session_zone_label">Текущая зона</string>
+    <string name="session_paid_until">Оплачено до %1$s</string>
+    <string name="session_expiring_warning">Оплаченное время заканчивается — продлите сессию</string>
+    <string name="session_extend">Продлить на %1$d мин</string>
+    <string name="session_choose_duration">На сколько оплатить</string>
+    <string name="session_minutes">%1$d мин</string>
+    <string name="session_start">Начать сессию</string>
+    <string name="session_pay_hint">Оплата через приложение банка</string>
+</resources>

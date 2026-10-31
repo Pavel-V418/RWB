@@ -1,0 +1,329 @@
+asyncapi: 3.0.0
+info:
+  title: Case 1 — события сервиса парковки
+  version: 1.0.0
+  description: |
+    Эталон кейса №1 (участник 5). Сверяется с AsyncAPI, который выдаёт агент архитектора (участник 2).
+
+    Правила:
+    - Имя события: `домен.объект.действие`. Топик Kafka = `{prefix}` + имя события, например `dev.parking.zone.entered`.
+    - Ключ партиции — `vehicleId`: все события одной машины идут по порядку.
+    - Все события в общей оболочке `EventEnvelope`, полезная нагрузка — в поле `payload`.
+    - Потребитель после 5 неудачных попыток обработки отправляет событие в `<topic>.dlq`.
+    - Позиции машины идут через REST `POST /api/v1/vehicles/{vehicleId}/positions` и в Kafka не публикуются.
+
+    TODO(участники 2, 3): поле полезной нагрузки называется `payload` (как в backend) или `data` (как в эталоне аналитика) — свести к одному.
+  tags:
+    - name: zone
+    - name: session
+
+defaultContentType: application/json
+
+servers:
+  kafka:
+    host: 'kafka:9092'
+    protocol: kafka
+    description: Брокер стенда (docker-compose участника 3)
+
+channels:
+  zoneEntered:
+    address: parking.zone.entered
+    title: Въезд в зону
+    messages:
+      zoneEntered: { $ref: '#/components/messages/zoneEntered' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  zoneExited:
+    address: parking.zone.exited
+    title: Выезд из зоны
+    messages:
+      zoneExited: { $ref: '#/components/messages/zoneExited' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  zoneChanged:
+    address: parking.zone.changed
+    title: Переезд в соседнюю зону
+    messages:
+      zoneChanged: { $ref: '#/components/messages/zoneChanged' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  sessionStarted:
+    address: parking.session.started
+    title: Сессия начата
+    messages:
+      sessionStarted: { $ref: '#/components/messages/sessionStarted' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  sessionExtended:
+    address: parking.session.extended
+    title: Сессия продлена
+    messages:
+      sessionExtended: { $ref: '#/components/messages/sessionExtended' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  sessionExpiring:
+    address: parking.session.expiring
+    title: Скоро окончание оплаты
+    description: Публикует фоновый Worker за `minutesLeft` минут до `paidUntil` (по умолчанию 10).
+    messages:
+      sessionExpiring: { $ref: '#/components/messages/sessionExpiring' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  sessionExpired:
+    address: parking.session.expired
+    title: Оплаченное время истекло
+    messages:
+      sessionExpired: { $ref: '#/components/messages/sessionExpired' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+  sessionClosed:
+    address: parking.session.closed
+    title: Сессия закрыта
+    messages:
+      sessionClosed: { $ref: '#/components/messages/sessionClosed' }
+    bindings: { $ref: '#/components/channelBindings/kafkaTopic' }
+
+operations:
+  publishZoneEntered:
+    action: send
+    channel: { $ref: '#/channels/zoneEntered' }
+    messages: [{ $ref: '#/channels/zoneEntered/messages/zoneEntered' }]
+  publishZoneExited:
+    action: send
+    channel: { $ref: '#/channels/zoneExited' }
+    messages: [{ $ref: '#/channels/zoneExited/messages/zoneExited' }]
+  publishZoneChanged:
+    action: send
+    channel: { $ref: '#/channels/zoneChanged' }
+    messages: [{ $ref: '#/channels/zoneChanged/messages/zoneChanged' }]
+  publishSessionStarted:
+    action: send
+    channel: { $ref: '#/channels/sessionStarted' }
+    messages: [{ $ref: '#/channels/sessionStarted/messages/sessionStarted' }]
+  publishSessionExtended:
+    action: send
+    channel: { $ref: '#/channels/sessionExtended' }
+    messages: [{ $ref: '#/channels/sessionExtended/messages/sessionExtended' }]
+  publishSessionExpiring:
+    action: send
+    channel: { $ref: '#/channels/sessionExpiring' }
+    messages: [{ $ref: '#/channels/sessionExpiring/messages/sessionExpiring' }]
+  publishSessionExpired:
+    action: send
+    channel: { $ref: '#/channels/sessionExpired' }
+    messages: [{ $ref: '#/channels/sessionExpired/messages/sessionExpired' }]
+  publishSessionClosed:
+    action: send
+    channel: { $ref: '#/channels/sessionClosed' }
+    messages: [{ $ref: '#/channels/sessionClosed/messages/sessionClosed' }]
+
+components:
+  channelBindings:
+    kafkaTopic:
+      kafka:
+        partitions: 3
+        replicas: 1
+        bindingVersion: '0.5.0'
+
+  messageBindings:
+    byVehicle:
+      kafka:
+        key:
+          type: string
+          description: vehicleId
+        bindingVersion: '0.5.0'
+
+  messages:
+    zoneEntered:
+      name: parking.zone.entered
+      title: Въезд в зону
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.zone.entered }
+              payload: { $ref: '#/components/schemas/ZoneEnteredPayload' }
+      examples:
+        - name: demo
+          payload:
+            eventId: 3f2b8a8e-6d1a-4c55-9a0e-1c1f2b3a4d5e
+            type: parking.zone.entered
+            version: 1
+            occurredAt: '2026-10-31T09:00:46Z'
+            source: parking-api
+            partitionKey: veh-demo-001
+            payload:
+              vehicleId: veh-demo-001
+              zoneId: Z-NEV-KAZ
+              zoneName: Невский — Казанский собор
+              position: { lat: 59.9351, lon: 30.3216 }
+    zoneExited:
+      name: parking.zone.exited
+      title: Выезд из зоны
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.zone.exited }
+              payload: { $ref: '#/components/schemas/ZoneExitedPayload' }
+    zoneChanged:
+      name: parking.zone.changed
+      title: Переезд в соседнюю зону
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.zone.changed }
+              payload: { $ref: '#/components/schemas/ZoneChangedPayload' }
+    sessionStarted:
+      name: parking.session.started
+      title: Сессия начата
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.session.started }
+              payload: { $ref: '#/components/schemas/SessionStartedPayload' }
+    sessionExtended:
+      name: parking.session.extended
+      title: Сессия продлена
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.session.extended }
+              payload: { $ref: '#/components/schemas/SessionExtendedPayload' }
+    sessionExpiring:
+      name: parking.session.expiring
+      title: Скоро окончание оплаты
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.session.expiring }
+              payload: { $ref: '#/components/schemas/SessionExpiringPayload' }
+    sessionExpired:
+      name: parking.session.expired
+      title: Оплаченное время истекло
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.session.expired }
+              payload: { $ref: '#/components/schemas/SessionExpiredPayload' }
+    sessionClosed:
+      name: parking.session.closed
+      title: Сессия закрыта
+      bindings: { $ref: '#/components/messageBindings/byVehicle' }
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              type: { const: parking.session.closed }
+              payload: { $ref: '#/components/schemas/SessionClosedPayload' }
+
+  schemas:
+    EventEnvelope:
+      type: object
+      description: Общая оболочка всех событий (формат backend, участник 3).
+      required: [eventId, type, version, occurredAt, source, partitionKey, payload]
+      properties:
+        eventId: { type: string, format: uuid, description: Уникален, используется для идемпотентной обработки }
+        type: { type: string, pattern: '^[a-z]+\.[a-z]+\.[a-z]+$', description: 'домен.объект.действие' }
+        version: { type: integer, minimum: 1 }
+        occurredAt: { type: string, format: date-time }
+        source: { type: string, description: Сервис-источник }
+        partitionKey: { type: string, description: Равен vehicleId }
+        payload: { type: object }
+
+    GeoPoint:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+
+    ZoneEnteredPayload:
+      type: object
+      required: [vehicleId, zoneId]
+      properties:
+        vehicleId: { type: string }
+        zoneId: { type: string }
+        zoneName: { type: string }
+        position: { $ref: '#/components/schemas/GeoPoint' }
+
+    ZoneExitedPayload:
+      type: object
+      required: [vehicleId, zoneId]
+      properties:
+        vehicleId: { type: string }
+        zoneId: { type: string }
+        sessionId: { type: string, format: uuid, description: Активная сессия на момент выезда, если есть }
+        position: { $ref: '#/components/schemas/GeoPoint' }
+
+    ZoneChangedPayload:
+      type: object
+      required: [vehicleId, fromZoneId, toZoneId, requiresPaymentCheck]
+      properties:
+        vehicleId: { type: string }
+        fromZoneId: { type: string }
+        toZoneId: { type: string }
+        sessionId: { type: string, format: uuid }
+        requiresPaymentCheck:
+          type: boolean
+          description: true — водителю отправляется уведомление «проверьте оплату в новой зоне» (шаг 8 демо)
+        position: { $ref: '#/components/schemas/GeoPoint' }
+
+    SessionStartedPayload:
+      type: object
+      required: [sessionId, vehicleId, zoneId, startedAt, paidUntil]
+      properties:
+        sessionId: { type: string, format: uuid }
+        vehicleId: { type: string }
+        zoneId: { type: string }
+        startedAt: { type: string, format: date-time }
+        paidUntil: { type: string, format: date-time }
+
+    SessionExtendedPayload:
+      type: object
+      required: [sessionId, vehicleId, previousPaidUntil, paidUntil]
+      properties:
+        sessionId: { type: string, format: uuid }
+        vehicleId: { type: string }
+        previousPaidUntil: { type: string, format: date-time }
+        paidUntil: { type: string, format: date-time }
+        extensionMinutes: { type: integer, minimum: 1 }
+
+    SessionExpiringPayload:
+      type: object
+      required: [sessionId, vehicleId, paidUntil, minutesLeft]
+      properties:
+        sessionId: { type: string, format: uuid }
+        vehicleId: { type: string }
+        paidUntil: { type: string, format: date-time }
+        minutesLeft: { type: integer, minimum: 0 }
+
+    SessionExpiredPayload:
+      type: object
+      required: [sessionId, vehicleId, paidUntil]
+      properties:
+        sessionId: { type: string, format: uuid }
+        vehicleId: { type: string }
+        paidUntil: { type: string, format: date-time }
+
+    SessionClosedPayload:
+      type: object
+      required: [sessionId, vehicleId, closedAt, reason]
+      properties:
+        sessionId: { type: string, format: uuid }
+        vehicleId: { type: string }
+        closedAt: { type: string, format: date-time }
+        reason: { type: string, enum: [user, zoneExited, expired, admin] }

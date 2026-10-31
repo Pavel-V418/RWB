@@ -1,0 +1,1176 @@
+openapi: 3.1.0
+info:
+  title: Parking Assistant API
+  version: 1.0.0
+  contact:
+    name: Команда RWB Hack, backend (участник 3)
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  summary: Помощник управления платными парковками Санкт-Петербурга (кейс №1)
+  description: |
+    Backend мобильного помощника водителя и административного web-интерфейса.
+
+    Соглашения:
+    - Версия API в пути: `/api/v1`.
+    - JSON в camelCase, время в ISO 8601 (UTC), деньги в копейках (integer).
+    - Координаты WGS84; в GeoJSON порядок `[lon, lat]`.
+    - Ошибки в формате RFC 9457 (`application/problem+json`).
+    - Аутентификация: JWT Bearer, роли `driver` и `admin`. Допустимые роли операции — `x-roles`
+      (дублируется стандартным `security: [{bearerAuth: [admin]}]`); `x-roles: []` — анонимный доступ.
+    - `x-idempotent: true` — операция требует заголовок `Idempotency-Key`.
+    - Критичные операции принимают заголовок `Idempotency-Key`.
+    - Ограничение частоты запросов: при превышении ответ `429` и заголовок `Retry-After`.
+    - Транспорт: HTTP/1.1, снаружи только HTTPS (TLS на reverse proxy). Обмен синхронный request-response;
+      изменения состояния дополнительно публикуются асинхронно: Kafka (между сервисами) и SignalR `/hubs/events` (в UI).
+    - Нахождение в зоне: расстояние от точки до геометрии зоны (линии вдоль улицы) не больше `detectionRadiusM`.
+servers:
+  - url: http://parking-api.local:8080
+    description: Локальный docker-compose (сервис api)
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: Аутентификация и профиль
+  - name: Zones
+    description: Справочник парковочных зон и тарифов
+  - name: Vehicles
+    description: Служебные автомобили
+  - name: Tracking
+    description: GPS-трек и определение зоны
+  - name: Sessions
+    description: Парковочные сессии
+  - name: Events
+    description: Журнал доменных событий
+  - name: Notifications
+    description: Уведомления водителю
+
+paths:
+  /api/v1/auth/tokens:
+    post:
+      tags: [Auth]
+      operationId: login
+      x-roles: []
+      x-idempotent: false
+      summary: Выпустить JWT по логину и паролю
+      description: Проверяет логин и пароль, возвращает JWT с ролью пользователя. Ограничен по частоте запросов.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Токен выдан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Текущий пользователь
+      description: Профиль владельца токена.
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/zones:
+    get:
+      tags: [Zones]
+      operationId: listZones
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Зоны в прямоугольнике карты (GeoJSON)
+      description: Возвращает FeatureCollection для отрисовки на карте. Параметр `bbox` обязателен, площадь ограничена.
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          description: 'minLon,minLat,maxLon,maxLat'
+          schema:
+            type: string
+            pattern: '^-?\d{1,3}(\.\d+)?,-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?,-?\d{1,2}(\.\d+)?$'
+            examples: ['30.29,59.95,30.32,59.96']
+        - name: city
+          in: query
+          schema: { $ref: '#/components/schemas/CityCode' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 2000, default: 500 }
+      responses:
+        '200':
+          description: Зоны
+          content:
+            application/geo+json:
+              schema: { $ref: '#/components/schemas/ZoneFeatureCollection' }
+              examples:
+                spbCenter:
+                  summary: Три зоны центра СПб из выгрузки Паркоматики (LineString и MultiLineString)
+                  value:
+                    type: FeatureCollection
+                    truncated: false
+                    features:
+                    - type: Feature
+                      id: 0192f000-0000-7000-8000-000000517641
+                      geometry:
+                        type: LineString
+                        coordinates:
+                        - [30.306661, 59.95537]
+                        - [30.307041, 59.955265]
+                      properties: {id: 0192f000-0000-7000-8000-000000517641, externalZoneId: '517641', city: spb, displayName: Введенская ул. д.22, basePriceKopecks: 28020, priceDescription: null, minTimeMinutes: 60, timeStepMinutes: 15}
+                    - type: Feature
+                      id: 0192f000-0000-7000-8000-000000520103
+                      geometry:
+                        type: MultiLineString
+                        coordinates:
+                        - - [30.336063, 59.933]
+                          - [30.335923, 59.932718]
+                        - - [30.336417, 59.933723]
+                          - [30.336062, 59.933]
+                      properties: {id: 0192f000-0000-7000-8000-000000520103, externalZoneId: '520103', city: spb, displayName: пл. Островского дом 1, basePriceKopecks: 36000, priceDescription: null, minTimeMinutes: 60, timeStepMinutes: 15}
+                    - type: Feature
+                      id: 0192f000-0000-7000-8000-000000522445
+                      geometry:
+                        type: LineString
+                        coordinates:
+                        - [30.330468, 59.935196]
+                        - [30.330709, 59.935707]
+                      properties: {id: 0192f000-0000-7000-8000-000000522445, externalZoneId: '522445', city: spb, displayName: Михайловская улица дом 1, basePriceKopecks: 36000, priceDescription: null, minTimeMinutes: 60,
+                        timeStepMinutes: 15}
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/zones/by-location:
+    get:
+      tags: [Zones]
+      operationId: lookupZone
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Определить зону по координатам
+      description: Ищет ближайшую активную зону, расстояние до геометрии которой не больше её detectionRadiusM.
+      parameters:
+        - { $ref: '#/components/parameters/Lat' }
+        - { $ref: '#/components/parameters/Lon' }
+      responses:
+        '200':
+          description: Результат поиска; `zone` = null, если точка вне платных зон
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ZoneLookupResult' }
+              examples:
+                insideZone:
+                  summary: Точка в 4 м от зоны 522445
+                  value:
+                    point: {lat: 59.9353, lon: 30.3306}
+                    zone: {id: 0192f000-0000-7000-8000-000000522445, externalZoneId: '522445', city: spb, displayName: Михайловская улица дом 1, basePriceKopecks: 36000, priceDescription: null, minTimeMinutes: 60, timeStepMinutes: 15}
+                    distanceM: 4.2
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/zones/{zoneId}:
+    get:
+      tags: [Zones]
+      operationId: getZone
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Карточка зоны с тарифами и геометрией
+      description: "Полная информация о зоне: геометрия, тарифные периоды по типам ТС, правила оплаты."
+      parameters:
+        - { $ref: '#/components/parameters/ZoneId' }
+      responses:
+        '200':
+          description: Зона
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ZoneDetails' }
+              examples:
+                mikhailovskaya:
+                  summary: Зона 522445, платно 08:00–20:00
+                  value:
+                    id: 0192f000-0000-7000-8000-000000522445
+                    externalZoneId: '522445'
+                    city: spb
+                    displayName: Михайловская улица дом 1
+                    basePriceKopecks: 36000
+                    priceDescription: null
+                    minTimeMinutes: 60
+                    timeStepMinutes: 15
+                    geometry:
+                      type: LineString
+                      coordinates:
+                      - [30.330468, 59.935196]
+                      - [30.330709, 59.935707]
+                    tariffPeriods:
+                    - {vehicleType: car, fromMinute: 480, toMinute: 1200, durationMinutes: null, priceKopecks: 36000}
+                    hasHolidays: true
+                    detectionRadiusM: 20
+                    isPaidNow: true
+                    lastSyncedAt: '2026-10-30T09:00:00Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/zones/{zoneId}/payment-link:
+    get:
+      tags: [Zones]
+      operationId: getZonePaymentLink
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Ссылка на официальный сервис оплаты для зоны
+      description: Формирует ссылку на официальный сервис оплаты парковки с номером зоны. Собственного платёжного механизма нет.
+      parameters:
+        - { $ref: '#/components/parameters/ZoneId' }
+        - name: vehicleId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Ссылка (deep link приложения и web-URL)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/vehicles:
+    get:
+      tags: [Vehicles]
+      operationId: listVehicles
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Автомобили (admin — все, driver — закреплённые за ним)
+      description: Администратор видит все автомобили, водитель — только закреплённые за ним.
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VehiclePage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Vehicles]
+      operationId: createVehicle
+      x-roles: [admin]
+      x-idempotent: false
+      summary: Добавить автомобиль (admin)
+      security:
+        - bearerAuth: [admin]
+      description: Регистрирует служебный автомобиль. Госномер уникален.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateVehicleRequest' }
+      responses:
+        '201':
+          description: Создан
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/vehicles/{vehicleId}:
+    get:
+      tags: [Vehicles]
+      operationId: getVehicle
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Автомобиль и его текущее состояние (зона, активная сессия, последняя точка)
+      description: Автомобиль вместе с текущей зоной, последней точкой и активной сессией.
+      parameters:
+        - { $ref: '#/components/parameters/VehicleId' }
+      responses:
+        '200':
+          description: Автомобиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VehicleStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/vehicles/{vehicleId}/positions:
+    post:
+      tags: [Tracking]
+      operationId: reportPositions
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Передать GPS-точки (пакетом) и получить текущий статус
+      description: |
+        Точки обрабатываются по возрастанию `recordedAt`. Для каждой точки определяется зона,
+        переходы (вход, выход, смена зоны) порождают события и уведомления.
+        Повторная отправка точки с тем же `recordedAt` игнорируется (идемпотентно).
+      parameters:
+        - { $ref: '#/components/parameters/VehicleId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReportPositionsRequest' }
+      responses:
+        '200':
+          description: Обработано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportPositionsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/vehicles/{vehicleId}/route:
+    get:
+      tags: [Tracking]
+      operationId: getVehicleRoute
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Маршрут автомобиля за период (GeoJSON)
+      description: Точки трека за период в виде GeoJSON LineString с временем каждой вершины.
+      parameters:
+        - { $ref: '#/components/parameters/VehicleId' }
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200':
+          description: Маршрут
+          content:
+            application/geo+json:
+              schema: { $ref: '#/components/schemas/RouteFeature' }
+              examples:
+                threePoints:
+                  summary: Трек из трёх точек
+                  value:
+                    type: Feature
+                    geometry:
+                      type: LineString
+                      coordinates:
+                      - [30.329, 59.9349]
+                      - [30.3306, 59.9353]
+                      - [30.3322, 59.9357]
+                    properties:
+                      vehicleId: 0192f000-0000-7000-8000-00000000c001
+                      pointCount: 3
+                      from: '2026-10-30T09:00:00Z'
+                      to: '2026-10-30T09:02:00Z'
+                      timestamps: ['2026-10-30T09:00:00Z', '2026-10-30T09:01:00Z', '2026-10-30T09:02:00Z']
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/vehicles/{vehicleId}/active-session:
+    get:
+      tags: [Sessions]
+      operationId: getActiveSession
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Активная парковочная сессия автомобиля
+      description: Текущая активная сессия автомобиля или 204, если её нет.
+      parameters:
+        - { $ref: '#/components/parameters/VehicleId' }
+      responses:
+        '200':
+          description: Активная сессия
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '204':
+          description: Активной сессии нет
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: История парковочных сессий
+      description: История сессий с фильтрами по автомобилю, статусу и периоду. Сортировка по startedAt по убыванию.
+      parameters:
+        - name: vehicleId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/SessionStatus' }
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Страница сессий
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSessionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Sessions]
+      operationId: startSession
+      x-roles: [admin, driver]
+      x-idempotent: true
+      summary: Начать (подтвердить) парковочную сессию
+      description: |
+        Оплата выполняется через адаптер провайдера (в прототипе — mock «Паркоматики»).
+        Длительность не меньше `minTimeMinutes` зоны и кратна `timeStepMinutes`.
+        У автомобиля может быть только одна активная сессия.
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartSessionRequest' }
+      responses:
+        '201':
+          description: Сессия создана
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/sessions/{sessionId}:
+    get:
+      tags: [Sessions]
+      operationId: getSession
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Сессия
+      description: Сессия по идентификатору.
+      parameters:
+        - { $ref: '#/components/parameters/SessionId' }
+      responses:
+        '200':
+          description: Сессия
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/sessions/{sessionId}/extensions:
+    post:
+      tags: [Sessions]
+      operationId: extendSession
+      x-roles: [admin, driver]
+      x-idempotent: true
+      summary: Продлить активную сессию (создать продление)
+      description: Продлевает оплату активной сессии через адаптер провайдера. Переносит paidUntil и сбрасывает предупреждение.
+      parameters:
+        - { $ref: '#/components/parameters/SessionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExtendSessionRequest' }
+      responses:
+        '200':
+          description: Продлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/sessions/{sessionId}/closure:
+    post:
+      tags: [Sessions]
+      operationId: closeSession
+      x-roles: [admin, driver]
+      x-idempotent: true
+      summary: Завершить сессию вручную
+      description: Водитель завершает сессию досрочно. Повторный вызов с тем же Idempotency-Key безопасен.
+      parameters:
+        - { $ref: '#/components/parameters/SessionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200':
+          description: Завершена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParkingSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/events:
+    get:
+      tags: [Events]
+      operationId: listEvents
+      x-roles: [admin]
+      x-idempotent: false
+      summary: Журнал доменных событий (admin)
+      security:
+        - bearerAuth: [admin]
+      description: Журнал событий для административного интерфейса, сортировка по occurredAt по убыванию.
+      parameters:
+        - name: vehicleId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/EventType' }
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Страница событий
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DomainEventPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Уведомления водителя
+      description: Уведомления по автомобилю, новые сверху.
+      parameters:
+        - name: vehicleId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean, default: false }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Страница уведомлений
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/notifications/{notificationId}:
+    patch:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      x-roles: [admin, driver]
+      x-idempotent: false
+      summary: Отметить уведомление прочитанным
+      description: Меняет признак прочтения. Повторный вызов с тем же значением ничего не меняет.
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateNotificationRequest' }
+      responses:
+        '204':
+          description: Сохранено
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ZoneId:
+      name: zoneId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Lat:
+      name: lat
+      in: query
+      required: true
+      schema: { type: number, format: double, minimum: -90, maximum: 90 }
+    Lon:
+      name: lon
+      in: query
+      required: true
+      schema: { type: number, format: double, minimum: -180, maximum: 180 }
+    From:
+      name: from
+      in: query
+      description: Начало периода (включительно)
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      description: Конец периода (не включительно)
+      schema: { type: string, format: date-time }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Уникальный ключ операции; повтор с тем же ключом и телом вернёт исходный ответ
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 64
+        pattern: '^[A-Za-z0-9_-]{8,64}$'
+
+  headers:
+    RetryAfter:
+      description: Через сколько секунд повторить запрос
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    BadRequest:
+      description: Ошибка валидации
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblem' }
+    Unauthorized:
+      description: Нет или неверный токен
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Недостаточно прав
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Не найдено
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Конфликт состояния (например, уже есть активная сессия)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableEntity:
+      description: Нарушено бизнес-правило (например, длительность меньше минимальной)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Превышен лимит запросов
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    BadGateway:
+      description: Ошибка внешнего провайдера оплаты
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    InternalServerError:
+      description: Внутренняя ошибка сервиса; детали только в логах по traceId
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    # ---------- Ошибки (RFC 9457) ----------
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri-reference, examples: ['https://errors.parking.local/session-already-active'] }
+        title: { type: string, maxLength: 200 }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string, maxLength: 1000 }
+        instance: { type: string, format: uri-reference }
+        code:
+          type: string
+          description: Машиночитаемый код ошибки
+          pattern: '^[a-z][a-z0-9_]{2,63}$'
+          examples: ['session_already_active']
+        traceId: { type: string, maxLength: 64 }
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            errors:
+              type: object
+              description: Поле → список сообщений
+              additionalProperties:
+                type: array
+                items: { type: string }
+
+    # ---------- Общее ----------
+    PageMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+    CityCode:
+      type: string
+      pattern: '^[a-z_]{2,32}$'
+      examples: ['spb']
+    VehicleType:
+      type: string
+      enum: [car, truck, bus]
+    GeoPoint:
+      type: object
+      examples:
+        - { lat: 59.9353, lon: 30.3306 }
+      required: [lat, lon]
+      properties:
+        lat: { type: number, format: double, minimum: -90, maximum: 90 }
+        lon: { type: number, format: double, minimum: -180, maximum: 180 }
+    GeoJsonGeometry:
+      type: object
+      description: GeoJSON-геометрия (RFC 7946). Для зон — LineString, MultiLineString, Polygon или GeometryCollection.
+      examples:
+        - type: LineString
+          coordinates:
+          - [30.306661, 59.95537]
+          - [30.307041, 59.955265]
+        - type: MultiLineString
+          coordinates:
+          - - [30.336063, 59.933]
+            - [30.335923, 59.932718]
+          - - [30.336417, 59.933723]
+            - [30.336062, 59.933]
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [Point, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection]
+        coordinates: {}
+        geometries:
+          type: array
+          items: { $ref: '#/components/schemas/GeoJsonGeometry' }
+
+    # ---------- Auth ----------
+    LoginRequest:
+      type: object
+      required: [login, password]
+      additionalProperties: false
+      properties:
+        login: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9._-]{3,64}$' }
+        password: { type: string, minLength: 8, maxLength: 128, format: password }
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, description: Секунды }
+        user: { $ref: '#/components/schemas/User' }
+    UserRole:
+      type: string
+      enum: [driver, admin]
+    User:
+      type: object
+      required: [id, login, role, fullName]
+      properties:
+        id: { type: string, format: uuid }
+        login: { type: string }
+        role: { $ref: '#/components/schemas/UserRole' }
+        fullName: { type: string, maxLength: 200 }
+        phone: { type: [string, 'null'], pattern: '^\+7[0-9]{10}$' }
+
+    # ---------- Zones ----------
+    TariffPeriod:
+      type: object
+      required: [vehicleType, priceKopecks]
+      properties:
+        vehicleType: { $ref: '#/components/schemas/VehicleType' }
+        fromMinute: { type: [integer, 'null'], minimum: 0, maximum: 1440, description: 'Минуты от полуночи; null — круглосуточно' }
+        toMinute: { type: [integer, 'null'], minimum: 0, maximum: 1440 }
+        durationMinutes: { type: [integer, 'null'], minimum: 1 }
+        priceKopecks: { type: integer, minimum: 0, description: За час }
+    ZoneSummary:
+      type: object
+      required: [id, externalZoneId, displayName, basePriceKopecks, minTimeMinutes, timeStepMinutes]
+      properties:
+        id: { type: string, format: uuid }
+        externalZoneId: { type: string, maxLength: 32, description: Номер зоны для водителя, examples: ['517641'] }
+        city: { $ref: '#/components/schemas/CityCode' }
+        displayName: { type: string, maxLength: 300 }
+        basePriceKopecks: { type: integer, minimum: 0 }
+        priceDescription: { type: [string, 'null'], maxLength: 500 }
+        minTimeMinutes: { type: integer, minimum: 1 }
+        timeStepMinutes: { type: integer, minimum: 1 }
+    ZoneDetails:
+      allOf:
+        - $ref: '#/components/schemas/ZoneSummary'
+        - type: object
+          required: [geometry, tariffPeriods, hasHolidays, detectionRadiusM]
+          properties:
+            geometry: { $ref: '#/components/schemas/GeoJsonGeometry' }
+            tariffPeriods:
+              type: array
+              items: { $ref: '#/components/schemas/TariffPeriod' }
+            hasHolidays: { type: boolean, description: В праздничные дни парковка бесплатна }
+            detectionRadiusM: { type: integer, minimum: 1, maximum: 100 }
+            isPaidNow: { type: boolean, description: Действует ли платный период сейчас для легкового ТС }
+            lastSyncedAt: { type: string, format: date-time }
+    ZoneFeature:
+      type: object
+      required: [type, id, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        id: { type: string, format: uuid }
+        geometry: { $ref: '#/components/schemas/GeoJsonGeometry' }
+        properties: { $ref: '#/components/schemas/ZoneSummary' }
+    ZoneFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features:
+          type: array
+          items: { $ref: '#/components/schemas/ZoneFeature' }
+        truncated: { type: boolean, description: Результат обрезан по limit }
+    ZoneLookupResult:
+      type: object
+      required: [point, zone]
+      properties:
+        point: { $ref: '#/components/schemas/GeoPoint' }
+        zone:
+          oneOf:
+            - $ref: '#/components/schemas/ZoneSummary'
+            - type: 'null'
+        distanceM: { type: [number, 'null'], minimum: 0 }
+    PaymentLink:
+      type: object
+      required: [zoneId, webUrl]
+      properties:
+        zoneId: { type: string, format: uuid }
+        externalZoneId: { type: string }
+        webUrl: { type: string, format: uri, description: Официальный сервис оплаты }
+        appDeepLink: { type: [string, 'null'], description: Deep link мобильного приложения «Парковки Санкт-Петербурга» }
+
+    # ---------- Vehicles ----------
+    PlateNumber:
+      type: string
+      description: Госномер РФ, кириллица в верхнем регистре
+      pattern: '^[АВЕКМНОРСТУХ][0-9]{3}[АВЕКМНОРСТУХ]{2}[0-9]{2,3}$'
+      examples: ['А123ВС178']
+    Vehicle:
+      type: object
+      required: [id, plateNumber, vehicleType, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        plateNumber: { $ref: '#/components/schemas/PlateNumber' }
+        vehicleType: { $ref: '#/components/schemas/VehicleType' }
+        model: { type: [string, 'null'], maxLength: 100 }
+        driverId: { type: [string, 'null'], format: uuid }
+        isActive: { type: boolean }
+    CreateVehicleRequest:
+      type: object
+      required: [plateNumber]
+      additionalProperties: false
+      properties:
+        plateNumber: { $ref: '#/components/schemas/PlateNumber' }
+        vehicleType: { $ref: '#/components/schemas/VehicleType', default: car }
+        model: { type: string, maxLength: 100 }
+        driverId: { type: string, format: uuid }
+    VehiclePage:
+      type: object
+      required: [items, meta]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Vehicle' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+    VehicleStatus:
+      allOf:
+        - $ref: '#/components/schemas/Vehicle'
+        - type: object
+          properties:
+            currentZone:
+              oneOf:
+                - $ref: '#/components/schemas/ZoneSummary'
+                - type: 'null'
+            enteredZoneAt: { type: [string, 'null'], format: date-time }
+            lastPosition:
+              oneOf:
+                - $ref: '#/components/schemas/PositionPoint'
+                - type: 'null'
+            activeSession:
+              oneOf:
+                - $ref: '#/components/schemas/ParkingSession'
+                - type: 'null'
+
+    # ---------- Tracking ----------
+    PositionPoint:
+      type: object
+      required: [lat, lon, recordedAt]
+      additionalProperties: false
+      properties:
+        lat: { type: number, format: double, minimum: -90, maximum: 90 }
+        lon: { type: number, format: double, minimum: -180, maximum: 180 }
+        recordedAt: { type: string, format: date-time }
+        accuracyM: { type: number, minimum: 0, maximum: 10000 }
+        speedKmh: { type: number, minimum: 0, maximum: 300 }
+        headingDeg: { type: number, minimum: 0, exclusiveMaximum: 360 }
+    ReportPositionsRequest:
+      type: object
+      required: [points]
+      additionalProperties: false
+      properties:
+        source: { type: string, enum: [gps, mock], default: gps }
+        points:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: '#/components/schemas/PositionPoint' }
+    ZoneTransition:
+      type: string
+      enum: [none, entered, exited, changed]
+    ReportPositionsResponse:
+      type: object
+      required: [accepted, duplicates, transition, currentZone]
+      properties:
+        accepted: { type: integer, minimum: 0 }
+        duplicates: { type: integer, minimum: 0 }
+        transition: { $ref: '#/components/schemas/ZoneTransition' }
+        previousZone:
+          oneOf:
+            - $ref: '#/components/schemas/ZoneSummary'
+            - type: 'null'
+        currentZone:
+          oneOf:
+            - $ref: '#/components/schemas/ZoneSummary'
+            - type: 'null'
+        activeSession:
+          oneOf:
+            - $ref: '#/components/schemas/ParkingSession'
+            - type: 'null'
+        notifications:
+          type: array
+          description: Уведомления, порождённые этим пакетом точек
+          items: { $ref: '#/components/schemas/Notification' }
+    RouteFeature:
+      type: object
+      required: [type, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        geometry: { $ref: '#/components/schemas/GeoJsonGeometry' }
+        properties:
+          type: object
+          required: [vehicleId, pointCount]
+          properties:
+            vehicleId: { type: string, format: uuid }
+            pointCount: { type: integer, minimum: 0 }
+            from: { type: [string, 'null'], format: date-time }
+            to: { type: [string, 'null'], format: date-time }
+            timestamps:
+              type: array
+              description: Время каждой вершины линии, в том же порядке
+              items: { type: string, format: date-time }
+
+    # ---------- Sessions ----------
+    SessionStatus:
+      type: string
+      enum: [active, expired, closed, cancelled]
+    SessionCloseReason:
+      type: string
+      enum: [manual, zone_exit, zone_changed, expired, cancelled]
+    StartSessionRequest:
+      type: object
+      required: [vehicleId, zoneId, durationMinutes]
+      additionalProperties: false
+      properties:
+        vehicleId: { type: string, format: uuid }
+        zoneId: { type: string, format: uuid }
+        durationMinutes: { type: integer, minimum: 15, maximum: 1440, description: 'Не меньше minTimeMinutes зоны, кратно timeStepMinutes' }
+    ExtendSessionRequest:
+      type: object
+      required: [additionalMinutes]
+      additionalProperties: false
+      properties:
+        additionalMinutes: { type: integer, minimum: 15, maximum: 1440 }
+    ParkingSession:
+      type: object
+      required: [id, vehicleId, zone, status, startedAt, paidUntil, durationMinutes, amountKopecks, remainingSeconds]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        driverId: { type: [string, 'null'], format: uuid }
+        zone: { $ref: '#/components/schemas/ZoneSummary' }
+        status: { $ref: '#/components/schemas/SessionStatus' }
+        startedAt: { type: string, format: date-time }
+        paidUntil: { type: string, format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+        closeReason:
+          oneOf:
+            - $ref: '#/components/schemas/SessionCloseReason'
+            - type: 'null'
+        durationMinutes: { type: integer, minimum: 1 }
+        amountKopecks: { type: integer, minimum: 0 }
+        remainingSeconds: { type: integer, minimum: 0, description: 0 для неактивных }
+        externalPaymentId: { type: [string, 'null'], maxLength: 64 }
+    ParkingSessionPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ParkingSession' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---------- Events ----------
+    EventType:
+      type: string
+      enum:
+        - VehiclePositionReceived
+        - ZoneEntered
+        - ZoneExited
+        - ZoneChanged
+        - SessionStarted
+        - SessionExtended
+        - SessionExpiringSoon
+        - SessionExpired
+        - SessionClosed
+    DomainEvent:
+      type: object
+      description: Совпадает с оболочкой Kafka-сообщения (см. asyncapi.yaml)
+      required: [eventId, type, version, occurredAt, payload]
+      properties:
+        eventId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/EventType' }
+        version: { type: integer, minimum: 1 }
+        occurredAt: { type: string, format: date-time }
+        vehicleId: { type: [string, 'null'], format: uuid }
+        sessionId: { type: [string, 'null'], format: uuid }
+        zoneId: { type: [string, 'null'], format: uuid }
+        payload: { type: object }
+    DomainEventPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DomainEvent' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---------- Notifications ----------
+    NotificationKind:
+      type: string
+      enum: [zone_entered, session_paid, session_expiring, session_expired, zone_exited, zone_changed]
+    Notification:
+      type: object
+      required: [id, vehicleId, kind, severity, title, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/NotificationKind' }
+        severity: { type: string, enum: [info, warning] }
+        title: { type: string, maxLength: 120, examples: ['Вы въехали в зону платной парковки'] }
+        body: { type: string, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+        eventId: { type: [string, 'null'], format: uuid }
+    UpdateNotificationRequest:
+      type: object
+      required: [read]
+      additionalProperties: false
+      properties:
+        read: { type: boolean, description: 'true — прочитано, false — вернуть в непрочитанные' }
+    NotificationPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }

@@ -42,7 +42,15 @@ class TechWriter(BaseAgent):
         ],
         outputs=["**/*"],
         profile=ProfileName.ANALYSIS,
-        depends_on=["system_architect", "ux_designer", "frontend_coder", "backend_coder", "devops"],
+        depends_on=[
+            "system_architect",
+            "ux_designer",
+            "frontend_coder",
+            "backend_coder",
+            "devops",
+            "android_coder",
+            "qa",
+        ],
         max_repairs=0,
         token_budget=150_000,
     )

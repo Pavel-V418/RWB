@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specforge-mobile"
+version = "0.1.0"
+description = "SpecForge, участник 5: Android-агент и каркас, контрактные и e2e тесты, security-контур"
+requires-python = ">=3.10"
+# инструменты — stdlib + pyyaml (openapi.yaml); JDK 21 + Android SDK или Docker-образ сборки нужны на хосте
+dependencies = ["pyyaml>=6.0"]
+
+[tool.setuptools.packages.find]
+include = ["specforge_mobile*"]
+
+[tool.setuptools.package-data]
+specforge_mobile = ["tools/security/*.toml", "tools/security/semgrep-rules/*.yaml"]

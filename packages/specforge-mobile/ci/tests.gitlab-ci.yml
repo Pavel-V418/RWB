@@ -1,0 +1,32 @@
+# Тесты участника 5: контрактные проверки API на развёрнутом стенде.
+# Кладёт агент qa в 07_tests/ci/ → в опубликованном репозитории reports/tests/ci/; корневой
+# .gitlab-ci.yml участника 3 подключает файл через include + rules: exists. Раннер: shell, тег vm5.
+# Код инструментов — копия пакета в reports/tests/specforge_mobile (PYTHONPATH).
+# e2e-сценарии (reports/tests/e2e/*.py) запускает задача stand:smoke участника 3.
+#
+# Переменные CI/CD (masked): CONTRACT_PASSWORD_<РОЛЬ> — пароли учёток стенда.
+
+variables:
+  TESTS_OUT: reports/tests
+  REQUIREMENTS_JSON: analysis/requirements/requirements.json
+  CONTRACT_USERS: "{{CONTRACT_USERS}}"   # роль=логин через пробел; пусто — проверки без входа
+
+tests:contract:
+  stage: e2e
+  tags: [vm5]
+  needs: []
+  rules:
+    - if: $STAND_URL
+  script:
+    # спека — с самого стенда: точно совпадает с развёрнутым backend и не требует pyyaml
+    - |
+      users=""; for u in $CONTRACT_USERS; do users="$users --user $u"; done
+      PYTHONPATH="$TESTS_OUT" python3 -m specforge_mobile.tools.contract.run \
+        --openapi "$STAND_URL/swagger/v1/swagger.json" --base "$STAND_URL" --out "$TESTS_OUT" \
+        --requirements "$REQUIREMENTS_JSON" $users
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [$TESTS_OUT/contract-junit.xml, $TESTS_OUT/contract.json, $TESTS_OUT/raw/contract.sarif]
+    reports:
+      junit: $TESTS_OUT/contract-junit.xml

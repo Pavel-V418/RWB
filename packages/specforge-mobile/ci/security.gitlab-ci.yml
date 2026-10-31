@@ -1,0 +1,118 @@
+# Security-контур (участник 5). Кладёт агент qa в 07_tests/ci/ → reports/tests/ci/ опубликованного
+# репозитория; корневой .gitlab-ci.yml участника 3 подключает его (include + rules: exists).
+# Раннер: shell на vm5 (тег vm5) — сканеры запускаются через `docker run`, Python — системный python3.
+# Код инструментов — копия пакета в reports/tests/specforge_mobile (PYTHONPATH).
+# Стадии: build → test → package → security → deploy → e2e (package раньше security: Trivy сканирует готовые образы).
+#
+# Блокируют сразу: gitleaks (любой секрет), Trivy образа HIGH/CRITICAL.
+# Информируют: Semgrep, Trivy fs, ZAP — их разбирает LLM-триаж в security:report; там же провалы
+# контрактных тестов (tests:contract) и подтверждённые high+ блокируют.
+#
+# Переменные CI/CD (masked): LLM_BASE_URL, LLM_MODEL, LLM_API_KEY. Из пайплайна: $STAND_URL, $API_IMAGE, $WEB_IMAGE.
+
+variables:
+  SECURITY_OUT: reports/tests
+  SECURITY_RAW: reports/tests/raw
+  REQUIREMENTS_JSON: analysis/requirements/requirements.json
+  OPENAPI_YAML: analysis/system/openapi.yaml
+  SECURITY_TOOLS: reports/tests/specforge_mobile/tools/security
+  TRIVY_CACHE: $HOME/.cache/trivy
+
+.security:
+  tags: [vm5]
+  before_script:
+    - mkdir -p "$SECURITY_RAW"
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths: [$SECURITY_RAW/]
+
+security:gitleaks:
+  extends: .security
+  stage: security
+  needs: []
+  script:
+    - docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.28.0 dir /repo
+      --config /repo/$SECURITY_TOOLS/gitleaks.toml --redact --no-banner
+      --report-format sarif --report-path "/repo/$SECURITY_RAW/gitleaks.sarif" --exit-code 1
+
+security:semgrep:
+  extends: .security
+  stage: security
+  needs: []
+  allow_failure: true
+  script:
+    - docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.183.0 semgrep scan --metrics=off
+      --config p/default --config $SECURITY_TOOLS/semgrep-rules
+      --exclude $SECURITY_OUT/specforge_mobile --exclude build --exclude node_modules
+      --sarif -o "$SECURITY_RAW/semgrep.sarif" --gitlab-sast-output gl-sast-report.json .
+  artifacts:
+    when: always
+    paths: [$SECURITY_RAW/, gl-sast-report.json]
+    reports: {sast: gl-sast-report.json}
+
+security:trivy-fs:
+  extends: .security
+  stage: security
+  needs: []
+  allow_failure: true
+  script:
+    - mkdir -p "$TRIVY_CACHE"
+    - docker run --rm -v "$PWD:/repo" -v "$TRIVY_CACHE:/root/.cache" aquasec/trivy:0.67.2 fs
+      --scanners vuln,misconfig --skip-dirs /repo/$SECURITY_OUT/specforge_mobile --skip-dirs /repo/build
+      --format sarif -o "/repo/$SECURITY_RAW/trivy-fs.sarif" --exit-code 0 /repo
+
+security:trivy-image:
+  extends: .security
+  stage: security
+  needs:
+    - {job: backend:image}
+    - {job: web:image, optional: true}
+  script:
+    - mkdir -p "$TRIVY_CACHE"
+    - |
+      rc=0
+      for img in $API_IMAGE $WEB_IMAGE; do
+        docker image inspect "$img" >/dev/null 2>&1 || { echo "нет образа $img — пропуск"; continue; }
+        name=$(echo "$img" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-60)
+        trivy="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $TRIVY_CACHE:/root/.cache -v $PWD:/repo aquasec/trivy:0.67.2"
+        $trivy image --format sarif -o "/repo/$SECURITY_RAW/trivy-image-$name.sarif" --exit-code 0 "$img"
+        $trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --quiet "$img" || rc=1
+      done
+      exit $rc
+
+security:zap:
+  extends: .security
+  stage: e2e               # нужен развёрнутый стенд
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $STAND_URL
+  script:
+    - mkdir -p zap-wrk && cp "$OPENAPI_YAML" zap-wrk/openapi.yaml && chmod -R a+rwX zap-wrk
+    # API-скан по OpenAPI; -I — предупреждения не валят задачу (ZAP информирует, решает триаж)
+    - docker run --rm --network host -v "$PWD/zap-wrk:/zap/wrk" ghcr.io/zaproxy/zaproxy:stable
+      zap-api-scan.py -t /zap/wrk/openapi.yaml -f openapi -O "$STAND_URL" -J zap.json -r zap.html -I || true
+    - cp zap-wrk/zap.json zap-wrk/zap.html "$SECURITY_RAW/" || true
+
+security:report:
+  extends: .security
+  stage: e2e
+  needs:
+    - {job: security:gitleaks, artifacts: true}
+    - {job: security:semgrep, artifacts: true}
+    - {job: security:trivy-fs, artifacts: true}
+    - {job: security:trivy-image, artifacts: true, optional: true}
+    - {job: security:zap, artifacts: true, optional: true}
+    - {job: tests:contract, artifacts: true, optional: true}
+  when: always             # отчёт нужен и когда блокирующие задачи упали
+  cache:                   # прошлый скан (→ «исправлено») и вердикты триажа (→ без повторных токенов)
+    key: security-baseline-$CI_COMMIT_REF_SLUG
+    paths: [$SECURITY_OUT/findings.json, $SECURITY_OUT/triage_cache.json]
+  script:
+    - PYTHONPATH="$SECURITY_OUT" python3 -m specforge_mobile.tools.security.run --no-scan --target . --out "$SECURITY_OUT" --requirements "$REQUIREMENTS_JSON"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [$SECURITY_OUT/]
+    expose_as: security-report

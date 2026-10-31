@@ -1,0 +1,10 @@
+# Контекст — корень пакета packages/specforge-mobile; в образ нужны только каркас и screens.py
+*
+!android/
+!specforge_mobile/tools/android_gate/screens.py
+android/build
+android/app/build
+android/.gradle
+android/.kotlin
+android/screenshots
+android/local.properties
