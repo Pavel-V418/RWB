@@ -194,9 +194,10 @@ def merge_analysis(req: Requirements, an: Analysis, mode: str,
 
     answers = answers or {}
     for q in questions:
-        if q.id in answers and str(answers[q.id]).strip():
-            q.answer, q.status, q.origin = str(answers[q.id]).strip(), "answered", "clarification"
-        elif mode == "auto":
+        given = str(answers[q.id]).strip() if q.id in answers and answers[q.id] is not None else None
+        if given:
+            q.answer, q.status, q.origin = given, "answered", "clarification"
+        elif mode == "auto" or given == "":   # пустой ответ в answers.yaml = принять умолчание
             q.answer, q.status = q.default_option, "defaulted"
             assumptions.append(Assumption(id="", origin="assumption", from_question=q.id,
                                           statement=f"{q.topic}: {q.default_option}",
@@ -259,7 +260,8 @@ def build_business(req: Requirements, index: SourceIndex) -> list[int]:
                                           source=Source(quote=it.source.quote, line=ln, exact=True))
             br = by_line[ln]
             (br.fr if it.id.startswith("FR-") else br.related).append(it.id)
-    # пункты списка, на которые модель не сослалась: привязываем к FR с наибольшим совпадением основ слов
+    # пункты списка, на которые модель не сослалась: FR с наибольшим совпадением основ слов — только
+    # кандидат (fr_candidates). В покрытие он не засчитывается, пункт остаётся в W_BR_UNCOVERED.
     for i, line in enumerate(index.lines):
         ln = i + 1
         if ln in by_line or not _BULLET.match(line):
@@ -268,11 +270,11 @@ def build_business(req: Requirements, index: SourceIndex) -> list[int]:
         best, score = _best_fr(text, req.functional)
         if best is not None and score >= 0.5:
             by_line[ln] = BusinessReq(id="", line=ln, text=text, origin="customer",
-                                      source=Source(quote=text, line=ln, exact=True), fr=[best])
+                                      source=Source(quote=text, line=ln, exact=True), fr_candidates=[best])
     req.business = [by_line[k] for k in sorted(by_line)]
     for n, br in enumerate(req.business, 1):
         br.id = f"BR-{n}"
-    covered = set(by_line)
+    covered = {b.line for b in req.business if b.fr or b.related}
     return [i + 1 for i, l in enumerate(index.lines) if _BULLET.match(l) and (i + 1) not in covered]
 
 

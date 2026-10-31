@@ -5,7 +5,7 @@ from __future__ import annotations
 from ..llm import LLM, FakeLLM
 from ..prompting import compact, messages
 from ..schemas import Requirements
-from ..schemas_system import ApiDesign, ApiPatch, DomainModel, SaProse
+from ..schemas_system import ApiDesign, ApiPatch, DesignPatch, DomainModel, SaProse
 
 SYS = "system_architect"
 
@@ -68,3 +68,14 @@ def repair_api(llm: LLM, req_json: str, domain: DomainModel, design: ApiDesign, 
                                          domain_json=compact(domain.model_dump()), fr_ids=fr_ids,
                                          existing_ops=existing),
                           ApiPatch, thinking=False, max_tokens=8000)
+
+
+def repair_design(llm: LLM, req_json: str, domain: DomainModel, ops: list, errors: list[str],
+                  attempt: int) -> DesignPatch | None:
+    name = f"repair_design_{attempt}"
+    if isinstance(llm, FakeLLM) and not llm.has(name):
+        return None
+    return llm.structured(name, messages("repair_design", system=SYS, req_json=req_json,
+                                         domain_json=compact(domain.model_dump()),
+                                         ops_json=compact([o.model_dump() for o in ops]), errors=errors),
+                          DesignPatch, thinking=False, max_tokens=12000)

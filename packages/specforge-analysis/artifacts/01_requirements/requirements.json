@@ -47,7 +47,8 @@
         "ROLE-driver",
         "ENT-Vehicle",
         "ENT-Driver"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-2",
@@ -62,7 +63,8 @@
       "fr": [],
       "related": [
         "GOAL-01"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-3",
@@ -77,7 +79,8 @@
       "fr": [],
       "related": [
         "GOAL-02"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-4",
@@ -94,7 +97,8 @@
       ],
       "related": [
         "ENT-VehiclePosition"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-5",
@@ -109,7 +113,8 @@
       "fr": [
         "FR-2"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-6",
@@ -126,7 +131,8 @@
       ],
       "related": [
         "ENT-ParkingZone"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-7",
@@ -141,7 +147,8 @@
       "fr": [
         "FR-4"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-8",
@@ -158,7 +165,8 @@
       ],
       "related": [
         "ENT-ParkingSession"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-9",
@@ -173,7 +181,8 @@
       "fr": [
         "FR-6"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-10",
@@ -188,7 +197,8 @@
       "fr": [
         "FR-7"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-11",
@@ -203,7 +213,8 @@
       "fr": [
         "FR-8"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-12",
@@ -218,7 +229,8 @@
       "fr": [
         "FR-9"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-13",
@@ -233,7 +245,8 @@
       "fr": [
         "FR-10"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-14",
@@ -248,7 +261,8 @@
       "fr": [
         "FR-11"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-15",
@@ -263,7 +277,8 @@
       "fr": [
         "FR-12"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-16",
@@ -278,7 +293,8 @@
       "fr": [],
       "related": [
         "ENT-Notification"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
       "id": "BR-17",
@@ -293,7 +309,8 @@
       "fr": [
         "FR-13"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-18",
@@ -308,10 +325,59 @@
       "fr": [
         "FR-14"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
       "id": "BR-19",
+      "origin": "customer",
+      "source": {
+        "quote": "«До окончания парковки осталось 10 минут»",
+        "line": 36,
+        "exact": true
+      },
+      "line": 36,
+      "text": "«До окончания парковки осталось 10 минут»",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-5"
+      ]
+    },
+    {
+      "id": "BR-20",
+      "origin": "customer",
+      "source": {
+        "quote": "«Вы покинули текущую парковочную зону»",
+        "line": 37,
+        "exact": true
+      },
+      "line": 37,
+      "text": "«Вы покинули текущую парковочную зону»",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-5"
+      ]
+    },
+    {
+      "id": "BR-21",
+      "origin": "customer",
+      "source": {
+        "quote": "«Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»",
+        "line": 38,
+        "exact": true
+      },
+      "line": 38,
+      "text": "«Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-8"
+      ]
+    },
+    {
+      "id": "BR-22",
       "origin": "customer",
       "source": {
         "quote": "мобильное приложение на Kotlin",
@@ -323,10 +389,11 @@
       "fr": [],
       "related": [
         "CON-01"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-20",
+      "id": "BR-23",
       "origin": "customer",
       "source": {
         "quote": "административный web-интерфейс на Angular",
@@ -338,10 +405,11 @@
       "fr": [],
       "related": [
         "CON-02"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-21",
+      "id": "BR-24",
       "origin": "customer",
       "source": {
         "quote": "backend на C# / ASP.NET Core",
@@ -353,10 +421,11 @@
       "fr": [],
       "related": [
         "CON-03"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-22",
+      "id": "BR-25",
       "origin": "customer",
       "source": {
         "quote": "PostgreSQL/PostGIS",
@@ -368,10 +437,11 @@
       "fr": [],
       "related": [
         "CON-04"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-23",
+      "id": "BR-26",
       "origin": "customer",
       "source": {
         "quote": "документированный API",
@@ -383,10 +453,11 @@
       "fr": [],
       "related": [
         "NFR-1"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-24",
+      "id": "BR-27",
       "origin": "customer",
       "source": {
         "quote": "модель событий",
@@ -398,10 +469,11 @@
       "fr": [],
       "related": [
         "NFR-2"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-25",
+      "id": "BR-28",
       "origin": "customer",
       "source": {
         "quote": "Docker-окружение",
@@ -413,10 +485,11 @@
       "fr": [],
       "related": [
         "CON-05"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-26",
+      "id": "BR-29",
       "origin": "customer",
       "source": {
         "quote": "тестовые данные",
@@ -428,10 +501,11 @@
       "fr": [],
       "related": [
         "CON-06"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-27",
+      "id": "BR-30",
       "origin": "customer",
       "source": {
         "quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю",
@@ -446,10 +520,11 @@
       ],
       "related": [
         "GOAL-03"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-28",
+      "id": "BR-31",
       "origin": "customer",
       "source": {
         "quote": "открытые данные о парковочных зонах Санкт-Петербурга",
@@ -461,10 +536,11 @@
       "fr": [],
       "related": [
         "INT-01"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-29",
+      "id": "BR-32",
       "origin": "customer",
       "source": {
         "quote": "GPS-координаты или демонстрационный mock-маршрут",
@@ -476,10 +552,11 @@
       "fr": [],
       "related": [
         "INT-02"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-30",
+      "id": "BR-33",
       "origin": "customer",
       "source": {
         "quote": "официальный сервис парковок Санкт-Петербурга",
@@ -491,10 +568,27 @@
       "fr": [],
       "related": [
         "INT-03"
+      ],
+      "fr_candidates": []
+    },
+    {
+      "id": "BR-34",
+      "origin": "customer",
+      "source": {
+        "quote": "приложение «Парковки Санкт-Петербурга» или «Парковки России»",
+        "line": 66,
+        "exact": true
+      },
+      "line": 66,
+      "text": "приложение «Парковки Санкт-Петербурга» или «Парковки России»",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-21"
       ]
     },
     {
-      "id": "BR-31",
+      "id": "BR-35",
       "origin": "customer",
       "source": {
         "quote": "сервис и API «Паркоматика»",
@@ -506,10 +600,11 @@
       "fr": [],
       "related": [
         "INT-04"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-32",
+      "id": "BR-36",
       "origin": "customer",
       "source": {
         "quote": "Интеграция должна быть реализована через адаптер и mock-сервис",
@@ -525,10 +620,11 @@
         "CON-07",
         "CON-08",
         "CON-09"
-      ]
+      ],
+      "fr_candidates": []
     },
     {
-      "id": "BR-33",
+      "id": "BR-37",
       "origin": "customer",
       "source": {
         "quote": "служебный автомобиль движется по заданному маршруту",
@@ -540,10 +636,43 @@
       "fr": [
         "FR-18"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
-      "id": "BR-34",
+      "id": "BR-38",
+      "origin": "customer",
+      "source": {
+        "quote": "автомобиль въезжает в зону платной парковки",
+        "line": 78,
+        "exact": true
+      },
+      "line": 78,
+      "text": "автомобиль въезжает в зону платной парковки",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-13"
+      ]
+    },
+    {
+      "id": "BR-39",
+      "origin": "customer",
+      "source": {
+        "quote": "система определяет зону и уведомляет водителя",
+        "line": 79,
+        "exact": true
+      },
+      "line": 79,
+      "text": "система определяет зону и уведомляет водителя",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-8"
+      ]
+    },
+    {
+      "id": "BR-40",
       "origin": "customer",
       "source": {
         "quote": "водитель запускает или подтверждает парковочную сессию",
@@ -555,10 +684,75 @@
       "fr": [
         "FR-19"
       ],
-      "related": []
+      "related": [],
+      "fr_candidates": []
     },
     {
-      "id": "BR-35",
+      "id": "BR-41",
+      "origin": "customer",
+      "source": {
+        "quote": "система показывает время ее окончания",
+        "line": 81,
+        "exact": true
+      },
+      "line": 81,
+      "text": "система показывает время ее окончания",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-14"
+      ]
+    },
+    {
+      "id": "BR-42",
+      "origin": "customer",
+      "source": {
+        "quote": "за 10 минут до окончания поступает предупреждение",
+        "line": 82,
+        "exact": true
+      },
+      "line": 82,
+      "text": "за 10 минут до окончания поступает предупреждение",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-9"
+      ]
+    },
+    {
+      "id": "BR-43",
+      "origin": "customer",
+      "source": {
+        "quote": "автомобиль покидает зону или перемещается в другую зону",
+        "line": 83,
+        "exact": true
+      },
+      "line": 83,
+      "text": "автомобиль покидает зону или перемещается в другую зону",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-8"
+      ]
+    },
+    {
+      "id": "BR-44",
+      "origin": "customer",
+      "source": {
+        "quote": "система определяет изменение и предлагает проверить необходимость новой оплаты",
+        "line": 84,
+        "exact": true
+      },
+      "line": 84,
+      "text": "система определяет изменение и предлагает проверить необходимость новой оплаты",
+      "fr": [],
+      "related": [],
+      "fr_candidates": [
+        "FR-8"
+      ]
+    },
+    {
+      "id": "BR-45",
       "origin": "customer",
       "source": {
         "quote": "события отображаются в административном интерфейсе и сохраняются в истории",
@@ -572,7 +766,8 @@
       ],
       "related": [
         "ENT-ParkingEvent"
-      ]
+      ],
+      "fr_candidates": []
     }
   ],
   "goals": [

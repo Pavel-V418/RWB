@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -71,8 +71,7 @@ Content-Type: application/json
   "vehicleId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "zoneId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "startMode": "started",
-  "durationMinutes": 15,
-  "confirmedPaidUntil": "2026-10-30T14:20:00+03:00"
+  "durationMinutes": 60
 }
 ```
 
@@ -122,11 +121,11 @@ Content-Type: application/json
   "startMode": "started",
   "status": "active",
   "startedAt": "2026-10-30T14:20:00+03:00",
-  "paidUntil": "2026-10-30T14:20:00+03:00",
-  "endedAt": "2026-10-30T14:20:00+03:00",
-  "providerSessionId": "строка",
-  "createdAt": "2026-10-30T14:20:00+03:00",
-  "updatedAt": "2026-10-30T14:20:00+03:00"
+  "paidUntil": "2026-10-30T15:20:00+03:00",
+  "endedAt": null,
+  "providerSessionId": null,
+  "createdAt": "2026-10-30T16:20:00+03:00",
+  "updatedAt": "2026-10-30T17:20:00+03:00"
 }
 ```
 
@@ -139,8 +138,9 @@ Content-Type: application/json
 | 403 | Недостаточно прав для операции |
 | 409 | Конфликт состояния ресурса: Активная сессия уже есть |
 | 422 | Нарушено бизнес-правило: Автомобиль не в платной зоне; confirmedPaidUntil в прошлом |
+| 429 | Превышен лимит запросов |
 | 500 | Внутренняя ошибка |
-| 503 | Внешний сервис недоступен: Поставщик не ответил за 5 с |
+| 502 | Ошибка или таймаут внешнего поставщика (code: external_provider_error): Поставщик не ответил за 5 с |
 
 #### Модель данных тела ответа (application/problem+json, RFC 9457)
 
@@ -152,16 +152,17 @@ Content-Type: application/json
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/409",
+  "type": "https://errors.app.local/session-already-active",
   "title": "Конфликт состояния ресурса",
   "status": 409,
   "detail": "Активная сессия уже есть",
+  "code": "session_already_active",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
 }
 ```
@@ -182,7 +183,7 @@ Content-Type: application/json
 - Автомобиль не в платной зоне → 422 vehicle-not-in-paid-zone
 - Активная сессия уже есть → 409 session-already-active
 - confirmedPaidUntil в прошлом → 422 paid-until-in-past
-- Поставщик не ответил за 5 с → 503 provider-unavailable
+- Поставщик не ответил за 5 с → 502 provider-unavailable
 
 **Проверки и валидации:**
 

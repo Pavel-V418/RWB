@@ -4,6 +4,7 @@
     specforge-analysis requirements --input case.md --out out/ --llm fake:golden/<кейс>/llm
 
 Коды выхода: 0 — шлюз пройден; 1 — шлюз не пройден; 3 — нужны ответы на вопросы (интерактивный режим).
+rehearse: 0 — все запущенные кейсы прошли все этапы; 1 — есть провал; 2 — ни один кейс не запускался.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         from . import rehearse
         scores = rehearse.run(args.cases, args.out, args.llm, check_db=not args.no_db_check, only=args.only)
         print((Path(args.out) / "scorecard.md").read_text(encoding="utf-8"))
-        return 0 if all(s.stage2 in ("пройден", "нужна модель") for s in scores) else 1
+        return rehearse.exit_code(scores)
 
     if args.cmd == "schema":
         from .schemas import Requirements

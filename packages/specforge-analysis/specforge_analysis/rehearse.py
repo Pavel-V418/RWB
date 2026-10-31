@@ -69,6 +69,31 @@ def score_requirements(req: Requirements, expected: dict) -> dict:
     return out
 
 
+class _Stop(Exception):
+    pass
+
+
+SKIPPED = "нужна модель"
+
+
+def _failed(res) -> str:
+    codes = sorted({e.code for e in res.errors})
+    return f"ошибок {len(res.errors)} ({', '.join(codes[:3])})"
+
+
+def passed(s: "CaseScore") -> bool:
+    return s.stage1 == s.stage2 == s.docs == "пройден"
+
+
+def exit_code(scores: list["CaseScore"]) -> int:
+    """0 — все запущенные кейсы прошли все этапы (и запущен хотя бы один); 1 — есть провал;
+    2 — ни один кейс не запускался (например, --llm fake без эталона)."""
+    ran = [s for s in scores if s.stage1 != SKIPPED]
+    if not ran:
+        return 2
+    return 0 if all(passed(s) for s in ran) else 1
+
+
 def find_cases(root: Path) -> list[Path]:
     return sorted(p for p in root.iterdir() if p.is_dir() and (p / "expected.yaml").exists()
                   and any(c.suffix.lower() in SUPPORTED and c.stem.startswith("requirements") for c in p.iterdir()))
@@ -84,24 +109,31 @@ def run_case(case: Path, out_root: Path, llm_spec: str | None, check_db: bool) -
     if spec == "fake":  # у каждого кейса свои фикстуры: golden/<кейс>/llm
         fixtures = case.parent.parent / "golden" / case.name / "llm"
         if not (fixtures / "extract.json").exists():
-            sc.stage1 = sc.stage2 = sc.docs = "нужна модель"
+            sc.stage1 = sc.stage2 = sc.docs = SKIPPED
             return sc
         spec = f"fake:{fixtures}"
     llm = make_llm(spec, metrics)
     t0 = time.monotonic()
     try:
         r1 = stage_requirements.run(case, out / "01_requirements", llm, mode="auto")
-        sc.stage1 = "пройден" if r1.passed else f"ошибок {len(r1.errors)}"
+        sc.stage1 = "пройден" if r1.passed else _failed(r1)
+        if not (out / "01_requirements" / "requirements.json").exists():   # этап не дошёл до артефактов
+            sc.error = "; ".join(str(e) for e in r1.errors)[:400]
+            raise _Stop
         req = Requirements.model_validate_json((out / "01_requirements" / "requirements.json").read_text(encoding="utf-8"))
         expected = yaml.safe_load((case / "expected.yaml").read_text(encoding="utf-8")) or {}
         for k, v in score_requirements(req, expected).items():
             setattr(sc, k, v)
         if r1.passed:
             r2 = stage_system.run(out / "01_requirements", out / "02_system", llm, check_db=check_db)
-            sc.stage2 = "пройден" if r2.passed else f"ошибок {len(r2.errors)}"
+            sc.stage2 = "пройден" if r2.passed else _failed(r2)
             if r2.passed:
                 r3 = stage_docs.run(out, out / "09_docs", llm)
-                sc.docs = "пройден" if r3.passed else f"ошибок {len(r3.errors)}"
+                sc.docs = "пройден" if r3.passed else _failed(r3)
+            elif not sc.error:
+                sc.error = "; ".join(str(e) for e in r2.errors[:3])[:400]
+    except _Stop:
+        pass
     except Exception as exc:  # noqa: BLE001 — репетиция должна дойти до конца
         sc.error = f"{type(exc).__name__}: {exc}"[:400]
         (out / "error.txt").parent.mkdir(parents=True, exist_ok=True)
@@ -123,7 +155,9 @@ def scorecard_md(scores: list[CaseScore], llm_spec: str | None) -> str:
                  f"{s.questions} | {s.llm_calls} | {s.retries} | {s.tokens_in} / {s.tokens_out} | {s.duration_s} |")
     tot_in = sum(s.tokens_in for s in scores)
     tot_out = sum(s.tokens_out for s in scores)
-    o += ["", f"Итого токенов: {tot_in} / {tot_out}; вызовов LLM: {sum(s.llm_calls for s in scores)}.", ""]
+    ran = [s for s in scores if s.stage1 != SKIPPED]
+    o += ["", f"Итого токенов: {tot_in} / {tot_out}; вызовов LLM: {sum(s.llm_calls for s in scores)}.",
+          f"Кейсов запущено: {len(ran)} из {len(scores)}; прошли все этапы: {sum(passed(s) for s in ran)}.", ""]
     for s in scores:
         notes = []
         if s.error:

@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -105,10 +105,10 @@ Authorization: Bearer <token>
       "plateNumber": "А123ВС178",
       "model": "Lada Largus",
       "isActive": true,
-      "currentZoneId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "lastPositionAt": "2026-10-30T14:20:00+03:00",
+      "currentZoneId": null,
+      "lastPositionAt": null,
       "createdAt": "2026-10-30T14:20:00+03:00",
-      "updatedAt": "2026-10-30T14:20:00+03:00"
+      "updatedAt": "2026-10-30T15:20:00+03:00"
     }
   ],
   "page": 1,
@@ -124,6 +124,7 @@ Authorization: Bearer <token>
 | 400 | Ошибка валидации запроса |
 | 401 | Нет или истёк токен доступа |
 | 403 | Недостаточно прав для операции |
+| 429 | Превышен лимит запросов |
 | 500 | Внутренняя ошибка |
 
 #### Модель данных тела ответа (application/problem+json, RFC 9457)
@@ -136,17 +137,23 @@ Authorization: Bearer <token>
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/400",
+  "type": "https://errors.app.local/validation-error",
   "title": "Ошибка валидации запроса",
   "status": 400,
   "detail": "описание причины",
-  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
+  "code": "validation_error",
+  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01",
+  "errors": {
+    "fieldName": [
+      "Поле обязательно"
+    ]
+  }
 }
 ```
 

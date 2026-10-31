@@ -11,7 +11,7 @@
     }
   ],
   "tokens": {
-    "input": 4435,
+    "input": 4436,
     "output": 3699
   },
   "attempts": 1,
@@ -68,6 +68,7 @@
     "docs/traceability.md",
     "docs/user-guide.md",
     "gate_report.json",
+    "gate_result.json",
     "metrics.jsonl",
     "mkdocs.yml"
   ]

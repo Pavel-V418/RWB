@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -113,10 +113,10 @@ Content-Type: application/json
 
 ```json
 {
-  "zoneId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "zoneNumber": "строка",
+  "zoneId": null,
+  "zoneNumber": null,
   "transition": "none",
-  "notification": "строка"
+  "notification": null
 }
 ```
 
@@ -142,17 +142,23 @@ Content-Type: application/json
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/400",
+  "type": "https://errors.app.local/validation-error",
   "title": "Ошибка валидации запроса",
   "status": 400,
   "detail": "Координаты вне диапазона",
-  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
+  "code": "validation_error",
+  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01",
+  "errors": {
+    "fieldName": [
+      "Поле обязательно"
+    ]
+  }
 }
 ```
 

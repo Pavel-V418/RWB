@@ -27,67 +27,67 @@
   ],
   "business_errors": [
     {
-      "code": "invalid-credentials",
+      "code": "invalid_credentials",
       "status": 401,
       "title": "Неверный логин или пароль",
       "when": "вход с неверными учётными данными"
     },
     {
-      "code": "vehicle-not-assigned",
+      "code": "vehicle_not_assigned",
       "status": 403,
       "title": "Автомобиль не закреплён за вами",
       "when": "водитель обращается к данным чужого автомобиля"
     },
     {
-      "code": "vehicle-not-in-paid-zone",
+      "code": "vehicle_not_in_paid_zone",
       "status": 422,
       "title": "Автомобиль не в платной зоне",
       "when": "запуск сессии, когда текущая зона не определена"
     },
     {
-      "code": "session-already-active",
+      "code": "session_already_active",
       "status": 409,
       "title": "В этой зоне уже есть активная сессия",
       "when": "повторный запуск сессии в той же зоне"
     },
     {
-      "code": "paid-until-in-past",
+      "code": "paid_until_in_past",
       "status": 422,
       "title": "Время окончания оплаты уже прошло",
       "when": "подтверждение или продление с paidUntil раньше текущего времени"
     },
     {
-      "code": "session-not-active",
+      "code": "session_not_active",
       "status": 409,
       "title": "Сессия уже завершена",
       "when": "продление или закрытие закрытой сессии"
     },
     {
-      "code": "position-from-future",
+      "code": "position_from_future",
       "status": 422,
       "title": "Время координаты в будущем",
       "when": "recordedAt позже текущего времени сервера более чем на 5 минут"
     },
     {
-      "code": "provider-unavailable",
-      "status": 503,
+      "code": "external_provider_error",
+      "status": 502,
       "title": "Сервис поставщика недоступен, повторите позже",
       "when": "адаптер поставщика не получил ответ"
     },
     {
-      "code": "invalid-zone-geometry",
+      "code": "invalid_zone_geometry",
       "status": 422,
       "title": "Некорректные границы зоны",
       "when": "при загрузке зон полигон невалиден"
     },
     {
-      "code": "invalid-demo-route",
+      "code": "invalid_demo_route",
       "status": 422,
       "title": "Некорректный маршрут",
       "when": "в маршруте меньше двух точек"
     },
     {
-      "code": "demo-route-running",
+      "code": "demo_route_running",
       "status": 409,
       "title": "Для автомобиля уже проигрывается маршрут",
       "when": "повторный запуск проигрывания"

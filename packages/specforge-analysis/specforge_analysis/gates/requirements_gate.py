@@ -173,7 +173,8 @@ def check(req: Requirements) -> list[Issue]:
             warn("W_VAGUE_AC", f"размытая формулировка «{m.group(0)}» без меры", a.id)
 
     # --- источники
-    for coll in (req.functional, req.non_functional, req.constraints):
+    for coll in (req.functional, req.non_functional, req.constraints, req.roles, req.entities,
+                 req.integrations, req.goals):
         for it in coll:
             if it.origin == "customer" and it.source and it.source.exact is False:
                 warn("W_FUZZY_SOURCE", "цитата найдена неточно, проверьте ссылку", it.id)

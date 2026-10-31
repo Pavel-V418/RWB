@@ -32,8 +32,8 @@
   },
   "metrics": {
     "llm_calls": 3,
-    "input_tokens": 18774,
-    "output_tokens": 14010,
+    "input_tokens": 19088,
+    "output_tokens": 16323,
     "retries": 0,
     "cached_calls": 3,
     "duration_s": 0.0

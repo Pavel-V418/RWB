@@ -39,29 +39,43 @@ def _read_pdf(path: Path) -> str:
 
 
 def _read_docx(path: Path) -> str:
+    """Абзацы и таблицы в порядке документа: таблица остаётся рядом с текстом, который её вводит,
+    и номера строк цитат из таблицы указывают на её настоящее место."""
     import docx
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
     doc = docx.Document(str(path))
     out: list[str] = []
-    for p in doc.paragraphs:
+
+    def para(p: Paragraph) -> None:
         style = (p.style.name or "").lower() if p.style is not None else ""
         text = p.text.strip()
         if not text:
             out.append("")
-        elif style.startswith("heading"):
+        elif style.startswith("heading") or style.startswith("заголовок"):
             level = re.sub(r"\D", "", style) or "2"
             out.append("#" * min(int(level), 6) + " " + text)
-        elif "list" in style:
+        elif "list" in style or "спис" in style or p._p.pPr is not None and p._p.pPr.numPr is not None:
             out.append("- " + text)
         else:
             out.append(text)
-    for t in doc.tables:
+
+    def table(t: Table) -> None:
         out.append("")
         for i, row in enumerate(t.rows):
-            cells = [c.text.strip().replace("\n", " ") for c in row.cells]
+            cells = [c.text.strip().replace("\n", " ").replace("|", "/") for c in row.cells]
             out.append("| " + " | ".join(cells) + " |")
             if i == 0:
                 out.append("|" + " --- |" * len(cells))
+        out.append("")
+
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            para(Paragraph(child, doc))
+        elif tag == "tbl":
+            table(Table(child, doc))
     return "\n".join(out)
 
 
@@ -142,19 +156,27 @@ class SourceIndex:
         pos = self._joined.find(q)
         if pos >= 0:
             return QuoteMatch(self._line_at(pos), True, 1.0)
-        # нечёткий поиск: доля слов цитаты в окне из 3 строк
+        # нечёткий поиск: доля слов цитаты в окне из 3 строк. Числа (сроки, пороги, суммы) должны
+        # совпасть все: «30 минут» вместо «10 минут» — это искажение требования, а не перефразировка.
         words = set(q.split())
+        nums = {w for w in words if w.isdigit()}
         best = (0.0, -1)
         for i in range(len(self.norm_lines)):
             window = " ".join(self.norm_lines[i : i + 3])
             if not window:
                 continue
             ws = set(window.split())
+            if not nums <= ws:
+                continue
             score = len(words & ws) / max(len(words), 1)
             if score > best[0]:
                 best = (score, i)
         if best[0] >= 0.75:
-            return QuoteMatch(best[1] + 1, False, round(best[0], 2))
+            # строка окна, где совпадений больше всего (а не первая строка окна)
+            i0 = best[1]
+            line = max(range(i0, min(i0 + 3, len(self.norm_lines))),
+                       key=lambda j: (len(words & set(self.norm_lines[j].split())), -j))
+            return QuoteMatch(line + 1, False, round(best[0], 2))
         return None
 
     def numbered(self) -> str:

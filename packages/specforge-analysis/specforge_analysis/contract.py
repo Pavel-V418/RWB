@@ -55,3 +55,32 @@ def ensure_dir(p: str | Path) -> Path:
     path = Path(p)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def reset_outputs(out: Path, patterns: list[str], protect: Path | None = None) -> None:
+    """Удаляет результаты прошлого прогона, чтобы при сбое в папке не остались устаревшие артефакты,
+    которые оркестратор примет за свежие. answers.yaml и metrics.jsonl не трогаются."""
+    if protect is not None:
+        prot = protect.resolve()
+        o = out.resolve()
+        if o == prot or o in prot.parents:  # выход совпадает со входом — ничего не удаляем
+            return
+    for pat in patterns:
+        for p in out.glob(pat):
+            if p.is_file() and p.name not in ("answers.yaml", "answers.yml", "metrics.jsonl"):
+                p.unlink()
+
+
+def failed_result(stage: str, out: Path, code: str, exc: Exception, duration_s: float, msum: dict) -> GateResult:
+    """GateResult для этапа, который не смог завершиться (например, модель недоступна или ответ невалиден)."""
+    import json
+
+    issue = Issue(code, "error", f"{type(exc).__name__}: {exc}"[:1000])
+    res = GateResult(stage=stage, passed=False, errors=[issue],
+                     tokens={"input": msum.get("input_tokens", 0), "output": msum.get("output_tokens", 0)},
+                     attempts=msum.get("llm_calls", 0), llm_calls=msum.get("llm_calls", 0),
+                     duration_s=round(duration_s, 2))
+    report = {"passed": False, "errors": [asdict(issue)], "warnings": [], "metrics": msum}
+    (out / "gate_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out / "gate_result.json").write_text(json.dumps(res.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    return res

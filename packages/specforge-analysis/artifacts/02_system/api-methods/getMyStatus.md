@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -96,13 +96,13 @@ Authorization: Bearer <token>
 {
   "vehicleId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "plateNumber": "строка",
-  "zoneId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "zoneNumber": "строка",
-  "sessionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "sessionStatus": "active",
-  "paidUntil": "2026-10-30T14:20:00+03:00",
-  "remainingMinutes": 0,
-  "lastPositionAt": "2026-10-30T14:20:00+03:00"
+  "zoneId": null,
+  "zoneNumber": null,
+  "sessionId": null,
+  "sessionStatus": null,
+  "paidUntil": null,
+  "remainingMinutes": null,
+  "lastPositionAt": null
 }
 ```
 
@@ -113,6 +113,7 @@ Authorization: Bearer <token>
 | 401 | Нет или истёк токен доступа |
 | 403 | Недостаточно прав для операции |
 | 404 | Ресурс не найден: За водителем не закреплён автомобиль |
+| 429 | Превышен лимит запросов |
 | 500 | Внутренняя ошибка |
 
 #### Модель данных тела ответа (application/problem+json, RFC 9457)
@@ -125,16 +126,17 @@ Authorization: Bearer <token>
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/404",
+  "type": "https://errors.app.local/not-found",
   "title": "Ресурс не найден",
   "status": 404,
   "detail": "За водителем не закреплён автомобиль",
+  "code": "not_found",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
 }
 ```

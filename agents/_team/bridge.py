@@ -176,9 +176,11 @@ def team_result(
     summary: str = "",
 ) -> StageResult:
     """Шлюз части пройден → passed; не пройден, но артефакты есть (внутренние ремонты части
-    исчерпаны) → degraded, конвейер идёт дальше; артефактов нет → failed."""
+    исчерпаны) → degraded, конвейер идёт дальше; артефактов нет → failed. E_LLM (модель не
+    ответила, часть вернула GateResult вместо исключения) → failed: артефактов этапа нет."""
     found = list(diagnostics)
     errors = [d for d in found if d.severity == "error"]
+    llm_failed = any(d.code == "E_LLM" for d in errors)
     ordered = errors + [d for d in found if d.severity != "error"]
     gate = GateResult(
         passed=passed,
@@ -189,7 +191,7 @@ def team_result(
     artifacts = agent.collect_artifacts(ctx)
     if passed:
         status = StageStatus.passed
-    elif artifacts:
+    elif artifacts and not llm_failed:
         status = StageStatus.degraded
     else:
         status = StageStatus.failed

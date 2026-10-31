@@ -12,12 +12,18 @@ servers:
 tags:
 - name: Auth
 - name: Me
+  description: Уведомление водителю
 - name: Positions
 - name: Vehicles
+  description: Служебный автомобиль
 - name: Zones
+  description: Зона платной парковки
 - name: Sessions
+  description: Парковочная сессия автомобиля в зоне
 - name: Events
+  description: 'Событие жизненного цикла: въезд, выход, смена зоны, этапы сессии'
 - name: Demo
+  description: Демонстрационный mock-маршрут
 security:
 - bearerAuth: []
 paths:
@@ -84,6 +90,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/vehicles/{vehicleId}/positions:
@@ -190,6 +198,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/vehicles:
@@ -248,6 +258,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/zones:
@@ -289,6 +301,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/zones/{zoneId}:
@@ -328,6 +342,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/zones/{zoneId}/payment-link:
@@ -365,6 +381,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/zone-imports:
@@ -401,6 +419,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/sessions:
@@ -444,10 +464,12 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+        '502':
+          $ref: '#/components/responses/BadGateway'
     get:
       operationId: listSessions
       summary: История парковочных сессий
@@ -530,6 +552,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/vehicles/{vehicleId}/sessions/active:
@@ -568,6 +592,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/sessions/{sessionId}/extensions:
@@ -617,10 +643,12 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+        '502':
+          $ref: '#/components/responses/BadGateway'
   /api/v1/sessions/{sessionId}:
     patch:
       operationId: updateSession
@@ -664,6 +692,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/events:
@@ -752,6 +782,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/me/notifications:
@@ -813,6 +845,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/me/notifications/{notificationId}:
@@ -852,6 +886,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/demo/routes:
@@ -880,6 +916,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/demo/routes/{routeId}/runs:
@@ -927,6 +965,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -1015,8 +1055,14 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    BadGateway:
+      description: 'Ошибка или таймаут внешнего поставщика (code: external_provider_error)'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     ServiceUnavailable:
-      description: Внешний сервис недоступен
+      description: Сервис временно недоступен
       content:
         application/problem+json:
           schema:
@@ -1115,6 +1161,7 @@ components:
           readOnly: true
         plateNumber:
           type: string
+          title: Госномер
           description: госномер, например А123ВС178
           maxLength: 9
           minLength: 1
@@ -1316,7 +1363,13 @@ components:
           - expiring
           - expired
           - closed
+          title: Статус
           description: статус
+          x-enum-labels:
+            active: Активна
+            expiring: Скоро закончится
+            expired: Истекла
+            closed: Завершена
           readOnly: true
           default: active
         startedAt:
@@ -1613,18 +1666,12 @@ components:
           type: string
           description: идентификатор трассировки для поиска в логах
         errors:
-          type: array
-          description: ошибки валидации по полям
-          items:
-            type: object
-            required:
-            - field
-            - message
-            properties:
-              field:
-                type: string
-              message:
-                type: string
+          type: object
+          description: 'ошибки валидации: {поле: [сообщения]} (ValidationProblemDetails)'
+          additionalProperties:
+            type: array
+            items:
+              type: string
     CreateTokenRequest:
       type: object
       properties:

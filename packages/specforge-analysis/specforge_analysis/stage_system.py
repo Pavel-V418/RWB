@@ -15,10 +15,10 @@ from pathlib import Path
 import yaml
 
 from .agents import system_agents as agents
-from .contract import GateResult, Issue, ensure_dir, split_issues
+from .contract import GateResult, Issue, ensure_dir, failed_result, reset_outputs, split_issues
 from .gates import system_gate as gate
 from .gates.pgcheck import check_ddl
-from .llm import LLM
+from .llm import LLM, LLMError
 from .prompting import compact
 from .render import api_methods, contracts, diagrams, sa_document
 from .render.requirements_artifacts import TRACE_COLUMNS
@@ -61,10 +61,72 @@ def _traceability(req_dir: Path, cov: dict) -> str:
     return buf.getvalue()
 
 
+# ошибки шлюза, которые может исправить модель (остальные — следствие этих или требований этапа 1)
+REPAIRABLE = {"E_PATH_VERB", "E_PATH_FORMAT", "E_DUP_ROUTE", "E_DUP_OPID", "E_OP_NO_ROLE", "E_SM_ENTITY",
+              "E_SM_FIELD", "E_SM_STATES", "E_ENUM_EMPTY", "E_REGEX", "E_DUP_FIELD", "E_EMPTY_REQUEST", "E_DDL",
+              "E_OPENAPI_PARAM"}
+
+
+def _ops_for(design, issues: list[Issue]) -> list:
+    """Операции, к которым относятся ошибки (по operationId, «METHOD /path» или пути)."""
+    targets = {i.target for i in issues if i.target}
+    return [o for o in design.operations
+            if o.operation_id in targets or o.path in targets or f"{o.method.upper()} {o.path}" in targets]
+
+
+def _apply_design_patch(domain, design, patch) -> list[Issue]:
+    fixes: list[Issue] = []
+    ents = {e.name: i for i, e in enumerate(domain.entities)}
+    for e in patch.entities:
+        if e.name in ents:
+            domain.entities[ents[e.name]] = e
+        else:
+            domain.entities.append(e)
+        fixes.append(Issue("W_DESIGN_REPAIRED", "warning", "сущность исправлена по ошибкам шлюза", e.name))
+    sms = {(x.entity, x.field): i for i, x in enumerate(domain.state_machines)}
+    for sm in patch.state_machines:
+        if (sm.entity, sm.field) in sms:
+            domain.state_machines[sms[(sm.entity, sm.field)]] = sm
+        else:
+            domain.state_machines.append(sm)
+        fixes.append(Issue("W_DESIGN_REPAIRED", "warning", "жизненный цикл исправлен", f"{sm.entity}.{sm.field}"))
+    if patch.remove_operations:
+        drop = set(patch.remove_operations)
+        # удаляем по одному экземпляру: при дубле operationId вторая копия заменится исправленной ниже
+        kept, removed = [], set()
+        for o in design.operations:
+            if o.operation_id in drop and o.operation_id not in removed:
+                removed.add(o.operation_id)
+                continue
+            kept.append(o)
+        design.operations[:] = kept
+        fixes += [Issue("W_DESIGN_REPAIRED", "warning", "дублирующая операция удалена", x) for x in sorted(removed)]
+    ops = {o.operation_id: i for i, o in enumerate(design.operations)}
+    for o in patch.operations:
+        if o.operation_id in ops:
+            design.operations[ops[o.operation_id]] = o
+        else:
+            design.operations.append(o)
+        fixes.append(Issue("W_DESIGN_REPAIRED", "warning", "операция исправлена по ошибкам шлюза", o.operation_id))
+    return fixes
+
+
+OUTPUTS = ["*.json", "*.yaml", "*.sql", "*.md", "*.csv", "api-methods/*.md", "diagrams/*"]
+
+
 def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, check_db: bool = True) -> GateResult:
+    """Контракт оркестратора: всегда возвращает GateResult, в том числе при сбое модели (E_LLM)."""
     t0 = time.monotonic()
     since = len(llm.metrics.calls)
-    req_dir, out = Path(input_dir), ensure_dir(output_dir)
+    out = ensure_dir(output_dir)
+    reset_outputs(out, OUTPUTS, protect=Path(input_dir))
+    try:
+        return _run(Path(input_dir), out, llm, check_db=check_db, t0=t0, since=since)
+    except LLMError as exc:
+        return failed_result(STAGE, out, "E_LLM", exc, time.monotonic() - t0, llm.metrics.summary(since))
+
+
+def _run(req_dir: Path, out: Path, llm: LLM, *, check_db: bool, t0: float, since: int) -> GateResult:
     req = Requirements.model_validate_json((req_dir / "requirements.json").read_text(encoding="utf-8"))
     req_json = compact(agents.req_view(req))
 
@@ -88,17 +150,28 @@ def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, check_db: bo
         design.no_api += patch.no_api
         fixes += gate.autofix(m)
 
-    # 4. контракты и проверки
-    openapi = contracts.build_openapi(m)
-    asyncapi = contracts.build_asyncapi(m)
-    ddl = contracts.build_ddl(m)
-    ddl_check = check_ddl(ddl) if check_db else None
-    issues = gate.check(m, openapi, asyncapi, ddl_check)
+    # 4. контракты и проверки; 4а. ремонт оставшихся блокирующих ошибок (0–MAX_REPAIR вызовов)
+    for attempt in range(0, MAX_REPAIR + 1):
+        openapi = contracts.build_openapi(m)
+        asyncapi = contracts.build_asyncapi(m)
+        ddl = contracts.build_ddl(m)
+        ddl_check = check_ddl(ddl) if check_db else None
+        issues = gate.check(m, openapi, asyncapi, ddl_check)
+        repairable = [i for i in issues if i.severity == "error" and i.code in REPAIRABLE]
+        if not repairable or attempt == MAX_REPAIR:
+            break
+        patch = agents.repair_design(llm, req_json, domain, _ops_for(design, repairable),
+                                     [str(i) for i in repairable], attempt + 1)
+        if patch is None:
+            break
+        fixes += _apply_design_patch(domain, design, patch)
+        m = contracts.Model(domain, design, req)
+        fixes += gate.autofix(m)
     cov = gate.coverage_map(m)
 
     # 5. текст документа
     prose = agents.write_prose(llm, req_json, domain, design)
-    for b in prose.business_errors:  # код — snake_case, внешний поставщик — 502
+    for b in (prose.business_errors if prose else []):  # код — snake_case, внешний поставщик — 502
         b.code = contracts.error_code(b.code)
         if b.status in (502, 503):
             b.status, b.code = 502, "external_provider_error"
@@ -148,9 +221,6 @@ def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, check_db: bo
         "metrics": msum,
     }
     files["gate_report.json"] = json.dumps(report, ensure_ascii=False, indent=2)
-    if (out / "api-methods").exists():  # удалённые методы не должны оставаться в каталоге
-        for old in (out / "api-methods").glob("*.md"):
-            old.unlink()
     for name, content in files.items():
         p = out / name
         p.parent.mkdir(parents=True, exist_ok=True)

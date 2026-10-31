@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -131,11 +131,11 @@ Authorization: Bearer <token>
   },
   "hourlyRate": 120.0,
   "paidHours": "пн–пт 08:00–20:00",
-  "maxDurationMinutes": 1,
+  "maxDurationMinutes": null,
   "dataSource": "open_data",
-  "dataVersion": "строка",
+  "dataVersion": null,
   "createdAt": "2026-10-30T14:20:00+03:00",
-  "updatedAt": "2026-10-30T14:20:00+03:00"
+  "updatedAt": "2026-10-30T15:20:00+03:00"
 }
 ```
 
@@ -147,6 +147,7 @@ Authorization: Bearer <token>
 | 401 | Нет или истёк токен доступа |
 | 403 | Недостаточно прав для операции |
 | 404 | Ресурс не найден: Зона не найдена |
+| 429 | Превышен лимит запросов |
 | 500 | Внутренняя ошибка |
 
 #### Модель данных тела ответа (application/problem+json, RFC 9457)
@@ -159,16 +160,17 @@ Authorization: Bearer <token>
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/404",
+  "type": "https://errors.app.local/not-found",
   "title": "Ресурс не найден",
   "status": 404,
   "detail": "Зона не найдена",
+  "code": "not_found",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
 }
 ```

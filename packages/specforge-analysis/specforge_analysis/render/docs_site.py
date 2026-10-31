@@ -345,10 +345,11 @@ def page_limitations(req: Requirements, m: Model, prose: SaProse | None, ti: Tea
         o += [f"| {q.id}. {_c(q.question)} | {_c(q.answer)} |" for q in defaulted]
     o += ["", "## Допущения системы", "", "| ID | Допущение |", "| --- | --- |"]
     o += [f"| {a.id} | {_c(a.statement)} |" for a in req.assumptions if not a.from_question]
-    open_critic = [c for c in critic if c.get("status") == "open"]
+    open_critic = [c for c in critic if c.get("status") in ("open", "repair_attempted")]
     if open_critic or gate_warnings:
         o += ["", "## Замечания проверок, оставшиеся открытыми", "", "| Источник | Элемент | Замечание |", "| --- | --- | --- |"]
-        o += [f"| критик анализа | {c['target']} | {_c(c['issue'])} |" for c in open_critic]
+        o += [f"| критик анализа{' (ремонт выполнялся)' if c.get('status') == 'repair_attempted' else ''} | "
+              f"{c['target']} | {_c(c['issue'])} |" for c in open_critic]
         o += [f"| шлюз {w.get('stage', '')} | {_c(w.get('target'))} | {_c(w['message'])} |" for w in gate_warnings]
     failed = [t for t in ti.tests if t.status == "failed"]
     vulns = [f for f in ti.findings if f.status == "open" and f.severity in ("critical", "high", "medium")]

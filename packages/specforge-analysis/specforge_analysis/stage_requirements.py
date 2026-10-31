@@ -13,9 +13,9 @@ import yaml
 
 from .agents import requirements_agents as agents
 from .assemble import build_base, build_business, link_backrefs, merge_analysis, set_acceptance
-from .contract import GateResult, Issue, ensure_dir, split_issues
+from .contract import GateResult, Issue, ensure_dir, failed_result, reset_outputs, split_issues
 from .gates import requirements_gate as gate
-from .llm import LLM
+from .llm import LLM, LLMError
 from .normalize import SourceIndex, find_input, load_requirements
 from .render.requirements_artifacts import report_md, write_all
 
@@ -30,15 +30,29 @@ def _load_answers(input_dir: Path) -> dict[str, str]:
         p = input_dir / name if input_dir.is_dir() else input_dir.parent / name
         if p.exists():
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-            return {str(k): str(v) for k, v in data.items() if v not in (None, "")}
+            # пустой ответ сохраняется как "": это явное согласие с вариантом по умолчанию
+            return {str(k): "" if v is None else str(v).strip() for k, v in data.items()}
     return {}
+
+
+OUTPUTS = ["*.json", "*.md", "*.csv", "answers.template.yaml", "acceptance/*.feature"]
 
 
 def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, mode: str = "auto",
         use_critic: bool = True) -> GateResult:
+    """Контракт оркестратора: всегда возвращает GateResult, в том числе при сбое модели (E_LLM)."""
     t0 = time.monotonic()
     since = len(llm.metrics.calls)
-    input_dir, out = Path(input_dir), ensure_dir(output_dir)
+    out = ensure_dir(output_dir)
+    reset_outputs(out, OUTPUTS, protect=Path(input_dir))
+    try:
+        return _run(Path(input_dir), out, llm, mode=mode, use_critic=use_critic, t0=t0, since=since)
+    except LLMError as exc:
+        return failed_result(STAGE, out, "E_LLM", exc, time.monotonic() - t0, llm.metrics.summary(since))
+
+
+def _run(input_dir: Path, out: Path, llm: LLM, *, mode: str, use_critic: bool, t0: float,
+         since: int) -> GateResult:
 
     src_path = find_input(input_dir)
     source = load_requirements(src_path)
@@ -72,6 +86,14 @@ def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, mode: str = 
                 if fr:
                     targets.setdefault(fr, []).append(f"{i.target}: {i.message}")
         if attempt == 1:
+            # ответы заказчика (interactive): критерии затронутых FR пересобираются с учётом решения
+            for q in req.questions:
+                if q.status == "answered":
+                    for fr in q.affected:
+                        if fr.startswith("FR-"):
+                            targets.setdefault(fr, []).append(
+                                f"Ответ заказчика на {q.id} «{q.question}»: {q.answer}. Критерии должны "
+                                "соответствовать этому решению.")
             for f in findings:
                 fr = agents.fr_of(f["target"])
                 if fr and f["severity"] in ("blocker", "major") and f["category"] in REPAIR_CATEGORIES:
@@ -90,14 +112,28 @@ def run(input_dir: str | Path, output_dir: str | Path, llm: LLM, *, mode: str = 
         issues = gate.check(req)
         for f in findings:
             if agents.fr_of(f["target"]) in patched and f["status"] == "open":
-                f["status"] = "repaired"
+                f["status"] = "repair_attempted"  # критерии пересобраны; что дефект устранён, не проверялось
+
+    for q in req.questions:
+        if q.status == "answered" and not any(a.startswith("FR-") for a in q.affected):
+            fixes.append(Issue("W_ANSWER_NO_FR", "warning", "ответ не привязан ни к одному FR и учтён только "
+                               "в решениях этапа 2", q.id))
+
+    # блокирующие замечания критика, которые не ремонтировались, видны в шлюзе
+    for f in findings:
+        if f["severity"] == "blocker" and f["status"] == "open":
+            fixes.append(Issue("W_CRITIC_BLOCKER", "warning",
+                               f"критик: {f['issue']} Предложение: {f['fix']}", f["target"]))
 
     # 5. трассировка бизнес-требований (BR-n) — по строкам исходного текста, без LLM
     uncovered = build_business(req, index)
     if uncovered:
+        cand = {b.line: b.fr_candidates[0] for b in req.business if b.fr_candidates}
+        parts = [f"{ln} (кандидат {cand[ln]})" if ln in cand else str(ln) for ln in uncovered[:30]]
         fixes.append(Issue("W_BR_UNCOVERED", "warning",
                            "пункты бизнес-требований без ссылок из модели: строки "
-                           + ", ".join(map(str, uncovered[:30])) + (" …" if len(uncovered) > 30 else "")))
+                           + ", ".join(parts) + (" …" if len(uncovered) > 30 else "")
+                           + ". Кандидаты подобраны по совпадению слов и требуют проверки"))
 
     # 6. артефакты и отчёт
     errors, warnings = split_issues(issues + fixes)

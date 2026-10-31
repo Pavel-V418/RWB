@@ -531,6 +531,36 @@ def _platform_tables(m: Model) -> list[str]:
     return out
 
 
+# Зарезервированные слова PostgreSQL (reserved и «reserved, can be function or type»):
+# такие имена таблиц и колонок без кавычек дают синтаксическую ошибку DDL.
+PG_RESERVED = frozenset("""
+all analyse analyze and any array as asc asymmetric authorization binary both case cast check collate collation
+column concurrently constraint create cross current_catalog current_date current_role current_schema current_time
+current_timestamp current_user default deferrable desc distinct do else end except false fetch for foreign freeze
+from full grant group having ilike in initially inner intersect into is isnull join lateral leading left like limit
+localtime localtimestamp natural not notnull null offset on only or order outer overlaps placing primary references
+returning right select session_user similar some symmetric system_user table tablesample then to trailing true union
+unique user using variadic verbose when where window with
+""".split())
+
+
+def qi(name: str) -> str:
+    """Идентификатор SQL: зарезервированное слово берётся в двойные кавычки."""
+    return f'"{name}"' if name in PG_RESERVED else name
+
+
+def reserved_columns(m: Model) -> list[tuple[str, str]]:
+    """(сущность, колонка) с зарезервированными именами — для предупреждения шлюза."""
+    out = []
+    for e in m.domain.entities:
+        if table_name(e.name) in PG_RESERVED:
+            out.append((e.name, table_name(e.name)))
+        for f in m.fields(e.name):
+            if snake(f.name) in PG_RESERVED:
+                out.append((e.name, snake(f.name)))
+    return out
+
+
 def build_ddl(m: Model, platform: bool = False) -> str:
     out = ["-- Сгенерировано specforge-analysis из доменной модели. Не редактировать вручную:",
            "-- изменения вносятся в доменную модель, затем этап 2 перезапускается.",
@@ -540,7 +570,7 @@ def build_ddl(m: Model, platform: bool = False) -> str:
         for f in e.fields:
             if f.type == "enum":
                 vals = ", ".join(f"'{_q(v)}'" for v in f.enum_values)
-                out.append(f"CREATE TYPE {m.enum_type(e.name, f)} AS ENUM ({vals});")
+                out.append(f"CREATE TYPE {qi(m.enum_type(e.name, f))} AS ENUM ({vals});")
     out.append("")
     alters: list[str] = []
     indexes: list[str] = []
@@ -548,14 +578,19 @@ def build_ddl(m: Model, platform: bool = False) -> str:
     ordered = _order_tables(m)
     created: set[str] = set()
     for e in ordered:
-        tn = table_name(e.name)
+        tn = table_name(e.name)   # «сырое» имя — для имён ограничений и индексов
+        qt = qi(tn)               # имя в SQL-выражениях
         cols = []
         for f in m.fields(e.name):
             col = snake(f.name)
+            qc = qi(col)
             if f.name == "id":
                 cols.append(f"    id uuid PRIMARY KEY DEFAULT gen_random_uuid()")
                 continue
-            parts = [f"    {col} {_sql_type(m, e.name, f)}"]
+            sql_type = _sql_type(m, e.name, f)
+            if f.type == "enum":
+                sql_type = qi(sql_type)
+            parts = [f"    {qc} {sql_type}"]
             if f.required:
                 parts.append("NOT NULL")
             if f.name in ("createdAt", "updatedAt"):
@@ -567,29 +602,30 @@ def build_ddl(m: Model, platform: bool = False) -> str:
             if f.unique:
                 parts.append("UNIQUE")
             if f.minimum is not None and f.type in ("int", "bigint", "decimal"):
-                parts.append(f"CHECK ({col} >= {f.minimum:g})")
+                parts.append(f"CHECK ({qc} >= {f.minimum:g})")
             if f.maximum is not None and f.type in ("int", "bigint", "decimal"):
-                parts.append(f"CHECK ({col} <= {f.maximum:g})")
+                parts.append(f"CHECK ({qc} <= {f.maximum:g})")
             if f.ref and f.ref in m.entities:
-                fk = f"REFERENCES {table_name(f.ref)}(id) ON DELETE RESTRICT"
+                ref_t = qi(table_name(f.ref))
+                fk = f"REFERENCES {ref_t}(id) ON DELETE RESTRICT"
                 if f.ref in created or f.ref == e.name:
                     parts.append(fk)
                 else:
-                    alters.append(f"ALTER TABLE {tn} ADD CONSTRAINT fk_{tn}_{col} FOREIGN KEY ({col}) "
-                                  f"REFERENCES {table_name(f.ref)}(id) ON DELETE RESTRICT;")
-                indexes.append(f"CREATE INDEX ix_{tn}_{col} ON {tn} ({col});")
+                    alters.append(f"ALTER TABLE {qt} ADD CONSTRAINT fk_{tn}_{col} FOREIGN KEY ({qc}) "
+                                  f"REFERENCES {ref_t}(id) ON DELETE RESTRICT;")
+                indexes.append(f"CREATE INDEX ix_{tn}_{col} ON {qt} ({qc});")
             if f.type in ("point", "polygon", "linestring"):
-                indexes.append(f"CREATE INDEX ix_{tn}_{col}_gist ON {tn} USING GIST ({col});")
+                indexes.append(f"CREATE INDEX ix_{tn}_{col}_gist ON {qt} USING GIST ({qc});")
             cols.append(" ".join(parts))
             if f.description:
-                comments.append(f"COMMENT ON COLUMN {tn}.{col} IS '{_q(f.description)}';")
-        out.append(f"CREATE TABLE {tn} (\n" + ",\n".join(cols) + "\n);")
-        comments.insert(0, f"COMMENT ON TABLE {tn} IS '{_q(e.description)}';")
+                comments.append(f"COMMENT ON COLUMN {qt}.{qc} IS '{_q(f.description)}';")
+        out.append(f"CREATE TABLE {qt} (\n" + ",\n".join(cols) + "\n);")
+        comments.insert(0, f"COMMENT ON TABLE {qt} IS '{_q(e.description)}';")
         created.add(e.name)
         for idx in e.indexes:
             cols_ = [snake(c) for c in idx if m.field(e.name, c)]
             if cols_:
-                indexes.append(f"CREATE INDEX ix_{tn}_{'_'.join(cols_)} ON {tn} ({', '.join(cols_)});")
+                indexes.append(f"CREATE INDEX ix_{tn}_{'_'.join(cols_)} ON {qt} ({', '.join(qi(c) for c in cols_)});")
         out.append("")
     if platform:
         out += _platform_tables(m)

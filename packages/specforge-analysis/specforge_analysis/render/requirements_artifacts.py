@@ -14,6 +14,12 @@ ORIGIN_RU = {"customer": "заказчик", "derived": "выведено", "ass
 PRIORITY_RU = {"must": "обязательно", "should": "желательно", "could": "возможно"}
 
 
+
+def _br_fr(b) -> str:
+    """FR пункта бизнес-требований; кандидаты, подобранные кодом, помечены явно."""
+    items = list(b.fr) + [f"{c} (кандидат)" for c in b.fr_candidates]
+    return ", ".join(items) or "—"
+
 def _src(it) -> str:
     if it.source and it.source.line:
         return f"стр. {it.source.line}"
@@ -55,8 +61,10 @@ def requirements_md(req: Requirements) -> str:
         o += ["## Бизнес-требования и трассировка", "",
               "Пункты исходных требований (BR) и функциональные требования, которые их реализуют.", "",
               "| BR | Строка | Бизнес-требование | FR | Прочее |", "| --- | --- | --- | --- | --- |"]
-        o += [f"| {b.id} | {b.line} | {_cell(b.text)} | {', '.join(b.fr) or '—'} | {', '.join(b.related) or '—'} |"
+        o += [f"| {b.id} | {b.line} | {_cell(b.text)} | {_br_fr(b)} | {', '.join(b.related) or '—'} |"
               for b in req.business]
+        if any(b.fr_candidates for b in req.business):
+            o += ["", "«кандидат» — FR подобран кодом по совпадению слов, моделью не подтверждён; проверьте вручную."]
         o.append("")
     o += ["## Цели", "", "| ID | Цель | Метрика | Источник |", "| --- | --- | --- | --- |"]
     o += [f"| {g.id} | {_cell(g.statement)} | {_cell(g.metric)} | {_src(g)} |" for g in req.goals]
@@ -245,7 +253,9 @@ def report_md(req: Requirements, gate: dict, coverage: dict, metrics: dict, crit
         o += ["", "## Замечания критика", "", "| Критичность | Тип | Элемент | Замечание | Статус |",
               "| --- | --- | --- | --- | --- |"]
         for c in critique:
-            o.append(f"| {c['severity']} | {c['category']} | {c['target']} | {_cell(c['issue'])} | {c.get('status', 'open')} |")
+            status = {"open": "открыто", "repair_attempted": "ремонт выполнялся, проверьте"}.get(
+                c.get("status", "open"), c.get("status", "open"))
+            o.append(f"| {c['severity']} | {c['category']} | {c['target']} | {_cell(c['issue'])} | {status} |")
     return "\n".join(o) + "\n"
 
 

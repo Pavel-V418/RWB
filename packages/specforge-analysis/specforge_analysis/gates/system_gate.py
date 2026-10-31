@@ -8,7 +8,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from ..contract import Issue
-from ..render.contracts import Model, request_fields
+from ..render.contracts import Model, request_fields, reserved_columns
 from .pgcheck import DdlCheck
 
 SPECIAL_ROLES = {"anonymous", "system"}
@@ -21,6 +21,17 @@ PATH_VERBS = {"get", "create", "add", "update", "edit", "delete", "remove", "set
               "execute", "save", "load", "fetch", "find", "list", "search", "publish", "notify", "refresh"}
 
 
+# конструкции Python/PCRE, которых нет в ECMA-262 (диалект pattern в JSON Schema и OpenAPI)
+_NON_ECMA = [(re.compile(r"\(\?P[<=>]"), "(?P<…>)"), (re.compile(r"(?<!\\)\\[AZz]"), "\\A/\\Z"),
+             (re.compile(r"\(\?[aiLmsux]+[):]"), "inline-флаги (?i)"), (re.compile(r"\(\?#"), "комментарии (?#…)"),
+             (re.compile(r"\[\[:[a-z]+:\]\]"), "POSIX-классы [[:alpha:]]"), (re.compile(r"\(\?>"), "атомарные группы"),
+             (re.compile(r"[*+?}]\+"), "possessive-кванторы")]
+
+
+def non_ecma(pattern: str) -> list[str]:
+    return [name for rx, name in _NON_ECMA if rx.search(pattern)]
+
+
 def path_verbs(path: str) -> list[str]:
     bad = []
     for seg in path.split("/"):
@@ -30,6 +41,8 @@ def path_verbs(path: str) -> list[str]:
         if first in PATH_VERBS:
             bad.append(seg)
     return bad
+
+
 _PATH_RE = re.compile(r"^/api/v\d+(/[a-z0-9\-]+|/\{[A-Za-z0-9_]+\})+$")
 
 
@@ -43,7 +56,20 @@ VERB_TO_NOUN = {
     "sync": "synchronization", "publish": "publication", "notify": "notifications",
     "register": "registrations", "reset": "resets", "process": "processing", "execute": "executions",
     "search": None, "find": None, "list": None, "get": None, "fetch": None, "load": None,
+    # действие уже выражено HTTP-методом — сегмент убирается (только последний сегмент пути)
+    "create": None, "add": None, "update": None, "edit": None, "delete": None, "remove": None,
+    "save": None, "set": None,
+    # действие над ресурсом -> подресурс-существительное
+    "start": "starts", "stop": "stops", "run": "runs", "play": "runs", "send": "sendings",
+    "mark": "marks", "open": "openings", "read": "reads", "refresh": "refreshes",
+    "download": "file", "upload": "files",
 }
+
+# метод, который подразумевает убираемый глагол (POST /orders/create -> POST /orders)
+_DROP_METHODS = {"get": {"get"}, "search": {"get"}, "find": {"get"}, "list": {"get"}, "fetch": {"get"},
+                 "load": {"get"}, "create": {"post"}, "add": {"post"}, "update": {"put", "patch"},
+                 "edit": {"put", "patch"}, "save": {"put", "patch", "post"}, "set": {"put", "patch"},
+                 "delete": {"delete"}, "remove": {"delete"}}
 
 
 def fix_path_verbs(m: Model) -> list[Issue]:
@@ -55,7 +81,7 @@ def fix_path_verbs(m: Model) -> list[Issue]:
         segs = op.path.split("/")
         new = []
         ok = True
-        for seg in segs:
+        for pos, seg in enumerate(segs):
             parts = re.split(r"([-_])", seg)
             head = parts[0].lower() if seg and not seg.startswith("{") else ""
             if head in PATH_VERBS:
@@ -64,7 +90,7 @@ def fix_path_verbs(m: Model) -> list[Issue]:
                     break
                 noun = VERB_TO_NOUN[head]
                 if noun is None:
-                    if seg is not segs[-1] or op.method != "get":
+                    if pos != len(segs) - 1 or op.method not in _DROP_METHODS.get(head, {"get"}):
                         ok = False
                         break
                     continue
@@ -78,6 +104,30 @@ def fix_path_verbs(m: Model) -> list[Issue]:
         fixes.append(Issue("W_PATH_RENAMED", "warning", f"{op.path} -> {path}", op.operation_id))
         op.path = path
     return fixes
+
+
+def _norm_role(r: str) -> str:
+    r = r.strip().lower().removeprefix("role-").replace("-", "_").replace(" ", "_")
+    return r[:-1] if r.endswith("s") and len(r) > 3 else r
+
+
+_ROLE_SYNONYMS = {"admin": "administrator", "administrator": "admin", "anon": "anonymous", "guest": "anonymous",
+                  "public": "anonymous", "service": "system", "scheduler": "system", "worker": "system"}
+
+
+def _role_aliases(m: Model) -> dict[str, str]:
+    """Нормализованное имя/синоним -> ключ роли из требований."""
+    out: dict[str, str] = {}
+    for r in list(m.req.roles):
+        for a in (r.key, r.id, r.name):
+            out[_norm_role(a)] = r.key
+    for k in SPECIAL_ROLES:
+        out[k] = k
+    for syn, target in _ROLE_SYNONYMS.items():
+        t = _norm_role(target)
+        if t in out and syn not in out:
+            out[syn] = out[t]
+    return out
 
 
 def autofix(m: Model) -> list[Issue]:
@@ -97,11 +147,26 @@ def autofix(m: Model) -> list[Issue]:
                 f.ref = None
         e.fr = [x for x in e.fr if x in fr_ids]
 
+    alias = _role_aliases(m)
     for op in m.design.operations:
-        bad = [r for r in op.roles if r not in roles]
-        if bad:
-            op.roles = [r for r in op.roles if r in roles]
-            fixes.append(Issue("W_ROLE_DROPPED", "warning", f"удалены неизвестные роли {bad}", op.operation_id))
+        mapped = []
+        for r in op.roles:
+            key = r if r in roles else alias.get(_norm_role(r))
+            if key and key != r:
+                fixes.append(Issue("W_ROLE_MAPPED", "warning", f"роль {r!r} -> {key!r}", op.operation_id))
+            if key:
+                mapped.append(key)
+            else:
+                fixes.append(Issue("W_ROLE_DROPPED", "warning", f"удалена неизвестная роль {r!r}", op.operation_id))
+        op.roles = list(dict.fromkeys(mapped))
+        if not op.roles:
+            # роли из акторов связанных требований; иначе — ни одной роли не будет и шлюз упадёт
+            fr_roles = [a.removeprefix("ROLE-") for f in m.req.functional if f.id in op.fr for a in f.actors]
+            fr_roles = [r for r in dict.fromkeys(fr_roles) if r in roles]
+            if fr_roles:
+                op.roles = fr_roles
+                fixes.append(Issue("W_ROLE_FROM_FR", "warning",
+                                   f"роли взяты из акторов требований {op.fr}: {fr_roles}", op.operation_id))
         bad = [x for x in op.fr if x not in fr_ids]
         if bad:
             op.fr = [x for x in op.fr if x in fr_ids]
@@ -253,6 +318,11 @@ def check(m: Model, openapi: dict, asyncapi: dict | None, ddl_check: DdlCheck | 
                     re.compile(f.pattern)
                 except re.error as exc:
                     err("E_REGEX", f"некорректное регулярное выражение: {exc}", f"{e.name}.{f.name}")
+                else:
+                    bad = non_ecma(f.pattern)
+                    if bad:
+                        err("E_REGEX", f"конструкции {bad} не поддерживаются в JSON Schema (ECMA-262): "
+                                       "валидаторы в браузере и на backend поведут себя иначе", f"{e.name}.{f.name}")
             if f.pattern and f.example is not None:
                 try:
                     if not re.fullmatch(f.pattern.lstrip("^").rstrip("$"), f.example):
@@ -322,6 +392,9 @@ def check(m: Model, openapi: dict, asyncapi: dict | None, ddl_check: DdlCheck | 
             warn("W_EVENT_NO_CONSUMER", "у события нет потребителей", ev.name)
 
     # --- контракты и БД
+    for ent, col in reserved_columns(m):
+        warn("W_DDL_RESERVED_NAME", f"имя {col!r} — зарезервированное слово PostgreSQL, в DDL взято в кавычки; "
+                                    "лучше переименовать поле в доменной модели", ent)
     issues += check_openapi(openapi)
     issues += check_asyncapi(asyncapi)
     if ddl_check:

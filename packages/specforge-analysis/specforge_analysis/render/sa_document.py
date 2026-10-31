@@ -357,7 +357,8 @@ def render(m: Model, prose: SaProse | None, coverage: dict, has_events: bool, to
     fr_by_id = {f.id: f for f in req.functional}
     for b in req.business:
         if not b.fr:
-            o.append(f"| {b.id} | {_c(b.text)} | — | — | — | {_c(', '.join(b.related))} |")
+            cand = ", ".join(f"{c} (кандидат)" for c in b.fr_candidates) or "—"
+            o.append(f"| {b.id} | {_c(b.text)} | {cand} | — | — | {_c(', '.join(b.related))} |")
             continue
         for fid in b.fr:
             f = fr_by_id[fid]

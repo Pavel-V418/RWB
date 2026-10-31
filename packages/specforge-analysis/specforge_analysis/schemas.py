@@ -329,6 +329,7 @@ class BusinessReq(Item):
     text: str
     fr: list[str] = []
     related: list[str] = []      # прочие элементы (ограничения, интеграции, роли…)
+    fr_candidates: list[str] = []  # подобраны кодом по совпадению слов, не моделью: требуют проверки
 
 
 class Acceptance(Item):

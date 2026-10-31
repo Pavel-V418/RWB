@@ -15,7 +15,7 @@
 
 | Дата | Версия | Описание изменения | Задача в JIRA | Автор |
 | --- | --- | --- | --- | --- |
-| 2026-10-30 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
+| 2026-10-31 | 1.0 | Описание метода | — | SpecForge, агент системного анализа |
 
 ## 1. Назначение
 
@@ -102,7 +102,7 @@ Content-Type: application/json
 {
   "imported": 0,
   "skipped": 0,
-  "errors": {}
+  "errors": null
 }
 ```
 
@@ -114,6 +114,7 @@ Content-Type: application/json
 | 401 | Нет или истёк токен доступа |
 | 403 | Недостаточно прав для операции |
 | 422 | Нарушено бизнес-правило: Файл не GeoJSON FeatureCollection; Все зоны невалидны |
+| 429 | Превышен лимит запросов |
 | 500 | Внутренняя ошибка |
 
 #### Модель данных тела ответа (application/problem+json, RFC 9457)
@@ -126,16 +127,17 @@ Content-Type: application/json
 | detail | подробности | string | нет |
 | code | машиночитаемый код бизнес-ошибки | string | нет |
 | traceId | идентификатор для поиска в логах | string | нет |
-| errors | ошибки валидации: `[{field, message}]` | array | нет |
+| errors | ошибки валидации: `{"поле": ["сообщение"]}` | object | нет |
 
 #### Пример неуспешного ответа
 
 ```json
 {
-  "type": "/errors/422",
+  "type": "https://errors.app.local/invalid-zone-geometry",
   "title": "Нарушено бизнес-правило",
   "status": 422,
   "detail": "Файл не GeoJSON FeatureCollection",
+  "code": "invalid_zone_geometry",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-01"
 }
 ```

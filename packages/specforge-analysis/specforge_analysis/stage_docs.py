@@ -14,9 +14,9 @@ import shutil
 import time
 from pathlib import Path
 
-from .contract import GateResult, ensure_dir, split_issues
+from .contract import GateResult, ensure_dir, failed_result, split_issues
 from .gates import docs_gate
-from .llm import LLM, FakeLLM
+from .llm import LLM, FakeLLM, LLMError
 from .prompting import compact, messages
 from .render import docs_site
 from .render.contracts import Model
@@ -81,7 +81,10 @@ def run(artifacts_root: str | Path, output_dir: str | Path, llm: LLM, *,
         for w in _load_json(stage_dir / "gate_report.json", {}).get("warnings", []):
             gate_warnings.append(w | {"stage": stage_dir.name})
 
-    texts = write_texts(llm, _context(req, m, prose, ti), bool(ti.screens))
+    try:
+        texts = write_texts(llm, _context(req, m, prose, ti), bool(ti.screens))
+    except LLMError as exc:
+        return failed_result(STAGE, out, "E_LLM", exc, time.monotonic() - t0, llm.metrics.summary(since))
     ti.metrics = {}
     read_metrics(root, ti)  # перечитать: в отчёт попадает и вызов этого этапа
 

@@ -64,7 +64,7 @@ class Metrics:
             "llm_calls": len(calls),
             "input_tokens": sum(c.input_tokens for c in calls),
             "output_tokens": sum(c.output_tokens for c in calls),
-            "retries": sum(1 for c in calls if c.attempt > 1),
+            "retries": sum(1 for c in calls if not c.ok),  # каждый неуспешный ответ модели вызвал повтор
             "cached_calls": sum(1 for c in calls if c.cached),
             "duration_s": round(sum(c.duration_s for c in calls), 2),
         }
@@ -140,6 +140,7 @@ class LLMSettings:
     cache_dir: str = ".cache/llm"
     tpm_limit: int = 0       # лимит токенов в минуту на ключ (0 — нет); ограничивает max_tokens запроса
     rate_wait_max: int = 15  # сколько раз ждать сброса лимита при HTTP 429
+    length_retries: int = 2  # повторы при finish_reason=length (лимит x1.5, на последнем — без thinking)
 
     @classmethod
     def from_env(cls) -> "LLMSettings":
@@ -157,6 +158,7 @@ class LLMSettings:
             cache_dir=e("LLM_CACHE_DIR", cls.cache_dir),
             tpm_limit=int(e("LLM_TPM_LIMIT", cls.tpm_limit)),
             rate_wait_max=int(e("LLM_RATE_WAIT_MAX", cls.rate_wait_max)),
+            length_retries=int(e("LLM_LENGTH_RETRIES", cls.length_retries)),
         )
 
 
@@ -216,7 +218,10 @@ class OpenAICompatLLM:
         if self.s.tpm_limit:
             est_in = len(json.dumps(msgs, ensure_ascii=False)) // 3 + 200
             max_tokens = max(1024, min(max_tokens, self.s.tpm_limit - est_in - 500))
-        for attempt in range(1, self.s.max_attempts + 1):
+        length_retries = 0
+        attempt = 0
+        while attempt < self.s.max_attempts:
+            attempt += 1
             body: dict = {
                 "model": self.s.model,
                 "messages": msgs,
@@ -245,13 +250,30 @@ class OpenAICompatLLM:
             dt = time.monotonic() - t0
 
             usage = data.get("usage") or {}
-            content = (data["choices"][0]["message"].get("content") or "")
+            choice = data["choices"][0]
+            content = (choice["message"].get("content") or "")
             rec = CallRecord(
                 name=name, attempt=attempt, cached=cached, thinking=thinking, model=self.s.model,
                 input_tokens=0 if cached else int(usage.get("prompt_tokens", 0)),
                 output_tokens=0 if cached else int(usage.get("completion_tokens", 0)),
                 duration_s=round(dt, 2),
             )
+            if choice.get("finish_reason") == "length" and length_retries < self.s.length_retries:
+                # ответ обрезан лимитом max_tokens (часто — из-за длинных рассуждений): повтор с бо́льшим
+                # лимитом; на последнем повторе рассуждения выключаются, чтобы весь бюджет ушёл на JSON
+                rec.ok = False
+                rec.retry_reason = f"finish_reason=length при max_tokens={max_tokens}"
+                self.metrics.add(rec)
+                length_retries += 1
+                attempt -= 1  # не расходует попытку на исправление формата
+                max_tokens = int(max_tokens * 1.5)
+                if self.s.tpm_limit:
+                    max_tokens = min(max_tokens, max(1024, self.s.tpm_limit - est_in - 500))
+                if length_retries == self.s.length_retries:
+                    thinking = False
+                print(f"[llm] {name}: ответ обрезан по длине, повтор с max_tokens={max_tokens}"
+                      + ("" if thinking else " без thinking"), file=sys.stderr, flush=True)
+                continue
             try:
                 result = schema.model_validate_json(extract_json(content))
             except (ValidationError, LLMError, json.JSONDecodeError) as exc:

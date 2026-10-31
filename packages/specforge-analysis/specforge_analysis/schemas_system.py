@@ -173,6 +173,16 @@ class ApiPatch(_M):
     no_api: list[NoApi] = []
 
 
+class DesignPatch(_M):
+    """Ремонт ошибок шлюза: исправленные объекты целиком. Операция заменяется по operation_id,
+    сущность — по name, жизненный цикл — по (entity, field); новые объекты добавляются."""
+
+    entities: list[DEntity] = []
+    state_machines: list[DStateMachine] = []
+    operations: list[Operation] = []
+    remove_operations: list[str] = []   # operation_id дублей, которые нужно удалить
+
+
 # =========================================================================== текст SA-документа
 
 

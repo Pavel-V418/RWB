@@ -17,12 +17,12 @@
     }
   ],
   "tokens": {
-    "input": 18774,
-    "output": 14010
+    "input": 19088,
+    "output": 16323
   },
   "attempts": 3,
   "llm_calls": 3,
-  "duration_s": 1.28,
+  "duration_s": 1.83,
   "artifacts": [
     "api-design.json",
     "api-methods/createDemoRouteRun.md",
@@ -61,6 +61,7 @@
     "gate_report.json",
     "openapi.yaml",
     "sa-prose.json",
+    "schema.platform.sql",
     "schema.sql",
     "system-analysis.md",
     "traceability.csv"
