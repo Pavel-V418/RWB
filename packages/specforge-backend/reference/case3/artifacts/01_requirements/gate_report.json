@@ -1,0 +1,57 @@
+{
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_NFR_NO_METRIC",
+      "severity": "warning",
+      "message": "нет измеримой метрики",
+      "target": "NFR-1"
+    },
+    {
+      "code": "W_NFR_NO_METRIC",
+      "severity": "warning",
+      "message": "нет измеримой метрики",
+      "target": "NFR-2"
+    },
+    {
+      "code": "W_REF_DROPPED",
+      "severity": "warning",
+      "message": "удалены неизвестные сущности ['ENT-Event']",
+      "target": "FR-8"
+    },
+    {
+      "code": "W_BR_UNCOVERED",
+      "severity": "warning",
+      "message": "пункты бизнес-требований без ссылок из модели: строки 28, 29, 30, 31, 32, 33, 34",
+      "target": null
+    }
+  ],
+  "coverage": {
+    "functional": 17,
+    "by_origin": {
+      "customer": 11,
+      "derived": 6,
+      "assumption": 0
+    },
+    "fr_with_acceptance_pct": 100.0,
+    "must_fr_with_scenario_pct": 100.0,
+    "fr_with_story_pct": 100.0,
+    "fr_with_source_line_pct": 100.0,
+    "acceptance_total": 31,
+    "acceptance_negative_or_edge": 13,
+    "scenarios": 10,
+    "questions": 3,
+    "assumptions": 8,
+    "security": 6,
+    "risks": 4
+  },
+  "metrics": {
+    "llm_calls": 4,
+    "input_tokens": 14696,
+    "output_tokens": 19729,
+    "retries": 0,
+    "cached_calls": 0,
+    "duration_s": 355.68
+  }
+}

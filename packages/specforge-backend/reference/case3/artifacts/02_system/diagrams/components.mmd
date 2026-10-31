@@ -1,0 +1,25 @@
+flowchart LR
+    role_warehouse_keeper(["Кладовщик"])
+    role_warehouse_manager(["Руководитель склада"])
+    role_employee(["Сотрудник"])
+    role_system_admin(["Администратор системы"])
+    Mobile_App["Mobile App<br/><small>Kotlin</small>"]
+    Web_UI["Web UI<br/><small>Angular</small>"]
+    Backend_API["Backend API<br/><small>ASP.NET Core</small>"]
+    Worker["Worker<br/><small>ASP.NET Core Worker</small>"]
+    Database[("Database<br/><small>PostgreSQL</small>")]
+    Kafka_Broker[["Kafka Broker<br/><small>Kafka</small>"]]
+    TM__Mock_Consumer[/"TMЦ Mock Consumer<br/><small>Mock</small>"/]
+    Employee_CSV_File{{"Employee CSV File<br/><small>CSV</small>"}}
+    role_warehouse_keeper --> Mobile_App
+    role_warehouse_manager --> Web_UI
+    role_employee --> Web_UI
+    role_system_admin --> Web_UI
+    Backend_API -->|"публикует события"| Kafka_Broker
+    Kafka_Broker -->|"события"| TM__Mock_Consumer
+    Mobile_App -->|"REST /api/v1, HTTPS + JWT"| Backend_API
+    Web_UI -->|"REST /api/v1 + обновления в реальном времени"| Backend_API
+    Backend_API -->|"SQL"| Database
+    Worker -->|"SQL"| Database
+    Backend_API -->|"адаптер, REST"| TM__Mock_Consumer
+    Mobile_App -->|"deeplink / ссылка"| Employee_CSV_File

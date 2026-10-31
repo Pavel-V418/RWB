@@ -1,0 +1,36 @@
+{
+  "passed": false,
+  "errors": [
+    {
+      "file": "src/App.Application/Features/SyncOperations/SyncOperationsApi.cs",
+      "line": 68,
+      "message": "CS0117: 'SyncOperationsResponseDto' does not contain a definition for 'SyncedCount'",
+      "tag": "SyncOperations"
+    },
+    {
+      "file": "src/App.Application/Features/SyncOperations/SyncOperationsApi.cs",
+      "line": 69,
+      "message": "CS0117: 'SyncOperationsResponseDto' does not contain a definition for 'RejectedCount'",
+      "tag": "SyncOperations"
+    },
+    {
+      "file": "src/App.Application/Features/SyncOperations/SyncOperationsApi.cs",
+      "line": 70,
+      "message": "CS0117: 'SyncOperationsResponseDto' does not contain a definition for 'Details'",
+      "tag": "SyncOperations"
+    }
+  ],
+  "tokens": 143771,
+  "attempts": 17,
+  "tags": {
+    "MovementHistory": "implemented",
+    "EmployeeImports": "implemented",
+    "Employees": "implemented",
+    "SyncOperations": "stub",
+    "SystemSettings": "implemented",
+    "AuditLogs": "implemented",
+    "Users": "implemented",
+    "Jobs": "implemented"
+  },
+  "tests": {}
+}

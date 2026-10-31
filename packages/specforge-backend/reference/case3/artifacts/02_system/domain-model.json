@@ -1,0 +1,1380 @@
+{
+  "entities": [
+    {
+      "name": "User",
+      "description": "Учётная запись пользователя системы с ролью и привязкой к сотруднику",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "username",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 50,
+          "pattern": "^[a-zA-Z0-9._-]{3,50}$",
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": true,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": "j.doe"
+        },
+        {
+          "name": "passwordHash",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 255,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": true,
+          "example": null
+        },
+        {
+          "name": "role",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "warehouse_keeper",
+            "warehouse_manager",
+            "employee",
+            "system_admin"
+          ],
+          "default": "employee",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Employee",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "isActive",
+          "type": "bool",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": "true",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "username"
+        ],
+        [
+          "employeeId"
+        ]
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-12",
+        "FR-13"
+      ]
+    },
+    {
+      "name": "Employee",
+      "description": "Сотрудник, получающий инструмент; данные загружаются из CSV-файла",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 200,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": true,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "passNumber",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 32,
+          "pattern": "^[A-Z0-9-]{4,32}$",
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": true,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": "PASS-123456"
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "passNumber"
+        ]
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-13"
+      ]
+    },
+    {
+      "name": "Tool",
+      "description": "Единица инструмента или оборудования в каталоге",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "inventoryNumber",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 50,
+          "pattern": "^[A-Z0-9-]{3,50}$",
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": true,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": "INV-000123"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 200,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 100,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "warehouse",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 100,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "available",
+            "issued",
+            "reserved",
+            "repair",
+            "lost",
+            "retired"
+          ],
+          "default": "available",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "qrCode",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 255,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "inventoryNumber"
+        ],
+        [
+          "status"
+        ],
+        [
+          "category"
+        ]
+      ],
+      "fr": [
+        "FR-1",
+        "FR-2",
+        "FR-3",
+        "FR-4",
+        "FR-5",
+        "FR-6",
+        "FR-7",
+        "FR-9",
+        "FR-12",
+        "FR-13",
+        "FR-14",
+        "FR-16",
+        "FR-17"
+      ]
+    },
+    {
+      "name": "Reservation",
+      "description": "Бронирование инструмента на дату",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Tool",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Employee",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "active",
+            "cancelled",
+            "fulfilled"
+          ],
+          "default": "active",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "toolId",
+          "date",
+          "status"
+        ],
+        [
+          "employeeId"
+        ]
+      ],
+      "fr": [
+        "FR-4",
+        "FR-5",
+        "FR-13",
+        "FR-14"
+      ]
+    },
+    {
+      "name": "IssueRecord",
+      "description": "Запись о выдаче инструмента сотруднику",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Tool",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Employee",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "issueDate",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "returnDeadline",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "active",
+            "returned",
+            "overdue"
+          ],
+          "default": "active",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "toolId",
+          "status"
+        ],
+        [
+          "employeeId"
+        ],
+        [
+          "returnDeadline",
+          "status"
+        ]
+      ],
+      "fr": [
+        "FR-3",
+        "FR-5",
+        "FR-6",
+        "FR-7",
+        "FR-9",
+        "FR-14",
+        "FR-16"
+      ]
+    },
+    {
+      "name": "ReturnRecord",
+      "description": "Запись о возврате инструмента с оценкой состояния",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "issueRecordId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "IssueRecord",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Tool",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Employee",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "returnDate",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "condition",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "working",
+            "needs_repair",
+            "lost"
+          ],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "issueRecordId"
+        ],
+        [
+          "toolId"
+        ]
+      ],
+      "fr": [
+        "FR-6",
+        "FR-9",
+        "FR-17"
+      ]
+    },
+    {
+      "name": "MovementHistory",
+      "description": "История движения каждой единицы инструмента",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "Tool",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "eventType",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "created",
+            "issued",
+            "returned",
+            "reserved",
+            "reservation_cancelled",
+            "retired"
+          ],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "userId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "User",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "toolId",
+          "timestamp"
+        ]
+      ],
+      "fr": [
+        "FR-9"
+      ]
+    },
+    {
+      "name": "SyncQueue",
+      "description": "Очередь локальных операций для синхронизации после восстановления связи",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "operationType",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "issue",
+            "return",
+            "reservation",
+            "reservation_cancel"
+          ],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [
+            "pending",
+            "synced",
+            "rejected"
+          ],
+          "default": "pending",
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "status"
+        ]
+      ],
+      "fr": [
+        "FR-10",
+        "FR-15"
+      ]
+    },
+    {
+      "name": "AuditLog",
+      "description": "Журнал аудита действий пользователей",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "userId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": "User",
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "action",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 100,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 50,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "entityId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "details",
+          "type": "json",
+          "required": false,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "userId",
+          "timestamp"
+        ],
+        [
+          "entityType",
+          "entityId"
+        ]
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-12",
+        "FR-13"
+      ]
+    },
+    {
+      "name": "SystemSetting",
+      "description": "Настройки системы, включая срок возврата",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": true,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 100,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": true,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "max_length": 500,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "audit": true,
+      "indexes": [
+        [
+          "key"
+        ]
+      ],
+      "fr": [
+        "FR-7",
+        "FR-16"
+      ]
+    }
+  ],
+  "state_machines": [
+    {
+      "entity": "Tool",
+      "field": "status",
+      "states": [
+        "available",
+        "issued",
+        "reserved",
+        "repair",
+        "lost",
+        "retired"
+      ],
+      "transitions": [
+        {
+          "from_state": "available",
+          "to_state": "reserved",
+          "trigger": "create_reservation"
+        },
+        {
+          "from_state": "reserved",
+          "to_state": "available",
+          "trigger": "cancel_reservation"
+        },
+        {
+          "from_state": "available",
+          "to_state": "issued",
+          "trigger": "issue_tool"
+        },
+        {
+          "from_state": "reserved",
+          "to_state": "issued",
+          "trigger": "issue_tool"
+        },
+        {
+          "from_state": "issued",
+          "to_state": "available",
+          "trigger": "return_tool_working"
+        },
+        {
+          "from_state": "issued",
+          "to_state": "repair",
+          "trigger": "return_tool_needs_repair"
+        },
+        {
+          "from_state": "issued",
+          "to_state": "lost",
+          "trigger": "return_tool_lost"
+        },
+        {
+          "from_state": "repair",
+          "to_state": "available",
+          "trigger": "repair_completed"
+        },
+        {
+          "from_state": "available",
+          "to_state": "retired",
+          "trigger": "retire_tool"
+        },
+        {
+          "from_state": "repair",
+          "to_state": "retired",
+          "trigger": "retire_tool"
+        }
+      ]
+    },
+    {
+      "entity": "Reservation",
+      "field": "status",
+      "states": [
+        "active",
+        "cancelled",
+        "fulfilled"
+      ],
+      "transitions": [
+        {
+          "from_state": "active",
+          "to_state": "cancelled",
+          "trigger": "cancel_reservation"
+        },
+        {
+          "from_state": "active",
+          "to_state": "fulfilled",
+          "trigger": "issue_tool"
+        }
+      ]
+    },
+    {
+      "entity": "IssueRecord",
+      "field": "status",
+      "states": [
+        "active",
+        "returned",
+        "overdue"
+      ],
+      "transitions": [
+        {
+          "from_state": "active",
+          "to_state": "overdue",
+          "trigger": "scheduled_job_check_deadline"
+        },
+        {
+          "from_state": "active",
+          "to_state": "returned",
+          "trigger": "return_tool"
+        },
+        {
+          "from_state": "overdue",
+          "to_state": "returned",
+          "trigger": "return_tool"
+        }
+      ]
+    },
+    {
+      "entity": "SyncQueue",
+      "field": "status",
+      "states": [
+        "pending",
+        "synced",
+        "rejected"
+      ],
+      "transitions": [
+        {
+          "from_state": "pending",
+          "to_state": "synced",
+          "trigger": "sync_success"
+        },
+        {
+          "from_state": "pending",
+          "to_state": "rejected",
+          "trigger": "sync_conflict"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Срок возврата вычисляется как issueDate + N дней, где N хранится в SystemSetting (default 1)",
+    "QR-код содержит инвентарный номер и генерируется сервером при создании Tool",
+    "Конфликты синхронизации: операция отклоняется, если инструмент уже выдан (SyncQueue.status = rejected)",
+    "События Kafka публикуются при issue, return, retire с eventType, toolId, employeeId, timestamp, payload",
+    "Справочник сотрудников загружается из CSV с уникальным passNumber",
+    "MovementHistory фиксирует все изменения для истории движения инструмента",
+    "AuditLog фиксирует все действия пользователей для аудита",
+    "Scheduled job периодически обновляет status IssueRecord на overdue при истечении returnDeadline"
+  ]
+}

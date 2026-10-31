@@ -1,0 +1,6 @@
+@startuml
+[*] --> active
+active --> overdue : scheduled_job_check_deadline
+active --> returned : return_tool
+overdue --> returned : return_tool
+@enduml

@@ -1,0 +1,14 @@
+# Angular-клиент для web-админки (участник 4). Angular 20, standalone, сервисы providedIn: root.
+generatorName: typescript-angular
+additionalProperties:
+  ngVersion: 20.1.6
+  npmName: "@parking/api-client"
+  npmVersion: 1.0.0
+  providedIn: root
+  fileNaming: kebab-case
+  stringEnums: true
+  enumPropertyNaming: PascalCase
+  modelPropertyNaming: original
+  useSingleRequestParameter: true
+  supportsES6: true
+  hideGenerationTimestamp: true

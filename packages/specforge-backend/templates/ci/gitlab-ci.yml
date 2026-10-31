@@ -1,0 +1,107 @@
+# Пайплайн продукта — генерируется generators/gen-infra.sh в корень репозитория артефактов.
+# Раннер: shell-executor на командной VM (тег vm5) — там уже есть .NET SDK, Docker и Python.
+# Стадии согласованы с QA (участник 5): его задачи подключаются из ci/*.gitlab-ci.yml, если файлы есть.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages: [build, test, package, security, deploy, e2e]
+
+include:
+  - local: ci/tests.gitlab-ci.yml
+    rules:
+      - exists: [ci/tests.gitlab-ci.yml]
+  - local: ci/security.gitlab-ci.yml
+    rules:
+      - exists: [ci/security.gitlab-ci.yml]
+  # то же из этапа 07_tests репозитория, опубликованного платформой (config/repo_layout.yaml: reports/tests/)
+  - local: reports/tests/ci/tests.gitlab-ci.yml
+    rules:
+      - exists: [reports/tests/ci/tests.gitlab-ci.yml]
+  - local: reports/tests/ci/security.gitlab-ci.yml
+    rules:
+      - exists: [reports/tests/ci/security.gitlab-ci.yml]
+
+default:
+  tags: [vm5]
+  interruptible: true
+
+variables:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  API_IMAGE: specforge/backend:$CI_COMMIT_SHORT_SHA
+  WEB_IMAGE: specforge/web:$CI_COMMIT_SHORT_SHA
+  STAND_URL: http://127.0.0.1:8080
+
+.dotnet:
+  before_script:
+    - export DOTNET_ROOT="$HOME/.dotnet" PATH="$HOME/.dotnet:$PATH"
+    - dotnet --version
+
+backend:build:
+  extends: .dotnet
+  stage: build
+  script:
+    # из 04_backend: там global.json (версия SDK и Microsoft.Testing.Platform для тестов)
+    - cd 04_backend && dotnet build App.slnx -warnaserror -nologo -v q
+
+backend:test:
+  extends: .dotnet
+  stage: test
+  needs: [backend:build]
+  script:
+    # unit + интеграционные (PostGIS и Kafka поднимает Testcontainers через Docker раннера)
+    - cd 04_backend && dotnet test --solution App.slnx --results-directory "$CI_PROJECT_DIR/test-results" --report-xunit-junit
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      junit: test-results/*.junit.xml
+
+backend:image:
+  stage: package
+  needs: [backend:test]
+  script:
+    - docker build --build-arg APP_VERSION=$CI_COMMIT_SHORT_SHA -t $API_IMAGE -t specforge/backend:local 04_backend
+    - echo "API_IMAGE=$API_IMAGE" > image.env
+  artifacts:
+    reports:
+      dotenv: image.env
+
+# образ web-админки (участник 4): задача появляется, когда есть Dockerfile web-части —
+# web/admin (репозиторий, опубликованный платформой) или 05_web/admin, 05_web (каталог артефактов)
+web:image:
+  stage: package
+  needs: []
+  rules:
+    - exists: [web/admin/Dockerfile, 05_web/admin/Dockerfile, 05_web/Dockerfile]
+  script:
+    - WEB_DIR=$(for d in web/admin 05_web/admin 05_web; do [ -f "$d/Dockerfile" ] && echo "$d" && break; done)
+    - docker build -t $WEB_IMAGE -t specforge/web:local "$WEB_DIR"
+
+stand:deploy:
+  stage: deploy
+  needs: [backend:image]
+  resource_group: stand
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: stand
+    url: $STAND_URL
+  script:
+    - ./08_infra/deploy.sh
+
+stand:smoke:
+  stage: e2e
+  needs: [stand:deploy]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - curl -sf "$STAND_URL/health/ready"
+    - curl -sf -o /dev/null "$STAND_URL/swagger/v1/swagger.json"
+    # сценарии e2e продукта (07_tests/e2e/*.py) — код выхода ≠ 0 роняет задачу
+    - for f in 07_tests/e2e/*.py; do [ -f "$f" ] && python3 "$f" --base "$STAND_URL"; done

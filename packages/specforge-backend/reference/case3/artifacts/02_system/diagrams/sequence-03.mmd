@@ -1,0 +1,19 @@
+sequenceDiagram
+    autonumber
+    participant warehouse_keeper as warehouse_keeper
+    participant Mobile_App as Mobile App
+    participant Backend_API as Backend API
+    participant Database as Database
+    participant Kafka_Broker as Kafka Broker
+    warehouse_keeper->>Mobile_App: Сканирует QR-код возвращаемого инструмента
+    Mobile_App->>Backend_API: GET /api/v1/tools/qr/{qrCode}
+    Backend_API->>Database: Ищет Tool и активную IssueRecord
+    Database-->>Backend_API: Находит Tool и IssueRecord
+    Backend_API-->>Mobile_App: 200 OK: Tool, IssueRecord
+    warehouse_keeper->>Mobile_App: Выбирает состояние: исправен, требует ремонта, утерян
+    Mobile_App->>Backend_API: POST /api/v1/return-records
+    Backend_API->>Database: Создаёт ReturnRecord, обновляет IssueRecord и Tool
+    Database-->>Backend_API: Записи сохранены
+    Backend_API->>Kafka_Broker: Публикует tools.tool.returned
+    Kafka_Broker-->>Backend_API: Событие опубликовано
+    Backend_API-->>Mobile_App: 201 Created: ReturnRecord

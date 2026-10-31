@@ -16,22 +16,14 @@ stages:
   01_requirements: analysis/requirements/   # analyst: requirements.json, Gherkin, вопросы
   02_system: analysis/system/               # system_architect: OpenAPI, AsyncAPI, DDL, SA-документ
   03_ux: design/                            # ux_designer: спеки экранов, потоки, docs интерфейса
-  04_backend:                               # предположение: имя этапа backend сверить с участником 3
-    dir: backend/
-    root: [README.md]
+  04_backend: 04_backend/                   # backend_coder (участник 3): имя каталога сохраняется —
+                                            # на него ссылаются .gitlab-ci.yml и compose (../04_backend)
   05_web: web/                              # frontend_coder: web/admin — Angular-проект
   06_android: android/
   07_tests: reports/tests/                  # отчёты тестов и безопасности (JUnit, SARIF, Trivy)
-  08_infra:
-    dir: infra/
-    root: &team_root_files
-      - .gitlab-ci.yml
-      - docker-compose.yml
-      - docker-compose.*.yml
-      - compose.yml
-      - compose.*.yml
-      - .env.example
-      - Makefile
+  08_infra:                                 # devops (участник 3): compose остаётся в 08_infra/
+    dir: 08_infra/                          # (относительные пути ./db-init, ../04_backend), в корень —
+    root: [.gitlab-ci.yml]                  # только .gitlab-ci.yml
   09_docs:                                  # tech_writer: mkdocs.yml и docs/ — в корень
     dir: .
     exclude: [gate_report.json, gate_result.json, gate-result.json, metrics.jsonl, docs-text.json]

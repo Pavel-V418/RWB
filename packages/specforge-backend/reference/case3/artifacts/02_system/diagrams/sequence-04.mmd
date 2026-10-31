@@ -1,0 +1,17 @@
+sequenceDiagram
+    autonumber
+    participant Mobile_App as Mobile App
+    participant Backend_API as Backend API
+    participant Database as Database
+    participant Kafka_Broker as Kafka Broker
+    Mobile_App->>Mobile_App: Обнаруживает восстановление связи
+    Mobile_App->>Mobile_App: Читает операции из локального SyncQueue
+    Mobile_App->>Backend_API: POST /api/v1/sync-operations
+    Backend_API->>Database: Проверяет конфликты для каждой операции
+    Database-->>Backend_API: Конфликты проверены
+    Backend_API->>Database: Выполняет операции (issue, return, reservation)
+    Database-->>Backend_API: Операции выполнены
+    Backend_API->>Kafka_Broker: Публикует события для успешных операций
+    Kafka_Broker-->>Backend_API: События опубликованы
+    Backend_API-->>Mobile_App: 200 OK: результат синхронизации
+    Mobile_App->>Mobile_App: Очищает SyncQueue для синхронизированных операций

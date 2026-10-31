@@ -1,0 +1,74 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:silent
+dotnet_sort_system_directives_first = true
+
+# Совместимость с VB не нужна
+dotnet_diagnostic.CA1716.severity = none
+# Сообщения об ошибках на русском — локализация через ресурсы не требуется
+dotnet_diagnostic.CA1303.severity = none
+# ConfigureAwait не нужен в ASP.NET Core
+dotnet_diagnostic.CA2007.severity = none
+# Генерируемые DTO используют List<T> и сеттеры коллекций
+dotnet_diagnostic.CA2227.severity = none
+dotnet_diagnostic.CA1002.severity = none
+
+[tests/**.cs]
+# Имена тестов с подчёркиваниями
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+[src/App.Application/Features/**.cs]
+# Код backend-агента: ошибки компиляции строгие, а стилистические правила не тратят попытки ремонта
+# Неиспользуемый параметр конструктора — не повод тратить попытку ремонта
+dotnet_diagnostic.CS9113.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1309.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1860.severity = none
+dotnet_diagnostic.CA1862.severity = none
+dotnet_diagnostic.CA1031.severity = none
+dotnet_diagnostic.CA1849.severity = none
+dotnet_diagnostic.CA1805.severity = none
+dotnet_diagnostic.CA1812.severity = none
+dotnet_diagnostic.CA1869.severity = none
+dotnet_diagnostic.CA2201.severity = none
+
+[tests/App.IntegrationTests/Features/**.cs]
+# Тесты backend-агента: те же послабления стиля, что для его кода, плюс типичное для тестов
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1309.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1849.severity = none
+dotnet_diagnostic.CA1860.severity = none
+dotnet_diagnostic.CA1862.severity = none
+dotnet_diagnostic.CA1869.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA2234.severity = none
+dotnet_diagnostic.CA5394.severity = none
+dotnet_diagnostic.CS9113.severity = none

@@ -1,0 +1,2125 @@
+openapi: 3.1.0
+info:
+  title: Система учёта выдачи и возврата инструмента API
+  version: 1.0.0
+  description: |-
+    Система для учёта выдачи и возврата дорогостоящего инструмента и оборудования со склада технических служб. Она позволяет вести каталог, бронировать, выдавать и возвращать инструмент с фиксацией состояния, а также передавать события в корпоративную систему учёта ТМЦ.
+
+    Сгенерировано specforge-analysis из доменной модели и дизайна API.
+servers:
+- url: http://localhost:8080
+  description: локальный запуск (docker compose)
+tags:
+- name: Tools
+- name: Reservations
+- name: IssueRecords
+- name: ReturnRecords
+- name: MovementHistory
+- name: EmployeeImports
+- name: Employees
+- name: SyncOperations
+- name: SystemSettings
+- name: AuditLogs
+- name: Users
+security:
+- bearerAuth: []
+paths:
+  /api/v1/tools:
+    post:
+      operationId: createTool
+      summary: Добавить инструмент в каталог
+      tags:
+      - Tools
+      x-requirements:
+      - FR-1
+      - FR-2
+      - FR-12
+      x-roles:
+      - warehouse_manager
+      description: 'Роли: warehouse_manager. Требования: FR-1, FR-2, FR-12.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateToolRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listTools
+      summary: Получить список инструментов
+      tags:
+      - Tools
+      x-requirements:
+      - FR-1
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      - employee
+      description: 'Роли: warehouse_manager, warehouse_keeper, employee. Требования: FR-1.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: category
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          maxLength: 255
+      - name: warehouse
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          maxLength: 255
+      - name: status
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          enum:
+          - available
+          - issued
+          - reserved
+          - repair
+          - lost
+          - retired
+      - name: page
+        in: query
+        required: false
+        description: Номер страницы
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: Размер страницы
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tool'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/tools/{id}:
+    get:
+      operationId: getTool
+      summary: Получить инструмент по ID
+      tags:
+      - Tools
+      x-requirements:
+      - FR-1
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      - employee
+      description: 'Роли: warehouse_manager, warehouse_keeper, employee. Требования: FR-1.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/tools/qr/{qrCode}:
+    get:
+      operationId: getToolByQrCode
+      summary: Получить инструмент по QR-коду
+      tags:
+      - Tools
+      x-requirements:
+      - FR-3
+      x-roles:
+      - warehouse_keeper
+      description: 'Роли: warehouse_keeper. Требования: FR-3.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: qrCode
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/reservations:
+    post:
+      operationId: createReservation
+      summary: Забронировать инструмент на дату
+      tags:
+      - Reservations
+      x-requirements:
+      - FR-4
+      - FR-13
+      x-roles:
+      - employee
+      - warehouse_manager
+      description: 'Роли: employee, warehouse_manager. Требования: FR-4, FR-13.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listReservations
+      summary: Получить список бронирований
+      tags:
+      - Reservations
+      x-requirements:
+      - FR-4
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      - employee
+      description: 'Роли: warehouse_manager, warehouse_keeper, employee. Требования: FR-4.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: toolId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: employeeId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: date
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: date
+      - name: status
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          enum:
+          - active
+          - cancelled
+          - fulfilled
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reservation'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/reservations/{id}/cancellations:
+    post:
+      operationId: cancelReservation
+      summary: Отменить бронирование
+      tags:
+      - Reservations
+      x-requirements:
+      - FR-4
+      x-roles:
+      - employee
+      - warehouse_manager
+      description: 'Роли: employee, warehouse_manager. Требования: FR-4.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/issue-records:
+    post:
+      operationId: issueTool
+      summary: Выдать инструмент сотруднику
+      tags:
+      - IssueRecords
+      x-requirements:
+      - FR-3
+      - FR-5
+      - FR-14
+      x-roles:
+      - warehouse_keeper
+      description: 'Роли: warehouse_keeper. Требования: FR-3, FR-5, FR-14.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueToolRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listIssueRecords
+      summary: Получить список записей о выдаче
+      tags:
+      - IssueRecords
+      x-requirements:
+      - FR-7
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      description: 'Роли: warehouse_manager, warehouse_keeper. Требования: FR-7.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: toolId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: employeeId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          enum:
+          - active
+          - returned
+          - overdue
+      - name: overdueOnly
+        in: query
+        required: false
+        description: Только невозвращённые с истёкшим сроком
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IssueRecord'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/return-records:
+    post:
+      operationId: returnTool
+      summary: Зафиксировать возврат инструмента
+      tags:
+      - ReturnRecords
+      x-requirements:
+      - FR-6
+      - FR-17
+      x-roles:
+      - warehouse_keeper
+      description: 'Роли: warehouse_keeper. Требования: FR-6, FR-17.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnToolRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listReturnRecords
+      summary: Получить список записей о возврате
+      tags:
+      - ReturnRecords
+      x-requirements:
+      - FR-6
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      description: 'Роли: warehouse_manager, warehouse_keeper. Требования: FR-6.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: toolId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: employeeId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: condition
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          enum:
+          - working
+          - needs_repair
+          - lost
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReturnRecord'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/tools/{id}/movements:
+    get:
+      operationId: getToolMovementHistory
+      summary: Получить историю движения инструмента
+      tags:
+      - MovementHistory
+      x-requirements:
+      - FR-9
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      description: 'Роли: warehouse_manager, warehouse_keeper. Требования: FR-9.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MovementHistory'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/employee-imports:
+    post:
+      operationId: importEmployees
+      summary: Загрузить справочник сотрудников из CSV-файла
+      tags:
+      - EmployeeImports
+      x-requirements:
+      - FR-11
+      x-roles:
+      - system_admin
+      description: 'Роли: system_admin. Требования: FR-11.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportEmployeesRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportEmployeesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/employees:
+    get:
+      operationId: listEmployees
+      summary: Получить список сотрудников
+      tags:
+      - Employees
+      x-requirements:
+      - FR-11
+      x-roles:
+      - warehouse_manager
+      - warehouse_keeper
+      - system_admin
+      description: 'Роли: warehouse_manager, warehouse_keeper, system_admin. Требования: FR-11.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: name
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          maxLength: 255
+      - name: passNumber
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          maxLength: 255
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/employees/pass/{passNumber}:
+    get:
+      operationId: getEmployeeByPassNumber
+      summary: Получить сотрудника по номеру пропуска
+      tags:
+      - Employees
+      x-requirements:
+      - FR-3
+      x-roles:
+      - warehouse_keeper
+      description: 'Роли: warehouse_keeper. Требования: FR-3.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: passNumber
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/synchronization-operations:
+    post:
+      operationId: syncOperations
+      summary: Синхронизировать локальные операции с сервером
+      tags:
+      - SyncOperations
+      x-requirements:
+      - FR-10
+      - FR-15
+      x-roles:
+      - warehouse_keeper
+      description: 'Роли: warehouse_keeper. Требования: FR-10, FR-15.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncOperationsRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncOperationsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/system-settings:
+    get:
+      operationId: getSystemSettings
+      summary: Получить настройки системы
+      tags:
+      - SystemSettings
+      x-requirements:
+      - FR-7
+      x-roles:
+      - system_admin
+      - warehouse_manager
+      description: 'Роли: system_admin, warehouse_manager. Требования: FR-7.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemSetting'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/system-settings/{key}:
+    patch:
+      operationId: updateSystemSetting
+      summary: Обновить настройку системы
+      tags:
+      - SystemSettings
+      x-requirements:
+      - FR-7
+      x-roles:
+      - system_admin
+      description: 'Роли: system_admin. Требования: FR-7.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSystemSettingRequest'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemSetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/audit-logs:
+    get:
+      operationId: listAuditLogs
+      summary: Получить журнал аудита
+      tags:
+      - AuditLogs
+      x-requirements:
+      - FR-3
+      - FR-4
+      - FR-6
+      - FR-11
+      - FR-12
+      - FR-13
+      x-roles:
+      - system_admin
+      description: 'Роли: system_admin. Требования: FR-3, FR-4, FR-6, FR-11, FR-12, FR-13.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: userId
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: uuid
+      - name: entityType
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          maxLength: 255
+      - name: from
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/users:
+    post:
+      operationId: createUser
+      summary: Создать пользователя системы
+      tags:
+      - Users
+      x-requirements:
+      - FR-3
+      - FR-4
+      - FR-6
+      - FR-11
+      - FR-12
+      - FR-13
+      x-roles:
+      - system_admin
+      description: 'Роли: system_admin. Требования: FR-3, FR-4, FR-6, FR-11, FR-12, FR-13.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listUsers
+      summary: Получить список пользователей
+      tags:
+      - Users
+      x-requirements:
+      - FR-3
+      - FR-4
+      - FR-6
+      - FR-11
+      - FR-12
+      - FR-13
+      x-roles:
+      - system_admin
+      description: 'Роли: system_admin. Требования: FR-3, FR-4, FR-6, FR-11, FR-12, FR-13.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: role
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: string
+          enum:
+          - warehouse_keeper
+          - warehouse_manager
+          - employee
+          - system_admin
+      - name: isActive
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - name: pageSize
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: integer
+          format: int32
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - pageSize
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  page:
+                    type: integer
+                    minimum: 1
+                  pageSize:
+                    type: integer
+                    minimum: 1
+                    maximum: 200
+                  total:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/tools/{id}/retirements:
+    post:
+      operationId: retireTool
+      summary: Списать инструмент
+      tags:
+      - Tools
+      x-requirements:
+      - FR-8
+      x-roles:
+      - warehouse_manager
+      description: 'Роли: warehouse_manager. Требования: FR-8.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: ключ идемпотентности; повтор с тем же ключом возвращает первый результат
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+  responses:
+    BadRequest:
+      description: Ошибка валидации запроса
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Нет или истёк токен доступа
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Недостаточно прав для операции
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Конфликт состояния ресурса
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Нарушено бизнес-правило
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Превышен лимит запросов
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+      headers:
+        Retry-After:
+          description: через сколько секунд повторить
+          schema:
+            type: integer
+    InternalError:
+      description: Внутренняя ошибка
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: Внешний сервис недоступен
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        username:
+          type: string
+          maxLength: 50
+          minLength: 1
+          pattern: ^[a-zA-Z0-9._-]{3,50}$
+        role:
+          type: string
+          enum:
+          - warehouse_keeper
+          - warehouse_manager
+          - employee
+          - system_admin
+          default: employee
+        employeeId:
+          type: string
+          format: uuid
+        isActive:
+          type: boolean
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - username
+      - role
+      - isActive
+      - createdAt
+      - updatedAt
+      description: Учётная запись пользователя системы с ролью и привязкой к сотруднику
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        passNumber:
+          type: string
+          maxLength: 32
+          minLength: 1
+          pattern: ^[A-Z0-9-]{4,32}$
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - passNumber
+      - createdAt
+      - updatedAt
+      description: Сотрудник, получающий инструмент; данные загружаются из CSV-файла
+    Tool:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        inventoryNumber:
+          type: string
+          maxLength: 50
+          minLength: 1
+          pattern: ^[A-Z0-9-]{3,50}$
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        category:
+          type: string
+          maxLength: 100
+          minLength: 1
+        warehouse:
+          type: string
+          maxLength: 100
+          minLength: 1
+        status:
+          type: string
+          enum:
+          - available
+          - issued
+          - reserved
+          - repair
+          - lost
+          - retired
+          default: available
+        qrCode:
+          type: string
+          maxLength: 255
+          minLength: 1
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - inventoryNumber
+      - name
+      - category
+      - warehouse
+      - status
+      - qrCode
+      - createdAt
+      - updatedAt
+      description: Единица инструмента или оборудования в каталоге
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - active
+          - cancelled
+          - fulfilled
+          default: active
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - toolId
+      - employeeId
+      - date
+      - status
+      - createdAt
+      - updatedAt
+      description: Бронирование инструмента на дату
+    IssueRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        issueDate:
+          type: string
+          format: date-time
+        returnDeadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - active
+          - returned
+          - overdue
+          default: active
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - toolId
+      - employeeId
+      - issueDate
+      - returnDeadline
+      - status
+      - createdAt
+      - updatedAt
+      description: Запись о выдаче инструмента сотруднику
+    ReturnRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        issueRecordId:
+          type: string
+          format: uuid
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        returnDate:
+          type: string
+          format: date-time
+        condition:
+          type: string
+          enum:
+          - working
+          - needs_repair
+          - lost
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - issueRecordId
+      - toolId
+      - employeeId
+      - returnDate
+      - condition
+      - createdAt
+      - updatedAt
+      description: Запись о возврате инструмента с оценкой состояния
+    MovementHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        toolId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum:
+          - created
+          - issued
+          - returned
+          - reserved
+          - reservation_cancelled
+          - retired
+        timestamp:
+          type: string
+          format: date-time
+        userId:
+          type: string
+          format: uuid
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - toolId
+      - eventType
+      - timestamp
+      - createdAt
+      - updatedAt
+      description: История движения каждой единицы инструмента
+    SyncQueue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        operationType:
+          type: string
+          enum:
+          - issue
+          - return
+          - reservation
+          - reservation_cancel
+        payload:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum:
+          - pending
+          - synced
+          - rejected
+          default: pending
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - operationType
+      - payload
+      - status
+      - createdAt
+      - updatedAt
+      description: Очередь локальных операций для синхронизации после восстановления связи
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        userId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          maxLength: 100
+          minLength: 1
+        entityType:
+          type: string
+          maxLength: 50
+          minLength: 1
+        entityId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - action
+      - entityType
+      - timestamp
+      - createdAt
+      - updatedAt
+      description: Журнал аудита действий пользователей
+    SystemSetting:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        key:
+          type: string
+          maxLength: 100
+          minLength: 1
+        value:
+          type: string
+          maxLength: 500
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: время создания
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: время изменения
+          readOnly: true
+      additionalProperties: false
+      required:
+      - id
+      - key
+      - value
+      - createdAt
+      - updatedAt
+      description: Настройки системы, включая срок возврата
+    GeoJsonPoint:
+      type: object
+      description: GeoJSON Point, WGS 84 (EPSG:4326), порядок [долгота, широта]
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          prefixItems:
+          - type: number
+            minimum: -180
+            maximum: 180
+          - type: number
+            minimum: -90
+            maximum: 90
+    GeoJsonPolygon:
+      type: object
+      description: GeoJSON Polygon, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Polygon
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+    GeoJsonLineString:
+      type: object
+      description: GeoJSON LineString, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: LineString
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+    Problem:
+      type: object
+      description: Единый формат ошибок, RFC 9457 (application/problem+json)
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          example: /errors/validation
+        title:
+          type: string
+          maxLength: 200
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          maxLength: 2000
+        instance:
+          type: string
+        code:
+          type: string
+          description: машиночитаемый код бизнес-ошибки
+        traceId:
+          type: string
+          description: идентификатор трассировки для поиска в логах
+        errors:
+          type: array
+          description: ошибки валидации по полям
+          items:
+            type: object
+            required:
+            - field
+            - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    CreateToolRequest:
+      type: object
+      properties:
+        inventoryNumber:
+          type: string
+          maxLength: 50
+          minLength: 1
+          pattern: ^[A-Z0-9-]{3,50}$
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        category:
+          type: string
+          maxLength: 100
+          minLength: 1
+        warehouse:
+          type: string
+          maxLength: 100
+          minLength: 1
+        status:
+          type: string
+          enum:
+          - available
+          - issued
+          - reserved
+          - repair
+          - lost
+          - retired
+          default: available
+      additionalProperties: false
+      required:
+      - inventoryNumber
+      - name
+      - category
+      - warehouse
+      - status
+    CreateReservationRequest:
+      type: object
+      properties:
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+      additionalProperties: false
+      required:
+      - toolId
+      - employeeId
+      - date
+    IssueToolRequest:
+      type: object
+      properties:
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        issueDate:
+          type: string
+          format: date-time
+        returnDeadline:
+          type: string
+          format: date-time
+      additionalProperties: false
+      required:
+      - toolId
+      - employeeId
+      - issueDate
+      - returnDeadline
+    ReturnToolRequest:
+      type: object
+      properties:
+        issueRecordId:
+          type: string
+          format: uuid
+        toolId:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        returnDate:
+          type: string
+          format: date-time
+        condition:
+          type: string
+          enum:
+          - working
+          - needs_repair
+          - lost
+      additionalProperties: false
+      required:
+      - issueRecordId
+      - toolId
+      - employeeId
+      - returnDate
+      - condition
+    ImportEmployeesRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          description: CSV-файл с сотрудниками
+          maxLength: 255
+          minLength: 1
+      additionalProperties: false
+      required:
+      - file
+    ImportEmployeesResponse:
+      type: object
+      properties: {}
+      additionalProperties: false
+    SyncOperationsRequest:
+      type: object
+      properties:
+        operations:
+          type: object
+          additionalProperties: true
+          description: Массив локальных операций из SyncQueue
+      additionalProperties: false
+      required:
+      - operations
+    SyncOperationsResponse:
+      type: object
+      properties: {}
+      additionalProperties: false
+    UpdateSystemSettingRequest:
+      type: object
+      properties:
+        value:
+          type: string
+          maxLength: 500
+          minLength: 1
+      additionalProperties: false
+      required:
+      - value
+    CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          minLength: 1
+          pattern: ^[a-zA-Z0-9._-]{3,50}$
+        role:
+          type: string
+          enum:
+          - warehouse_keeper
+          - warehouse_manager
+          - employee
+          - system_admin
+          default: employee
+        employeeId:
+          type: string
+          format: uuid
+        isActive:
+          type: boolean
+          default: true
+      additionalProperties: false
+      required:
+      - username
+      - role
+      - isActive

@@ -1,0 +1,2778 @@
+{
+  "meta": {
+    "product_name": "Система учёта выдачи и возврата инструмента",
+    "summary": "Система для учёта выдачи и возврата дорогостоящего инструмента и оборудования со склада технических служб. Она позволяет вести каталог, бронировать, выдавать и возвращать инструмент с фиксацией состояния, а также передавать события в корпоративную систему учёта ТМЦ.",
+    "source_file": "requirements.docx",
+    "pipeline": "specforge-analysis",
+    "version": "0.1.0",
+    "mode": "auto"
+  },
+  "profile": {
+    "needs_web_ui": true,
+    "needs_admin_ui": true,
+    "needs_mobile_app": true,
+    "needs_geo": false,
+    "needs_async_events": true,
+    "needs_realtime_updates": false,
+    "needs_scheduled_jobs": true,
+    "needs_file_storage": true,
+    "needs_user_notifications": false,
+    "external_integrations": [
+      "Корпоративная система учёта ТМЦ",
+      "Файл справочника сотрудников"
+    ],
+    "notes": [
+      "Мобильное приложение прямо требуется для кладовщика",
+      "Web-интерфейс для руководителя склада",
+      "Kafka для передачи событий во внешнюю систему",
+      "Загрузка справочника из файла",
+      "Контроль срока возврата требует scheduled jobs"
+    ]
+  },
+  "business": [
+    {
+      "id": "BR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "Бригады получают их на смену и возвращают после работ",
+        "line": 3,
+        "exact": true
+      },
+      "line": 3,
+      "text": "На складах технических служб хранится дорогостоящий инструмент и оборудование: перфораторы, тепловизоры, измерительные приборы, лестницы. Бригады получают их на смену и возвращают после работ. Учёт ведётся в бумажном журнале, поэтому инструмент теряется, а кладовщик не знает, у кого он находится",
+      "fr": [],
+      "related": [
+        "ROLE-employee",
+        "GOAL-01",
+        "GOAL-02"
+      ]
+    },
+    {
+      "id": "BR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение кладовщика со сканированием QR-кодов",
+        "line": 5,
+        "exact": true
+      },
+      "line": 5,
+      "text": "Создать систему учёта выдачи и возврата инструмента: мобильное приложение кладовщика со сканированием QR-кодов и web-интерфейс для руководителя склада",
+      "fr": [],
+      "related": [
+        "ROLE-warehouse_keeper",
+        "ROLE-warehouse_manager"
+      ]
+    },
+    {
+      "id": "BR-3",
+      "origin": "customer",
+      "source": {
+        "quote": "вести каталог инструмента: инвентарный номер, наименование, категория, склад, состояние",
+        "line": 8,
+        "exact": true
+      },
+      "line": 8,
+      "text": "вести каталог инструмента: инвентарный номер, наименование, категория, склад, состояние",
+      "fr": [
+        "FR-1"
+      ],
+      "related": [
+        "ENT-Tool"
+      ]
+    },
+    {
+      "id": "BR-4",
+      "origin": "customer",
+      "source": {
+        "quote": "печатать QR-код для каждой единицы инструмента",
+        "line": 9,
+        "exact": true
+      },
+      "line": 9,
+      "text": "печатать QR-код для каждой единицы инструмента",
+      "fr": [
+        "FR-2"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-5",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять кладовщику выдать инструмент сотруднику, отсканировав QR-код инструмента и пропуск сотрудника",
+        "line": 10,
+        "exact": true
+      },
+      "line": 10,
+      "text": "позволять кладовщику выдать инструмент сотруднику, отсканировав QR-код инструмента и пропуск сотрудника",
+      "fr": [
+        "FR-3"
+      ],
+      "related": [
+        "ENT-IssueRecord"
+      ]
+    },
+    {
+      "id": "BR-6",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять бронировать инструмент на дату заранее",
+        "line": 11,
+        "exact": true
+      },
+      "line": 11,
+      "text": "позволять бронировать инструмент на дату заранее; забронированный инструмент нельзя выдать другому сотруднику",
+      "fr": [
+        "FR-4",
+        "FR-5"
+      ],
+      "related": [
+        "ENT-Reservation"
+      ]
+    },
+    {
+      "id": "BR-7",
+      "origin": "customer",
+      "source": {
+        "quote": "фиксировать возврат инструмента с оценкой состояния: исправен, требует ремонта, утерян",
+        "line": 12,
+        "exact": true
+      },
+      "line": 12,
+      "text": "фиксировать возврат инструмента с оценкой состояния: исправен, требует ремонта, утерян",
+      "fr": [
+        "FR-6"
+      ],
+      "related": [
+        "ENT-ReturnRecord"
+      ]
+    },
+    {
+      "id": "BR-8",
+      "origin": "customer",
+      "source": {
+        "quote": "контролировать срок возврата и показывать список невозвращённого инструмента",
+        "line": 13,
+        "exact": true
+      },
+      "line": 13,
+      "text": "контролировать срок возврата и показывать список невозвращённого инструмента",
+      "fr": [
+        "FR-7"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-9",
+      "origin": "customer",
+      "source": {
+        "quote": "передавать события выдачи, возврата и списания в корпоративную систему учёта ТМЦ",
+        "line": 14,
+        "exact": true
+      },
+      "line": 14,
+      "text": "передавать события выдачи, возврата и списания в корпоративную систему учёта ТМЦ",
+      "fr": [
+        "FR-8"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-10",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать историю движения каждой единицы инструмента",
+        "line": 15,
+        "exact": true
+      },
+      "line": 15,
+      "text": "показывать историю движения каждой единицы инструмента",
+      "fr": [
+        "FR-9"
+      ],
+      "related": [
+        "ENT-MovementHistory"
+      ]
+    },
+    {
+      "id": "BR-11",
+      "origin": "customer",
+      "source": {
+        "quote": "работать в мобильном приложении при отсутствии связи на складе и синхронизировать операции после её появления",
+        "line": 16,
+        "exact": true
+      },
+      "line": 16,
+      "text": "работать в мобильном приложении при отсутствии связи на складе и синхронизировать операции после её появления",
+      "fr": [
+        "FR-10"
+      ],
+      "related": [
+        "NFR-1",
+        "NFR-2",
+        "ENT-SyncQueue"
+      ]
+    },
+    {
+      "id": "BR-12",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение на Kotlin для кладовщика",
+        "line": 18,
+        "exact": true
+      },
+      "line": 18,
+      "text": "мобильное приложение на Kotlin для кладовщика",
+      "fr": [],
+      "related": [
+        "CON-01"
+      ]
+    },
+    {
+      "id": "BR-13",
+      "origin": "customer",
+      "source": {
+        "quote": "административный web-интерфейс на Angular",
+        "line": 19,
+        "exact": true
+      },
+      "line": 19,
+      "text": "административный web-интерфейс на Angular",
+      "fr": [],
+      "related": [
+        "CON-02"
+      ]
+    },
+    {
+      "id": "BR-14",
+      "origin": "customer",
+      "source": {
+        "quote": "backend на C# / ASP.NET Core",
+        "line": 20,
+        "exact": true
+      },
+      "line": 20,
+      "text": "backend на C# / ASP.NET Core",
+      "fr": [],
+      "related": [
+        "CON-03"
+      ]
+    },
+    {
+      "id": "BR-15",
+      "origin": "customer",
+      "source": {
+        "quote": "PostgreSQL",
+        "line": 21,
+        "exact": true
+      },
+      "line": 21,
+      "text": "PostgreSQL",
+      "fr": [],
+      "related": [
+        "CON-04"
+      ]
+    },
+    {
+      "id": "BR-16",
+      "origin": "customer",
+      "source": {
+        "quote": "Kafka для передачи событий во внешнюю систему учёта",
+        "line": 22,
+        "exact": true
+      },
+      "line": 22,
+      "text": "Kafka для передачи событий во внешнюю систему учёта",
+      "fr": [],
+      "related": [
+        "CON-05"
+      ]
+    },
+    {
+      "id": "BR-17",
+      "origin": "customer",
+      "source": {
+        "quote": "документированный API и модель событий",
+        "line": 23,
+        "exact": true
+      },
+      "line": 23,
+      "text": "документированный API и модель событий",
+      "fr": [],
+      "related": [
+        "CON-06"
+      ]
+    },
+    {
+      "id": "BR-18",
+      "origin": "customer",
+      "source": {
+        "quote": "Docker-окружение, тестовые данные, автоматизированные тесты, CI/CD-пайплайн",
+        "line": 24,
+        "exact": true
+      },
+      "line": 24,
+      "text": "Docker-окружение, тестовые данные, автоматизированные тесты, CI/CD-пайплайн",
+      "fr": [],
+      "related": [
+        "CON-07"
+      ]
+    },
+    {
+      "id": "BR-19",
+      "origin": "customer",
+      "source": {
+        "quote": "Справочник сотрудников и номера пропусков загружаются из файла",
+        "line": 26,
+        "exact": true
+      },
+      "line": 26,
+      "text": "Корпоративная система учёта ТМЦ принимает события из Kafka. Промышленный доступ не предоставляется, интеграция реализуется через mock-потребителя. Справочник сотрудников и номера пропусков загружаются из файла",
+      "fr": [
+        "FR-11"
+      ],
+      "related": [
+        "CON-08",
+        "CON-09",
+        "INT-01",
+        "INT-02",
+        "ENT-Employee"
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "id": "GOAL-01",
+      "origin": "customer",
+      "source": {
+        "quote": "инструмент теряется, а кладовщик не знает, у кого он находится",
+        "line": 3,
+        "exact": true
+      },
+      "statement": "Предотвратить потерю инструмента и обеспечить прозрачность его местонахождения",
+      "metric": null
+    },
+    {
+      "id": "GOAL-02",
+      "origin": "customer",
+      "source": {
+        "quote": "Учёт ведётся в бумажном журнале",
+        "line": 3,
+        "exact": true
+      },
+      "statement": "Заменить бумажный журнал учёта на цифровую систему",
+      "metric": null
+    }
+  ],
+  "roles": [
+    {
+      "id": "ROLE-warehouse_keeper",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение кладовщика со сканированием QR-кодов",
+        "line": 5,
+        "exact": true
+      },
+      "key": "warehouse_keeper",
+      "name": "Кладовщик",
+      "description": "Выдаёт и принимает инструмент, сканирует QR-коды и пропуска, работает в мобильном приложении"
+    },
+    {
+      "id": "ROLE-warehouse_manager",
+      "origin": "customer",
+      "source": {
+        "quote": "web-интерфейс для руководителя склада",
+        "line": 5,
+        "exact": true
+      },
+      "key": "warehouse_manager",
+      "name": "Руководитель склада",
+      "description": "Управляет каталогом инструмента, печатает QR-коды, контролирует возвраты через web-интерфейс"
+    },
+    {
+      "id": "ROLE-employee",
+      "origin": "customer",
+      "source": {
+        "quote": "Бригады получают их на смену и возвращают после работ",
+        "line": 3,
+        "exact": true
+      },
+      "key": "employee",
+      "name": "Сотрудник",
+      "description": "Получает инструмент на смену, бронирует его заранее, возвращает после работ"
+    },
+    {
+      "id": "ROLE-system_admin",
+      "origin": "derived",
+      "source": null,
+      "key": "system_admin",
+      "name": "Администратор системы",
+      "description": "Настраивает систему, управляет справочниками и интеграциями"
+    }
+  ],
+  "functional": [
+    {
+      "id": "FR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "вести каталог инструмента: инвентарный номер, наименование, категория, склад, состояние",
+        "line": 8,
+        "exact": true
+      },
+      "title": "Ведение каталога инструмента",
+      "statement": "Система должна вести каталог инструмента с атрибутами: инвентарный номер, наименование, категория, склад, состояние",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool"
+      ],
+      "acceptance": [
+        "AC-FR-1-01",
+        "AC-FR-1-02",
+        "AC-FR-1-03"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_010"
+      ],
+      "stories": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "FR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "печатать QR-код для каждой единицы инструмента",
+        "line": 9,
+        "exact": true
+      },
+      "title": "Печать QR-кода для инструмента",
+      "statement": "Система должна печатать QR-код для каждой единицы инструмента",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool"
+      ],
+      "acceptance": [
+        "AC-FR-2-01"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_010"
+      ],
+      "stories": [
+        "US-002"
+      ]
+    },
+    {
+      "id": "FR-3",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять кладовщику выдать инструмент сотруднику, отсканировав QR-код инструмента и пропуск сотрудника",
+        "line": 10,
+        "exact": true
+      },
+      "title": "Выдача инструмента сотруднику",
+      "statement": "Система должна позволять кладовщику выдать инструмент сотруднику, отсканировав QR-код инструмента и пропуск сотрудника",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-Employee",
+        "ENT-IssueRecord"
+      ],
+      "acceptance": [
+        "AC-FR-3-01",
+        "AC-FR-3-02",
+        "AC-FR-3-03"
+      ],
+      "scenarios": [
+        "UC_003",
+        "UC_010"
+      ],
+      "stories": [
+        "US-003"
+      ]
+    },
+    {
+      "id": "FR-4",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять бронировать инструмент на дату заранее",
+        "line": 11,
+        "exact": true
+      },
+      "title": "Бронирование инструмента на дату",
+      "statement": "Система должна позволять бронировать инструмент на дату заранее",
+      "priority": "must",
+      "actors": [
+        "ROLE-employee",
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-Reservation"
+      ],
+      "acceptance": [
+        "AC-FR-4-01",
+        "AC-FR-4-02",
+        "AC-FR-4-03"
+      ],
+      "scenarios": [
+        "UC_002",
+        "UC_010"
+      ],
+      "stories": [
+        "US-004"
+      ]
+    },
+    {
+      "id": "FR-5",
+      "origin": "customer",
+      "source": {
+        "quote": "забронированный инструмент нельзя выдать другому сотруднику",
+        "line": 11,
+        "exact": true
+      },
+      "title": "Запрет выдачи забронированного инструмента",
+      "statement": "Система должна запрещать выдачу забронированного инструмента другому сотруднику",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-Reservation"
+      ],
+      "acceptance": [
+        "AC-FR-5-01"
+      ],
+      "scenarios": [
+        "UC_003",
+        "UC_010"
+      ],
+      "stories": [
+        "US-005"
+      ]
+    },
+    {
+      "id": "FR-6",
+      "origin": "customer",
+      "source": {
+        "quote": "фиксировать возврат инструмента с оценкой состояния: исправен, требует ремонта, утерян",
+        "line": 12,
+        "exact": true
+      },
+      "title": "Фиксация возврата инструмента",
+      "statement": "Система должна фиксировать возврат инструмента с оценкой состояния: исправен, требует ремонта, утерян",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-ReturnRecord"
+      ],
+      "acceptance": [
+        "AC-FR-6-01",
+        "AC-FR-6-02",
+        "AC-FR-6-03"
+      ],
+      "scenarios": [
+        "UC_004",
+        "UC_010"
+      ],
+      "stories": [
+        "US-006"
+      ]
+    },
+    {
+      "id": "FR-7",
+      "origin": "customer",
+      "source": {
+        "quote": "контролировать срок возврата и показывать список невозвращённого инструмента",
+        "line": 13,
+        "exact": true
+      },
+      "title": "Контроль срока возврата",
+      "statement": "Система должна контролировать срок возврата и показывать список невозвращённого инструмента",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-IssueRecord"
+      ],
+      "acceptance": [
+        "AC-FR-7-01",
+        "AC-FR-7-02"
+      ],
+      "scenarios": [
+        "UC_005",
+        "UC_010"
+      ],
+      "stories": [
+        "US-007"
+      ]
+    },
+    {
+      "id": "FR-8",
+      "origin": "customer",
+      "source": {
+        "quote": "передавать события выдачи, возврата и списания в корпоративную систему учёта ТМЦ",
+        "line": 14,
+        "exact": true
+      },
+      "title": "Передача событий в систему учёта ТМЦ",
+      "statement": "Система должна передавать события выдачи, возврата и списания в корпоративную систему учёта ТМЦ",
+      "priority": "must",
+      "actors": [
+        "ROLE-system_admin"
+      ],
+      "entities": [],
+      "acceptance": [
+        "AC-FR-8-01",
+        "AC-FR-8-02"
+      ],
+      "scenarios": [
+        "UC_006",
+        "UC_010"
+      ],
+      "stories": [
+        "US-008"
+      ]
+    },
+    {
+      "id": "FR-9",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать историю движения каждой единицы инструмента",
+        "line": 15,
+        "exact": true
+      },
+      "title": "История движения инструмента",
+      "statement": "Система должна показывать историю движения каждой единицы инструмента",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager",
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-MovementHistory"
+      ],
+      "acceptance": [
+        "AC-FR-9-01"
+      ],
+      "scenarios": [
+        "UC_007",
+        "UC_010"
+      ],
+      "stories": [
+        "US-009"
+      ]
+    },
+    {
+      "id": "FR-10",
+      "origin": "customer",
+      "source": {
+        "quote": "работать в мобильном приложении при отсутствии связи на складе и синхронизировать операции после её появления",
+        "line": 16,
+        "exact": true
+      },
+      "title": "Работа в мобильном приложении без связи",
+      "statement": "Система должна работать в мобильном приложении при отсутствии связи на складе и синхронизировать операции после её появления",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-SyncQueue"
+      ],
+      "acceptance": [
+        "AC-FR-10-01",
+        "AC-FR-10-02"
+      ],
+      "scenarios": [
+        "UC_003",
+        "UC_008",
+        "UC_010"
+      ],
+      "stories": [
+        "US-010"
+      ]
+    },
+    {
+      "id": "FR-11",
+      "origin": "customer",
+      "source": {
+        "quote": "Справочник сотрудников и номера пропусков загружаются из файла",
+        "line": 26,
+        "exact": true
+      },
+      "title": "Загрузка справочника сотрудников из файла",
+      "statement": "Система должна загружать справочник сотрудников и номера пропусков из файла",
+      "priority": "must",
+      "actors": [
+        "ROLE-system_admin"
+      ],
+      "entities": [
+        "ENT-Employee"
+      ],
+      "acceptance": [
+        "AC-FR-11-01",
+        "AC-FR-11-02",
+        "AC-FR-11-03"
+      ],
+      "scenarios": [
+        "UC_009"
+      ],
+      "stories": [
+        "US-011"
+      ]
+    },
+    {
+      "id": "FR-12",
+      "origin": "derived",
+      "source": {
+        "quote": "руководитель склада добавляет инструмент и печатает QR-код",
+        "line": 28,
+        "exact": true
+      },
+      "title": "Добавление инструмента руководителем",
+      "statement": "Система должна позволять руководителю склада добавлять инструмент в каталог",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool"
+      ],
+      "acceptance": [
+        "AC-FR-12-01"
+      ],
+      "scenarios": [
+        "UC_001"
+      ],
+      "stories": [
+        "US-012"
+      ]
+    },
+    {
+      "id": "FR-13",
+      "origin": "derived",
+      "source": {
+        "quote": "сотрудник бронирует тепловизор на завтра",
+        "line": 29,
+        "exact": true
+      },
+      "title": "Бронирование сотрудником",
+      "statement": "Система должна позволять сотруднику бронировать инструмент на дату",
+      "priority": "must",
+      "actors": [
+        "ROLE-employee"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-Reservation"
+      ],
+      "acceptance": [
+        "AC-FR-13-01"
+      ],
+      "scenarios": [
+        "UC_002",
+        "UC_010"
+      ],
+      "stories": [
+        "US-013"
+      ]
+    },
+    {
+      "id": "FR-14",
+      "origin": "derived",
+      "source": {
+        "quote": "кладовщик пытается выдать этот тепловизор другому сотруднику и получает отказ",
+        "line": 30,
+        "exact": true
+      },
+      "title": "Отказ в выдаче забронированного инструмента",
+      "statement": "Система должна показывать отказ при попытке выдать забронированный инструмент другому сотруднику",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-Reservation"
+      ],
+      "acceptance": [
+        "AC-FR-14-01"
+      ],
+      "scenarios": [
+        "UC_003",
+        "UC_010"
+      ],
+      "stories": [
+        "US-014"
+      ]
+    },
+    {
+      "id": "FR-15",
+      "origin": "derived",
+      "source": {
+        "quote": "после появления связи операция синхронизируется, событие выдачи уходит во внешнюю систему",
+        "line": 32,
+        "exact": true
+      },
+      "title": "Синхронизация операций после появления связи",
+      "statement": "Система должна синхронизировать операции после появления связи с сервером",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-SyncQueue"
+      ],
+      "acceptance": [
+        "AC-FR-15-01"
+      ],
+      "scenarios": [
+        "UC_008",
+        "UC_010"
+      ],
+      "stories": [
+        "US-015"
+      ]
+    },
+    {
+      "id": "FR-16",
+      "origin": "derived",
+      "source": {
+        "quote": "срок возврата истёк — инструмент появляется в списке невозвращённого",
+        "line": 33,
+        "exact": true
+      },
+      "title": "Показ невозвращённого инструмента при истечении срока",
+      "statement": "Система должна показывать инструмент в списке невозвращённого при истечении срока возврата",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_manager"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-IssueRecord"
+      ],
+      "acceptance": [
+        "AC-FR-16-01",
+        "AC-FR-16-02"
+      ],
+      "scenarios": [
+        "UC_005",
+        "UC_010"
+      ],
+      "stories": [
+        "US-016"
+      ]
+    },
+    {
+      "id": "FR-17",
+      "origin": "derived",
+      "source": {
+        "quote": "сотрудник возвращает инструмент с отметкой «требует ремонта»",
+        "line": 34,
+        "exact": true
+      },
+      "title": "Возврат инструмента с отметкой ремонта",
+      "statement": "Система должна фиксировать возврат инструмента с отметкой «требует ремонта»",
+      "priority": "must",
+      "actors": [
+        "ROLE-warehouse_keeper"
+      ],
+      "entities": [
+        "ENT-Tool",
+        "ENT-ReturnRecord"
+      ],
+      "acceptance": [
+        "AC-FR-17-01"
+      ],
+      "scenarios": [
+        "UC_004",
+        "UC_010"
+      ],
+      "stories": [
+        "US-017"
+      ]
+    }
+  ],
+  "non_functional": [
+    {
+      "id": "NFR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "работать в мобильном приложении при отсутствии связи на складе",
+        "line": 16,
+        "exact": true
+      },
+      "category": "reliability",
+      "statement": "Система должна работать в мобильном приложении при отсутствии связи на складе",
+      "metric": null,
+      "rationale": null
+    },
+    {
+      "id": "NFR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "синхронизировать операции после её появления",
+        "line": 16,
+        "exact": true
+      },
+      "category": "reliability",
+      "statement": "Система должна синхронизировать операции после появления связи",
+      "metric": null,
+      "rationale": null
+    },
+    {
+      "id": "NFR-3",
+      "origin": "derived",
+      "source": null,
+      "category": "performance",
+      "statement": "Ключевые операции (выдача, возврат, бронирование) должны выполняться за не более 2 секунд",
+      "metric": "P95 < 2s",
+      "rationale": "Обеспечение приемлемого UX для кладовщика на складе"
+    },
+    {
+      "id": "NFR-4",
+      "origin": "derived",
+      "source": null,
+      "category": "reliability",
+      "statement": "Система должна сохранять операции локально при потере связи и синхронизировать после восстановления",
+      "metric": "0 потерянных операций",
+      "rationale": "Обеспечение целостности данных при нестабильной связи"
+    },
+    {
+      "id": "NFR-5",
+      "origin": "derived",
+      "source": null,
+      "category": "observability",
+      "statement": "Система должна логировать все операции и ошибки",
+      "metric": "100% операций в логах",
+      "rationale": "Обеспечение возможности аудита и отладки"
+    },
+    {
+      "id": "NFR-6",
+      "origin": "derived",
+      "source": null,
+      "category": "availability",
+      "statement": "Система должна быть доступна 99.5% времени",
+      "metric": "99.5% uptime",
+      "rationale": "Обеспечение непрерывности работы склада"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "CON-01",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение на Kotlin для кладовщика",
+        "line": 18,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Мобильное приложение должно быть на Kotlin"
+    },
+    {
+      "id": "CON-02",
+      "origin": "customer",
+      "source": {
+        "quote": "административный web-интерфейс на Angular",
+        "line": 19,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Web-интерфейс должен быть на Angular"
+    },
+    {
+      "id": "CON-03",
+      "origin": "customer",
+      "source": {
+        "quote": "backend на C# / ASP.NET Core",
+        "line": 20,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Backend должен быть на C# / ASP.NET Core"
+    },
+    {
+      "id": "CON-04",
+      "origin": "customer",
+      "source": {
+        "quote": "PostgreSQL",
+        "line": 21,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "База данных должна быть PostgreSQL"
+    },
+    {
+      "id": "CON-05",
+      "origin": "customer",
+      "source": {
+        "quote": "Kafka для передачи событий во внешнюю систему учёта",
+        "line": 22,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Для передачи событий должна использоваться Kafka"
+    },
+    {
+      "id": "CON-06",
+      "origin": "customer",
+      "source": {
+        "quote": "документированный API и модель событий",
+        "line": 23,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Должен быть документированный API и модель событий"
+    },
+    {
+      "id": "CON-07",
+      "origin": "customer",
+      "source": {
+        "quote": "Docker-окружение, тестовые данные, автоматизированные тесты, CI/CD-пайплайн",
+        "line": 24,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Должно быть Docker-окружение, тестовые данные, автоматизированные тесты, CI/CD-пайплайн"
+    },
+    {
+      "id": "CON-08",
+      "origin": "customer",
+      "source": {
+        "quote": "интеграция реализуется через mock-потребителя",
+        "line": 26,
+        "exact": true
+      },
+      "kind": "integration",
+      "statement": "Интеграция с корпоративной системой учёта ТМЦ реализуется через mock-потребителя"
+    },
+    {
+      "id": "CON-09",
+      "origin": "customer",
+      "source": {
+        "quote": "Справочник сотрудников и номера пропусков загружаются из файла",
+        "line": 26,
+        "exact": true
+      },
+      "kind": "data",
+      "statement": "Справочник сотрудников и номера пропусков загружаются из файла"
+    }
+  ],
+  "entities": [
+    {
+      "id": "ENT-Tool",
+      "origin": "customer",
+      "source": {
+        "quote": "вести каталог инструмента: инвентарный номер, наименование, категория, склад, состояние",
+        "line": 8,
+        "exact": true
+      },
+      "name": "Tool",
+      "description": "Единица инструмента или оборудования",
+      "attributes": [
+        {
+          "name": "inventoryNumber",
+          "type": "string",
+          "description": "Инвентарный номер",
+          "required": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Наименование",
+          "required": true
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Категория",
+          "required": true
+        },
+        {
+          "name": "warehouse",
+          "type": "string",
+          "description": "Склад",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "description": "Состояние: исправен, требует ремонта, утерян",
+          "required": true
+        },
+        {
+          "name": "qrCode",
+          "type": "string",
+          "description": "QR-код",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-Employee",
+      "origin": "customer",
+      "source": {
+        "quote": "Справочник сотрудников и номера пропусков загружаются из файла",
+        "line": 26,
+        "exact": true
+      },
+      "name": "Employee",
+      "description": "Сотрудник, получающий инструмент",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "ФИО",
+          "required": true
+        },
+        {
+          "name": "passNumber",
+          "type": "string",
+          "description": "Номер пропуска",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-Reservation",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять бронировать инструмент на дату заранее",
+        "line": 11,
+        "exact": true
+      },
+      "name": "Reservation",
+      "description": "Бронирование инструмента на дату",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "description": "Идентификатор инструмента",
+          "required": true
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "description": "Идентификатор сотрудника",
+          "required": true
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "description": "Дата бронирования",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-IssueRecord",
+      "origin": "customer",
+      "source": {
+        "quote": "позволять кладовщику выдать инструмент сотруднику",
+        "line": 10,
+        "exact": true
+      },
+      "name": "IssueRecord",
+      "description": "Запись о выдаче инструмента",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "description": "Идентификатор инструмента",
+          "required": true
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "description": "Идентификатор сотрудника",
+          "required": true
+        },
+        {
+          "name": "issueDate",
+          "type": "datetime",
+          "description": "Дата выдачи",
+          "required": true
+        },
+        {
+          "name": "returnDeadline",
+          "type": "datetime",
+          "description": "Срок возврата",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-ReturnRecord",
+      "origin": "customer",
+      "source": {
+        "quote": "фиксировать возврат инструмента с оценкой состояния: исправен, требует ремонта, утерян",
+        "line": 12,
+        "exact": true
+      },
+      "name": "ReturnRecord",
+      "description": "Запись о возврате инструмента",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "description": "Идентификатор инструмента",
+          "required": true
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "description": "Идентификатор сотрудника",
+          "required": true
+        },
+        {
+          "name": "returnDate",
+          "type": "datetime",
+          "description": "Дата возврата",
+          "required": true
+        },
+        {
+          "name": "condition",
+          "type": "enum",
+          "description": "Состояние: исправен, требует ремонта, утерян",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-MovementHistory",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать историю движения каждой единицы инструмента",
+        "line": 15,
+        "exact": true
+      },
+      "name": "MovementHistory",
+      "description": "История движения инструмента",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "description": "Идентификатор инструмента",
+          "required": true
+        },
+        {
+          "name": "eventType",
+          "type": "enum",
+          "description": "Тип события: выдача, возврат, списание",
+          "required": true
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "description": "Время события",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-SyncQueue",
+      "origin": "customer",
+      "source": {
+        "quote": "синхронизировать операции после её появления",
+        "line": 16,
+        "exact": true
+      },
+      "name": "SyncQueue",
+      "description": "Очередь синхронизации операций",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "Идентификатор",
+          "required": true
+        },
+        {
+          "name": "operationType",
+          "type": "enum",
+          "description": "Тип операции",
+          "required": true
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "description": "Данные операции",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "description": "Статус: ожидает, синхронизировано",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "id": "INT-01",
+      "origin": "customer",
+      "source": {
+        "quote": "Корпоративная система учёта ТМЦ принимает события из Kafka",
+        "line": 26,
+        "exact": true
+      },
+      "name": "Корпоративная система учёта ТМЦ",
+      "purpose": "Приём событий выдачи, возврата и списания",
+      "direction": "outbound",
+      "mode": "events",
+      "availability": "mock_required"
+    },
+    {
+      "id": "INT-02",
+      "origin": "customer",
+      "source": {
+        "quote": "Справочник сотрудников и номера пропусков загружаются из файла",
+        "line": 26,
+        "exact": true
+      },
+      "name": "Файл справочника сотрудников",
+      "purpose": "Загрузка справочника сотрудников и номеров пропусков",
+      "direction": "inbound",
+      "mode": "file",
+      "availability": "mock_required"
+    }
+  ],
+  "security": [
+    {
+      "id": "SEC-01",
+      "origin": "derived",
+      "source": null,
+      "category": "authn",
+      "statement": "Система должна аутентифицировать пользователей по ролям",
+      "rationale": "Обеспечение доступа только авторизованных пользователей",
+      "related": [
+        "FR-1",
+        "FR-3",
+        "FR-4"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "origin": "derived",
+      "source": null,
+      "category": "authz",
+      "statement": "Система должна ограничивать доступ по ролям: warehouse_manager, warehouse_keeper, employee, system_admin",
+      "rationale": "Обеспечение разграничения прав доступа",
+      "related": [
+        "FR-1",
+        "FR-3",
+        "FR-4",
+        "FR-11"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "origin": "derived",
+      "source": null,
+      "category": "audit",
+      "statement": "Система должна фиксировать все действия пользователей в журнале аудита",
+      "rationale": "Обеспечение возможности расследования инцидентов",
+      "related": [
+        "FR-3",
+        "FR-6",
+        "FR-9"
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "origin": "derived",
+      "source": null,
+      "category": "input_validation",
+      "statement": "Система должна валидировать все входные данные",
+      "rationale": "Защита от инъекций и невалидных данных",
+      "related": [
+        "FR-1",
+        "FR-11"
+      ]
+    },
+    {
+      "id": "SEC-05",
+      "origin": "derived",
+      "source": null,
+      "category": "rate_limiting",
+      "statement": "Система должна ограничивать частоту запросов",
+      "rationale": "Защита от DDoS и злоупотреблений",
+      "related": [
+        "FR-3",
+        "FR-4"
+      ]
+    },
+    {
+      "id": "SEC-06",
+      "origin": "derived",
+      "source": null,
+      "category": "secrets",
+      "statement": "Секреты (ключи API, пароли БД) должны храниться в защищенном хранилище",
+      "rationale": "Защита конфиденциальных данных",
+      "related": [
+        "FR-8"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "UC_001",
+      "origin": "derived",
+      "source": null,
+      "title": "Добавление инструмента и печать QR-кода",
+      "actor": "ROLE-warehouse_manager",
+      "goal": "Добавить новую единицу инструмента в каталог и получить QR-код для печати",
+      "preconditions": [
+        "warehouse_manager аутентифицирован в web-интерфейсе",
+        "Склад выбран в системе"
+      ],
+      "main_flow": [
+        "1. warehouse_manager открывает форму добавления инструмента",
+        "2. warehouse_manager вводит инвентарный номер, наименование, категорию, склад и состояние",
+        "3. Система проверяет уникальность инвентарного номера",
+        "4. Система сохраняет запись Tool и генерирует QR-код",
+        "5. Система отображает QR-код для печати"
+      ],
+      "alternative_flows": [
+        "Шаг 3: инвентарный номер уже существует → Система показывает ошибку «Инвентарный номер уже существует» и не сохраняет запись"
+      ],
+      "error_flows": [
+        "Шаг 2: не заполнены обязательные поля → Система блокирует сохранение и подсвечивает пустые поля",
+        "Шаг 4: сбой сохранения в PostgreSQL → Система показывает сообщение об ошибке и не создает QR-код"
+      ],
+      "postconditions": [
+        "Запись Tool сохранена в базе данных",
+        "QR-код сгенерирован и доступен для печати"
+      ],
+      "expected_result": "warehouse_manager видит сохраненный инструмент в каталоге и QR-код для печати",
+      "requirements": [
+        "FR-1",
+        "FR-2",
+        "FR-12"
+      ]
+    },
+    {
+      "id": "UC_002",
+      "origin": "derived",
+      "source": null,
+      "title": "Бронирование инструмента сотрудником",
+      "actor": "ROLE-employee",
+      "goal": "Забронировать инструмент на конкретную дату",
+      "preconditions": [
+        "employee аутентифицирован в системе",
+        "Инструмент доступен в каталоге"
+      ],
+      "main_flow": [
+        "1. employee выбирает инструмент из каталога",
+        "2. employee указывает дату бронирования",
+        "3. Система проверяет доступность инструмента на указанную дату",
+        "4. Система создает запись Reservation",
+        "5. Система подтверждает бронирование"
+      ],
+      "alternative_flows": [
+        "Шаг 3: инструмент уже забронирован на эту дату → Система показывает сообщение «Инструмент уже забронирован»"
+      ],
+      "error_flows": [
+        "Шаг 2: дата в прошлом → Система показывает ошибку «Дата не может быть в прошлом»",
+        "Шаг 4: сбой сохранения → Система показывает сообщение об ошибке"
+      ],
+      "postconditions": [
+        "Запись Reservation сохранена в базе данных"
+      ],
+      "expected_result": "employee видит подтверждение бронирования",
+      "requirements": [
+        "FR-4",
+        "FR-13"
+      ]
+    },
+    {
+      "id": "UC_003",
+      "origin": "derived",
+      "source": null,
+      "title": "Выдача инструмента сотруднику",
+      "actor": "ROLE-warehouse_keeper",
+      "goal": "Выдать инструмент сотруднику, отсканировав QR-код инструмента и пропуск сотрудника",
+      "preconditions": [
+        "warehouse_keeper аутентифицирован в мобильном приложении",
+        "Инструмент находится на складе",
+        "Сотрудник присутствует"
+      ],
+      "main_flow": [
+        "1. warehouse_keeper сканирует QR-код инструмента",
+        "2. Система идентифицирует инструмент по QR-коду",
+        "3. warehouse_keeper сканирует пропуск сотрудника",
+        "4. Система идентифицирует сотрудника по номеру пропуска",
+        "5. Система проверяет, не забронирован ли инструмент другим сотрудником",
+        "6. Система создает запись IssueRecord",
+        "7. Система фиксирует событие выдачи в MovementHistory"
+      ],
+      "alternative_flows": [
+        "Шаг 5: инструмент забронирован другим сотрудником → Система показывает отказ в выдаче"
+      ],
+      "error_flows": [
+        "Шаг 2: QR-код не найден → Система показывает «Инструмент не найден»",
+        "Шаг 4: пропуск не найден → Система показывает «Сотрудник не найден»",
+        "Шаг 6: потеря связи с сервером → Система сохраняет операцию локально в SyncQueue"
+      ],
+      "postconditions": [
+        "Запись IssueRecord сохранена",
+        "Событие выдачи зафиксировано в MovementHistory",
+        "Инструмент помечен как выданный"
+      ],
+      "expected_result": "warehouse_keeper видит подтверждение выдачи",
+      "requirements": [
+        "FR-3",
+        "FR-5",
+        "FR-14",
+        "FR-10"
+      ]
+    },
+    {
+      "id": "UC_004",
+      "origin": "derived",
+      "source": null,
+      "title": "Возврат инструмента с оценкой состояния",
+      "actor": "ROLE-warehouse_keeper",
+      "goal": "Зафиксировать возврат инструмента с оценкой состояния",
+      "preconditions": [
+        "warehouse_keeper аутентифицирован в мобильном приложении",
+        "Инструмент выдан сотруднику"
+      ],
+      "main_flow": [
+        "1. warehouse_keeper сканирует QR-код возвращаемого инструмента",
+        "2. Система находит активную запись IssueRecord",
+        "3. warehouse_keeper выбирает состояние: исправен, требует ремонта, утерян",
+        "4. Система создает запись ReturnRecord",
+        "5. Система фиксирует событие возврата в MovementHistory",
+        "6. Система обновляет состояние инструмента"
+      ],
+      "alternative_flows": [
+        "Шаг 3: состояние «требует ремонта» → Система помечает инструмент как требующий ремонта"
+      ],
+      "error_flows": [
+        "Шаг 2: нет активной выдачи → Система показывает «Нет активной выдачи для этого инструмента»",
+        "Шаг 4: потеря связи → Система сохраняет операцию локально"
+      ],
+      "postconditions": [
+        "Запись ReturnRecord сохранена",
+        "Событие возврата зафиксировано",
+        "Состояние инструмента обновлено"
+      ],
+      "expected_result": "warehouse_keeper видит подтверждение возврата",
+      "requirements": [
+        "FR-6",
+        "FR-17"
+      ]
+    },
+    {
+      "id": "UC_005",
+      "origin": "derived",
+      "source": null,
+      "title": "Контроль срока возврата и список невозвращенного",
+      "actor": "ROLE-warehouse_manager",
+      "goal": "Просмотреть список инструментов, срок возврата которых истек",
+      "preconditions": [
+        "warehouse_manager аутентифицирован в web-интерфейсе",
+        "Есть выданные инструменты с истекшим сроком возврата"
+      ],
+      "main_flow": [
+        "1. Система периодически проверяет срок возврата выданных инструментов",
+        "2. warehouse_manager открывает раздел «Невозвращенный инструмент»",
+        "3. Система отображает список инструментов с истекшим сроком возврата"
+      ],
+      "alternative_flows": [
+        "Шаг 3: нет невозвращенного инструмента → Система показывает «Нет невозвращенного инструмента»"
+      ],
+      "error_flows": [
+        "Шаг 1: сбой scheduled job → Система логирует ошибку и повторяет проверку"
+      ],
+      "postconditions": [
+        "Список невозвращенного инструмента отображен"
+      ],
+      "expected_result": "warehouse_manager видит список инструментов, срок возврата которых истек",
+      "requirements": [
+        "FR-7",
+        "FR-16"
+      ]
+    },
+    {
+      "id": "UC_006",
+      "origin": "derived",
+      "source": null,
+      "title": "Передача событий в систему учета ТМЦ",
+      "actor": "ROLE-system_admin",
+      "goal": "Обеспечить передачу событий выдачи, возврата и списания в корпоративную систему учета ТМЦ",
+      "preconditions": [
+        "Kafka настроена",
+        "Mock-потребитель подключен"
+      ],
+      "main_flow": [
+        "1. Система публикует событие выдачи/возврата/списания в Kafka",
+        "2. Mock-потребитель получает событие",
+        "3. Система фиксирует статус доставки"
+      ],
+      "alternative_flows": [
+        "Шаг 2: mock-потребитель недоступен → Система сохраняет событие в очереди для повторной отправки"
+      ],
+      "error_flows": [
+        "Шаг 1: Kafka недоступна → Система сохраняет событие локально и повторяет публикацию"
+      ],
+      "postconditions": [
+        "Событие опубликовано в Kafka",
+        "Статус доставки зафиксирован"
+      ],
+      "expected_result": "Событие доставлено в mock-потребитель",
+      "requirements": [
+        "FR-8"
+      ]
+    },
+    {
+      "id": "UC_007",
+      "origin": "derived",
+      "source": null,
+      "title": "История движения инструмента",
+      "actor": "ROLE-warehouse_manager",
+      "goal": "Просмотреть историю движения конкретной единицы инструмента",
+      "preconditions": [
+        "warehouse_manager аутентифицирован",
+        "Инструмент имеет историю движений"
+      ],
+      "main_flow": [
+        "1. warehouse_manager выбирает инструмент из каталога",
+        "2. Система отображает историю движений из MovementHistory"
+      ],
+      "alternative_flows": [
+        "Шаг 2: история пуста → Система показывает «История пуста»"
+      ],
+      "error_flows": [
+        "Шаг 2: сбой загрузки → Система показывает сообщение об ошибке"
+      ],
+      "postconditions": [
+        "История движения отображена"
+      ],
+      "expected_result": "warehouse_manager видит полную историю движения инструмента",
+      "requirements": [
+        "FR-9"
+      ]
+    },
+    {
+      "id": "UC_008",
+      "origin": "derived",
+      "source": null,
+      "title": "Синхронизация операций после появления связи",
+      "actor": "ROLE-warehouse_keeper",
+      "goal": "Синхронизировать локальные операции с сервером после восстановления связи",
+      "preconditions": [
+        "Есть локальные операции в SyncQueue",
+        "Связь с сервером восстановлена"
+      ],
+      "main_flow": [
+        "1. Система обнаруживает восстановление связи",
+        "2. Система отправляет операции из SyncQueue на сервер",
+        "3. Сервер обрабатывает операции и публикует события в Kafka",
+        "4. Система очищает SyncQueue"
+      ],
+      "alternative_flows": [
+        "Шаг 3: сервер отклоняет операцию → Система помечает операцию как ошибочную и показывает уведомление"
+      ],
+      "error_flows": [
+        "Шаг 2: связь снова потеряна → Система сохраняет операции в SyncQueue и повторяет попытку позже"
+      ],
+      "postconditions": [
+        "Операции синхронизированы",
+        "SyncQueue очищен"
+      ],
+      "expected_result": "Операции синхронизированы с сервером",
+      "requirements": [
+        "FR-10",
+        "FR-15"
+      ]
+    },
+    {
+      "id": "UC_009",
+      "origin": "derived",
+      "source": null,
+      "title": "Загрузка справочника сотрудников из файла",
+      "actor": "ROLE-system_admin",
+      "goal": "Загрузить справочник сотрудников и номеров пропусков из файла",
+      "preconditions": [
+        "system_admin аутентифицирован",
+        "Файл справочника подготовлен"
+      ],
+      "main_flow": [
+        "1. system_admin загружает файл справочника",
+        "2. Система валидирует формат файла",
+        "3. Система импортирует данные в таблицу Employee",
+        "4. Система подтверждает успешную загрузку"
+      ],
+      "alternative_flows": [
+        "Шаг 2: формат файла неверен → Система показывает ошибку валидации"
+      ],
+      "error_flows": [
+        "Шаг 3: сбой импорта → Система откатывает транзакцию и показывает ошибку"
+      ],
+      "postconditions": [
+        "Справочник сотрудников загружен"
+      ],
+      "expected_result": "system_admin видит подтверждение загрузки",
+      "requirements": [
+        "FR-11"
+      ]
+    },
+    {
+      "id": "UC_010",
+      "origin": "derived",
+      "source": null,
+      "title": "Сквозной демонстрационный сценарий",
+      "actor": "ROLE-warehouse_manager",
+      "goal": "Пройти полный демонстрационный сценарий от добавления инструмента до возврата",
+      "preconditions": [
+        "Система развернута",
+        "Mock-потребитель Kafka подключен"
+      ],
+      "main_flow": [
+        "1. warehouse_manager добавляет тепловизор и печатает QR-код",
+        "2. employee бронирует тепловизор на завтра",
+        "3. warehouse_keeper пытается выдать тепловизор другому сотруднику и получает отказ",
+        "4. warehouse_keeper выдаёт тепловизор забронировавшему сотруднику без связи с сервером",
+        "5. После появления связи операция синхронизируется, событие выдачи уходит во внешнюю систему",
+        "6. Срок возврата истёк — инструмент появляется в списке невозвращённого",
+        "7. employee возвращает инструмент с отметкой «требует ремонта»"
+      ],
+      "alternative_flows": [
+        "Шаг 3: отказ в выдаче → Система показывает «Инструмент забронирован другим сотрудником»"
+      ],
+      "error_flows": [
+        "Шаг 4: потеря связи → Система сохраняет операцию локально",
+        "Шаг 5: сбой синхронизации → Система повторяет попытку"
+      ],
+      "postconditions": [
+        "Тепловизор возвращен с отметкой «требует ремонта»",
+        "События опубликованы в Kafka",
+        "История движения заполнена"
+      ],
+      "expected_result": "Полный цикл работы с инструментом выполнен",
+      "requirements": [
+        "FR-1",
+        "FR-2",
+        "FR-3",
+        "FR-4",
+        "FR-5",
+        "FR-6",
+        "FR-7",
+        "FR-8",
+        "FR-9",
+        "FR-10",
+        "FR-13",
+        "FR-14",
+        "FR-15",
+        "FR-16",
+        "FR-17"
+      ]
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "AC-FR-1-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "positive",
+      "title": "Добавление инструмента в каталог",
+      "given": [
+        "warehouse_manager аутентифицирован",
+        "Инвентарный номер уникален"
+      ],
+      "when": [
+        "warehouse_manager вводит инвентарный номер, наименование, категорию, склад и состояние и сохраняет"
+      ],
+      "then": [
+        "Запись Tool сохранена в базе данных",
+        "Инструмент отображается в каталоге"
+      ]
+    },
+    {
+      "id": "AC-FR-1-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "negative",
+      "title": "Дубликат инвентарного номера при создании",
+      "given": [
+        "warehouse_manager аутентифицирован",
+        "Инвентарный номер уже существует"
+      ],
+      "when": [
+        "warehouse_manager пытается сохранить инструмент с существующим инвентарным номером"
+      ],
+      "then": [
+        "Система показывает ошибку «Инвентарный номер уже существует»",
+        "Запись не сохранена"
+      ]
+    },
+    {
+      "id": "AC-FR-1-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "negative",
+      "title": "Изменение инвентарного номера на существующий",
+      "given": [
+        "warehouse_manager аутентифицирован",
+        "Существует инструмент с инвентарным номером INV-001",
+        "warehouse_manager редактирует инструмент с инвентарным номером INV-002"
+      ],
+      "when": [
+        "warehouse_manager меняет инвентарный номер на INV-001 и сохраняет"
+      ],
+      "then": [
+        "Система показывает ошибку «Инвентарный номер уже существует»",
+        "Инвентарный номер инструмента INV-002 не изменен"
+      ]
+    },
+    {
+      "id": "AC-FR-2-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-2",
+      "kind": "positive",
+      "title": "Генерация QR-кода",
+      "given": [
+        "Инструмент добавлен в каталог"
+      ],
+      "when": [
+        "Система генерирует QR-код"
+      ],
+      "then": [
+        "QR-код отображается для печати",
+        "QR-код содержит инвентарный номер"
+      ]
+    },
+    {
+      "id": "AC-FR-3-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "kind": "positive",
+      "title": "Выдача инструмента",
+      "given": [
+        "warehouse_keeper аутентифицирован",
+        "Инструмент доступен",
+        "Сотрудник найден по пропуску"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код инструмента и пропуск сотрудника"
+      ],
+      "then": [
+        "Запись IssueRecord создана",
+        "Событие выдачи зафиксировано в MovementHistory"
+      ]
+    },
+    {
+      "id": "AC-FR-3-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "kind": "negative",
+      "title": "Выдача без связи",
+      "given": [
+        "warehouse_keeper аутентифицирован",
+        "Связь с сервером отсутствует"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код инструмента и пропуск сотрудника"
+      ],
+      "then": [
+        "Операция сохранена локально в SyncQueue",
+        "warehouse_keeper видит подтверждение локальной выдачи"
+      ]
+    },
+    {
+      "id": "AC-FR-3-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "kind": "negative",
+      "title": "Выдача забронированного инструмента не тому сотруднику",
+      "given": [
+        "warehouse_keeper аутентифицирован",
+        "Инструмент забронирован сотрудником A",
+        "Сотрудник B найден по пропуску"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код инструмента и пропуск сотрудника B"
+      ],
+      "then": [
+        "Система показывает отказ в выдаче",
+        "Запись IssueRecord не создана"
+      ]
+    },
+    {
+      "id": "AC-FR-4-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "kind": "positive",
+      "title": "Бронирование инструмента",
+      "given": [
+        "employee аутентифицирован",
+        "Инструмент доступен на выбранную дату"
+      ],
+      "when": [
+        "employee бронирует инструмент на дату"
+      ],
+      "then": [
+        "Запись Reservation создана",
+        "employee видит подтверждение бронирования"
+      ]
+    },
+    {
+      "id": "AC-FR-4-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "kind": "negative",
+      "title": "Бронирование на занятую дату",
+      "given": [
+        "employee аутентифицирован",
+        "Инструмент уже забронирован на выбранную дату"
+      ],
+      "when": [
+        "employee пытается забронировать инструмент"
+      ],
+      "then": [
+        "Система показывает «Инструмент уже забронирован»",
+        "Запись Reservation не создана"
+      ]
+    },
+    {
+      "id": "AC-FR-4-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "kind": "negative",
+      "title": "Бронирование на прошедшую дату",
+      "given": [
+        "employee аутентифицирован",
+        "Выбранная дата в прошлом"
+      ],
+      "when": [
+        "employee пытается забронировать инструмент на прошедшую дату"
+      ],
+      "then": [
+        "Система показывает ошибку «Дата бронирования не может быть в прошлом»",
+        "Запись Reservation не создана"
+      ]
+    },
+    {
+      "id": "AC-FR-5-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-5",
+      "kind": "positive",
+      "title": "Запрет выдачи забронированного инструмента",
+      "given": [
+        "Инструмент забронирован сотрудником A",
+        "warehouse_keeper пытается выдать инструмент сотруднику B"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код инструмента и пропуск сотрудника B"
+      ],
+      "then": [
+        "Система показывает отказ в выдаче",
+        "Запись IssueRecord не создана"
+      ]
+    },
+    {
+      "id": "AC-FR-6-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "kind": "positive",
+      "title": "Возврат инструмента",
+      "given": [
+        "Инструмент выдан сотруднику",
+        "warehouse_keeper аутентифицирован"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код и выбирает состояние «исправен»"
+      ],
+      "then": [
+        "Запись ReturnRecord создана",
+        "Состояние инструмента обновлено на «исправен»"
+      ]
+    },
+    {
+      "id": "AC-FR-6-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "kind": "negative",
+      "title": "Возврат без активной выдачи",
+      "given": [
+        "Инструмент не выдан",
+        "warehouse_keeper аутентифицирован"
+      ],
+      "when": [
+        "warehouse_keeper пытается зафиксировать возврат"
+      ],
+      "then": [
+        "Система показывает «Нет активной выдачи»",
+        "Запись ReturnRecord не создана"
+      ]
+    },
+    {
+      "id": "AC-FR-6-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "kind": "positive",
+      "title": "Возврат инструмента с оценкой «утерян»",
+      "given": [
+        "Инструмент выдан сотруднику",
+        "warehouse_keeper аутентифицирован"
+      ],
+      "when": [
+        "warehouse_keeper сканирует QR-код и выбирает состояние «утерян»"
+      ],
+      "then": [
+        "Запись ReturnRecord создана",
+        "Инструмент помечен как списанный в каталоге",
+        "Событие списания опубликовано в Kafka"
+      ]
+    },
+    {
+      "id": "AC-FR-7-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "kind": "positive",
+      "title": "Список невозвращенного инструмента",
+      "given": [
+        "Есть выданный инструмент с истекшим сроком возврата",
+        "warehouse_manager аутентифицирован"
+      ],
+      "when": [
+        "warehouse_manager открывает раздел «Невозвращенный инструмент»"
+      ],
+      "then": [
+        "Инструмент отображается в списке"
+      ]
+    },
+    {
+      "id": "AC-FR-7-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "kind": "negative",
+      "title": "Инструмент не отображается до истечения срока",
+      "given": [
+        "Есть выданный инструмент с неистекшим сроком возврата",
+        "warehouse_manager аутентифицирован"
+      ],
+      "when": [
+        "warehouse_manager открывает раздел «Невозвращенный инструмент»"
+      ],
+      "then": [
+        "Инструмент не отображается в списке"
+      ]
+    },
+    {
+      "id": "AC-FR-8-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "kind": "positive",
+      "title": "Передача события в Kafka",
+      "given": [
+        "Kafka доступна",
+        "Mock-потребитель подключен"
+      ],
+      "when": [
+        "Система публикует событие выдачи"
+      ],
+      "then": [
+        "Событие доставлено в mock-потребитель",
+        "В таблице EventDeliveryLog создана запись со статусом delivered и timestamp"
+      ]
+    },
+    {
+      "id": "AC-FR-8-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "kind": "negative",
+      "title": "Kafka недоступна",
+      "given": [
+        "Kafka недоступна"
+      ],
+      "when": [
+        "Система пытается опубликовать событие"
+      ],
+      "then": [
+        "Событие сохранено локально",
+        "Система повторяет публикацию после восстановления"
+      ]
+    },
+    {
+      "id": "AC-FR-9-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "kind": "positive",
+      "title": "История движения",
+      "given": [
+        "Инструмент имеет историю движений",
+        "warehouse_manager аутентифицирован"
+      ],
+      "when": [
+        "warehouse_manager открывает историю движения"
+      ],
+      "then": [
+        "История отображается в хронологическом порядке"
+      ]
+    },
+    {
+      "id": "AC-FR-10-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "kind": "positive",
+      "title": "Работа без связи",
+      "given": [
+        "Связь с сервером отсутствует",
+        "warehouse_keeper аутентифицирован"
+      ],
+      "when": [
+        "warehouse_keeper выполняет операцию выдачи"
+      ],
+      "then": [
+        "В локальной базе данных создана запись с статусом pending",
+        "Система возвращает HTTP 200 с локальным ID операции в SyncQueue"
+      ]
+    },
+    {
+      "id": "AC-FR-10-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "kind": "negative",
+      "title": "Повреждение локальной БД при отсутствии связи",
+      "given": [
+        "Связь с сервером отсутствует",
+        "Локальная база данных на мобильном устройстве повреждена или недоступна"
+      ],
+      "when": [
+        "warehouse_keeper выполняет операцию выдачи"
+      ],
+      "then": [
+        "Система показывает ошибку «Локальное хранилище недоступно»",
+        "Введенные данные не потеряны и могут быть сохранены после восстановления БД"
+      ]
+    },
+    {
+      "id": "AC-FR-11-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "positive",
+      "title": "Загрузка справочника",
+      "given": [
+        "system_admin аутентифицирован",
+        "Файл справочника валиден"
+      ],
+      "when": [
+        "system_admin загружает файл"
+      ],
+      "then": [
+        "Данные импортированы в таблицу Employee",
+        "system_admin видит подтверждение"
+      ]
+    },
+    {
+      "id": "AC-FR-11-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "negative",
+      "title": "Невалидный файл",
+      "given": [
+        "system_admin аутентифицирован",
+        "Файл справочника невалиден"
+      ],
+      "when": [
+        "system_admin загружает файл"
+      ],
+      "then": [
+        "Система показывает ошибку валидации",
+        "Данные не импортированы"
+      ]
+    },
+    {
+      "id": "AC-FR-11-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "negative",
+      "title": "Дубликаты в файле справочника",
+      "given": [
+        "system_admin аутентифицирован",
+        "Файл справочника содержит дубликаты номеров пропусков"
+      ],
+      "when": [
+        "system_admin загружает файл"
+      ],
+      "then": [
+        "Система отклоняет импорт",
+        "Система показывает список дубликатов"
+      ]
+    },
+    {
+      "id": "AC-FR-12-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-12",
+      "kind": "positive",
+      "title": "Добавление инструмента руководителем",
+      "given": [
+        "warehouse_manager аутентифицирован"
+      ],
+      "when": [
+        "warehouse_manager добавляет инструмент"
+      ],
+      "then": [
+        "Инструмент сохранен в каталоге"
+      ]
+    },
+    {
+      "id": "AC-FR-13-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-13",
+      "kind": "positive",
+      "title": "Бронирование сотрудником",
+      "given": [
+        "employee аутентифицирован"
+      ],
+      "when": [
+        "employee бронирует инструмент"
+      ],
+      "then": [
+        "Бронирование создано"
+      ]
+    },
+    {
+      "id": "AC-FR-14-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "kind": "positive",
+      "title": "Отказ в выдаче",
+      "given": [
+        "Инструмент забронирован другим сотрудником"
+      ],
+      "when": [
+        "warehouse_keeper пытается выдать инструмент"
+      ],
+      "then": [
+        "Система показывает отказ"
+      ]
+    },
+    {
+      "id": "AC-FR-15-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "kind": "positive",
+      "title": "Синхронизация после связи",
+      "given": [
+        "Есть локальные операции",
+        "Связь восстановлена"
+      ],
+      "when": [
+        "Система обнаруживает связь"
+      ],
+      "then": [
+        "Операции синхронизированы",
+        "SyncQueue очищен"
+      ]
+    },
+    {
+      "id": "AC-FR-16-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "kind": "positive",
+      "title": "Показ невозвращенного при истечении",
+      "given": [
+        "Срок возврата истек"
+      ],
+      "when": [
+        "warehouse_manager открывает список"
+      ],
+      "then": [
+        "Инструмент отображается в списке невозвращенного"
+      ]
+    },
+    {
+      "id": "AC-FR-16-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "kind": "negative",
+      "title": "Инструмент не показывается до истечения срока",
+      "given": [
+        "Срок возврата не истек"
+      ],
+      "when": [
+        "warehouse_manager открывает список"
+      ],
+      "then": [
+        "Инструмент не отображается в списке невозвращенного"
+      ]
+    },
+    {
+      "id": "AC-FR-17-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "kind": "positive",
+      "title": "Возврат с отметкой ремонта",
+      "given": [
+        "Инструмент выдан"
+      ],
+      "when": [
+        "warehouse_keeper фиксирует возврат с отметкой «требует ремонта»"
+      ],
+      "then": [
+        "Состояние инструмента обновлено на «требует ремонта»"
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "вести каталог инструмента с атрибутами",
+      "so_that": "я могу управлять инструментом на складе"
+    },
+    {
+      "id": "US-002",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-2",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "печатать QR-код для каждой единицы инструмента",
+      "so_that": "я могу быстро идентифицировать инструмент"
+    },
+    {
+      "id": "US-003",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "выдавать инструмент сотруднику, отсканировав QR-код и пропуск",
+      "so_that": "я могу быстро и точно фиксировать выдачу"
+    },
+    {
+      "id": "US-004",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "role": "ROLE-employee",
+      "i_want": "бронировать инструмент на дату заранее",
+      "so_that": "я могу быть уверен, что инструмент будет доступен"
+    },
+    {
+      "id": "US-005",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-5",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "система запрещала выдачу забронированного инструмента другому сотруднику",
+      "so_that": "я не выдам инструмент не тому сотруднику"
+    },
+    {
+      "id": "US-006",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "фиксировать возврат инструмента с оценкой состояния",
+      "so_that": "я могу отслеживать состояние инструмента"
+    },
+    {
+      "id": "US-007",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "контролировать срок возврата и видеть список невозвращенного",
+      "so_that": "я могу отслеживать потери"
+    },
+    {
+      "id": "US-008",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "role": "ROLE-system_admin",
+      "i_want": "передавать события в систему учета ТМЦ",
+      "so_that": "данные синхронизированы с корпоративной системой"
+    },
+    {
+      "id": "US-009",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "видеть историю движения каждой единицы инструмента",
+      "so_that": "я могу отслеживать, кто и когда использовал инструмент"
+    },
+    {
+      "id": "US-010",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "работать в мобильном приложении без связи",
+      "so_that": "я могу выполнять операции на складе без интернета"
+    },
+    {
+      "id": "US-011",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "role": "ROLE-system_admin",
+      "i_want": "загружать справочник сотрудников из файла",
+      "so_that": "я могу актуализировать данные сотрудников"
+    },
+    {
+      "id": "US-012",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-12",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "добавлять инструмент в каталог",
+      "so_that": "я могу вести учет нового инструмента"
+    },
+    {
+      "id": "US-013",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-13",
+      "role": "ROLE-employee",
+      "i_want": "бронировать инструмент на дату",
+      "so_that": "я могу планировать работу"
+    },
+    {
+      "id": "US-014",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "получать отказ при попытке выдать забронированный инструмент",
+      "so_that": "я не нарушу правила бронирования"
+    },
+    {
+      "id": "US-015",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "синхронизировать операции после появления связи",
+      "so_that": "данные не потеряются"
+    },
+    {
+      "id": "US-016",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "role": "ROLE-warehouse_manager",
+      "i_want": "видеть невозвращенный инструмент при истечении срока",
+      "so_that": "я могу предпринять меры"
+    },
+    {
+      "id": "US-017",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "role": "ROLE-warehouse_keeper",
+      "i_want": "фиксировать возврат с отметкой ремонта",
+      "so_that": "инструмент будет направлен в ремонт"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-01",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Формат файла справочника: CSV",
+      "reason": "Не указан формат файла справочника сотрудников",
+      "affected": [
+        "FR-11"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-02",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Срок возврата по умолчанию 1 день",
+      "reason": "Не указан в требованиях, но необходим для контроля",
+      "affected": [
+        "FR-7",
+        "FR-16"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-03",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Файл справочника в формате CSV",
+      "reason": "Наиболее простой и универсальный формат",
+      "affected": [
+        "FR-11"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-04",
+      "origin": "assumption",
+      "source": null,
+      "statement": "QR-код содержит инвентарный номер",
+      "reason": "Наиболее простой способ идентификации",
+      "affected": [
+        "FR-2",
+        "FR-3"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-05",
+      "origin": "assumption",
+      "source": null,
+      "statement": "События Kafka содержат eventType, toolId, employeeId, timestamp",
+      "reason": "Минимальный набор данных для внешней системы",
+      "affected": [
+        "FR-8"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-06",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Модель событий Kafka: Событие содержит: eventType, toolId, employeeId, timestamp, payload",
+      "reason": "Принято по умолчанию без ответа на Q-01. Не указана структура событий для Kafka",
+      "affected": [
+        "FR-8"
+      ],
+      "from_question": "Q-01"
+    },
+    {
+      "id": "ASM-07",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Срок возврата: Срок возврата = дата выдачи + N дней (N настраивается)",
+      "reason": "Принято по умолчанию без ответа на Q-02. Не указано, как определяется срок возврата: фиксированный период или по дате бронирования",
+      "affected": [
+        "FR-7",
+        "FR-16"
+      ],
+      "from_question": "Q-02"
+    },
+    {
+      "id": "ASM-08",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Конфликты при синхронизации: Операция отклоняется, если инструмент уже выдан",
+      "reason": "Принято по умолчанию без ответа на Q-03. Не указано, как разрешаются конфликты при синхронизации локальных операций",
+      "affected": [
+        "FR-10",
+        "FR-15"
+      ],
+      "from_question": "Q-03"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q-01",
+      "origin": "derived",
+      "source": null,
+      "topic": "Модель событий Kafka",
+      "question": "Не указана структура событий для Kafka",
+      "impact": "architecture",
+      "severity": "high",
+      "affected": [
+        "FR-8"
+      ],
+      "options": [
+        "Событие содержит: eventType, toolId, employeeId, timestamp, payload",
+        "Событие содержит: eventType, inventoryNumber, passNumber, timestamp",
+        "Событие содержит: full object snapshot"
+      ],
+      "default_option": "Событие содержит: eventType, toolId, employeeId, timestamp, payload",
+      "answer": "Событие содержит: eventType, toolId, employeeId, timestamp, payload",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-02",
+      "origin": "derived",
+      "source": null,
+      "topic": "Срок возврата",
+      "question": "Не указано, как определяется срок возврата: фиксированный период или по дате бронирования",
+      "impact": "core_scenario",
+      "severity": "high",
+      "affected": [
+        "FR-7",
+        "FR-16"
+      ],
+      "options": [
+        "Срок возврата = дата выдачи + N дней (N настраивается)",
+        "Срок возврата = дата бронирования + 1 день",
+        "Срок возврата указывается вручную при выдаче"
+      ],
+      "default_option": "Срок возврата = дата выдачи + N дней (N настраивается)",
+      "answer": "Срок возврата = дата выдачи + N дней (N настраивается)",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-03",
+      "origin": "derived",
+      "source": null,
+      "topic": "Конфликты при синхронизации",
+      "question": "Не указано, как разрешаются конфликты при синхронизации локальных операций",
+      "impact": "core_scenario",
+      "severity": "high",
+      "affected": [
+        "FR-10",
+        "FR-15"
+      ],
+      "options": [
+        "Последняя запись побеждает",
+        "Конфликт разрешается вручную",
+        "Операция отклоняется, если инструмент уже выдан"
+      ],
+      "default_option": "Операция отклоняется, если инструмент уже выдан",
+      "answer": "Операция отклоняется, если инструмент уже выдан",
+      "status": "defaulted"
+    }
+  ],
+  "risks": [
+    {
+      "id": "RISK-01",
+      "origin": "derived",
+      "source": null,
+      "statement": "Потеря данных при синхронизации",
+      "probability": "medium",
+      "impact": "high",
+      "mitigation": "Использование транзакций и повторных попыток с экспоненциальным бэкоффом"
+    },
+    {
+      "id": "RISK-02",
+      "origin": "derived",
+      "source": null,
+      "statement": "Конфликты при одновременной выдаче",
+      "probability": "low",
+      "impact": "high",
+      "mitigation": "Использование оптимистической блокировки"
+    },
+    {
+      "id": "RISK-03",
+      "origin": "derived",
+      "source": null,
+      "statement": "Недоступность Kafka",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Локальная очередь событий с повторной отправкой"
+    },
+    {
+      "id": "RISK-04",
+      "origin": "derived",
+      "source": null,
+      "statement": "Невалидные данные в файле справочника",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Валидация файла перед импортом"
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Инструмент",
+      "definition": "Дорогостоящий инструмент и оборудование: перфораторы, тепловизоры, измерительные приборы, лестницы"
+    },
+    {
+      "term": "QR-код",
+      "definition": "Код для идентификации единицы инструмента"
+    },
+    {
+      "term": "Пропуск",
+      "definition": "Идентификационный документ сотрудника для получения инструмента"
+    },
+    {
+      "term": "Бронирование",
+      "definition": "Зарезервирование инструмента на определённую дату"
+    },
+    {
+      "term": "Срок возврата",
+      "definition": "Дедлайн, до которого инструмент должен быть возвращён"
+    },
+    {
+      "term": "Списание",
+      "definition": "Удаление инструмента из учёта (например, при утере)"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+E2E-прогон стенда: старт, повтор с тем же Idempotency-Key, 409 при второй сессии, продление и завершение работают. Исправь:
+1. Продление: IParkingPaymentProvider возвращает ИТОГОВЫЕ PaidUntil и AmountKopecks (накопительно). Сейчас сумма складывается
+   дважды: старт 60 мин = 36000, продление +30 мин даёт 90000 вместо 54000. Присваивай значения провайдера, не прибавляй.
+2. Журнал событий пуст: GET /api/v1/events читает таблицу domain_events. Для SessionStarted, SessionExtended, SessionClosed
+   помимо outbox.Enqueue добавляй строку в db.DomainEvents (event_type, event_version = 1, occurred_at, vehicle_id,
+   session_id, zone_id, payload — JSON с полями сессии) в той же транзакции, ПОСЛЕ добавления самой сессии.

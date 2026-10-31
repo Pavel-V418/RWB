@@ -1,0 +1,28 @@
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+actor "Кладовщик" as role_warehouse_keeper
+actor "Руководитель склада" as role_warehouse_manager
+actor "Сотрудник" as role_employee
+actor "Администратор системы" as role_system_admin
+component "Mobile App\n[Kotlin]" as Mobile_App
+component "Web UI\n[Angular]" as Web_UI
+component "Backend API\n[ASP.NET Core]" as Backend_API
+component "Worker\n[ASP.NET Core Worker]" as Worker
+database "Database\n[PostgreSQL]" as Database
+queue "Kafka Broker\n[Kafka]" as Kafka_Broker
+component "TMЦ Mock Consumer\n[Mock]" as TM__Mock_Consumer <<mock>>
+cloud "Employee CSV File\n[CSV]" as Employee_CSV_File
+role_warehouse_keeper --> Mobile_App
+role_warehouse_manager --> Web_UI
+role_employee --> Web_UI
+role_system_admin --> Web_UI
+Backend_API --> Kafka_Broker : публикует события
+Kafka_Broker --> TM__Mock_Consumer : события
+Mobile_App --> Backend_API : REST /api/v1, HTTPS + JWT
+Web_UI --> Backend_API : REST /api/v1 + обновления в реальном времени
+Backend_API --> Database : SQL
+Worker --> Database : SQL
+Backend_API --> TM__Mock_Consumer : адаптер, REST
+Mobile_App --> Employee_CSV_File : deeplink / ссылка
+@enduml

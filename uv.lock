@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "specforge",
     "specforge-analysis",
+    "specforge-backend",
     "specforge-web",
 ]
 
@@ -3134,6 +3135,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "specforge-analysis" },
+    { name = "specforge-backend" },
     { name = "specforge-web" },
     { name = "sse-starlette" },
     { name = "structlog" },
@@ -3174,6 +3176,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "specforge-analysis", editable = "packages/specforge-analysis" },
+    { name = "specforge-backend", editable = "packages/specforge-backend" },
     { name = "specforge-web", editable = "packages/specforge-web" },
     { name = "sse-starlette", specifier = ">=3.6.0" },
     { name = "structlog", specifier = ">=24.4" },
@@ -3224,6 +3227,17 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "specforge-backend"
+version = "0.1.0"
+source = { editable = "packages/specforge-backend" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=6.0" }]
 
 [[package]]
 name = "specforge-web"

@@ -1,0 +1,10 @@
+E2E-прогон стенда (POST /api/v1/vehicles/{vehicleId}/positions, машина въезжает в зону 514725 двумя точками) → HTTP 500:
+DbUpdateException: insert into domain_events violates foreign key constraint "domain_events_session_id_fkey" —
+событие ссылается на сессию, которой нет в БД. Исправь:
+1. НЕ запускай оплату автоматически при въезде в зону: никаких вызовов IParkingPaymentProvider из приёма точек.
+   При въезде — только переход (transition = entered), уведомление zone_entered и событие ZoneEntered.
+   Сессию создаёт водитель явно через POST /api/v1/sessions (это делает SessionsApi).
+2. Если активная сессия есть и машина выехала из зоны или сменила её — закрой сессию (close_reason zone_exit / zone_changed);
+   сбой провайдера при этом не должен ломать приём точек: лови ExternalProviderException и продолжай.
+3. Публикуй через outbox события ZoneEntered, ZoneExited, ZoneChanged (PartitionKey = vehicleId); запись в domain_events
+   делай только со ссылками на реально существующие строки (session_id = null, если сессии нет).

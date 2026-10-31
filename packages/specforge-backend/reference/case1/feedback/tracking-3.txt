@@ -1,0 +1,22 @@
+E2E-прогон стенда после прошлой правки Tracking (07_tests/e2e/demo_scenario.py), три ошибки:
+
+1. HTTP 500 при въезде в зону (POST /api/v1/vehicles/{vehicleId}/positions, две точки в зоне 514725):
+   DbUpdateException: insert into notifications violates foreign key constraint "notifications_event_id_fkey".
+   Уведомление получает EventId = domainEvent.Id, пока у DomainEvent ещё Guid.Empty (id генерирует БД).
+   Задавай id явно при создании: new DomainEvent { Id = Guid.NewGuid(), ... } — как в SessionsApi.
+
+2. Выезд не определяется: две точки подряд вне всех зон (accuracyM не задан) → transition = "none",
+   активная сессия остаётся status = "active". Причина: в pointCandidates «вне зон» (кандидат null) и
+   «неучитываемая точка» (accuracyM > 100) записаны одинаково как null, и поиск предыдущей учитываемой точки
+   пропускает точки вне зон. Храни признак «учитывается» отдельно от кандидата (например, список (Guid? zoneId,
+   bool considered)); null-кандидат учитываемой точки = «вне зон», это полноценный кандидат.
+   Кроме того, предыдущая учитываемая точка ищется только в текущем пакете. Мобильное приложение шлёт точки
+   по одной в запросе, тогда зона не сменится никогда. Если в пакете перед точкой нет учитываемой точки, бери
+   последнюю учитываемую точку автомобиля из vehicle_positions (recorded_at < точки, accuracy_m IS NULL или
+   accuracy_m <= 100) и её zone_id как кандидата.
+
+3. previousZoneId / previousZone фиксируются один раз в начале запроса. Если в одном пакете два перехода,
+   payload fromZoneId, ZoneExited.zoneId и previousZone в ответе неверны. Перед обновлением currentZoneId
+   запоминай зону до перехода и используй её для события, уведомления и previousZone ответа (previousZone —
+   зона до последнего перехода в пакете). При смене зоны entered_at в vehicle_zone_states ставь равным
+   recorded_at подтверждающей точки (сейчас он обновляется только когда был null).

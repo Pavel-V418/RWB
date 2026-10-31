@@ -1,0 +1,46 @@
+Сверка Tracking с требованиями (AC-FR-7-01/02, AC-FR-8-01/02, UC_005) и с e2e: правило переходов между зонами
+реализовано упрощённо. Переделай определение зоны и переходов в ReportPositionsAsync так:
+
+1. Кандидат-зона точки.
+   - Точка с accuracyM > 100 сохраняется в vehicle_positions с zone_id = null и в определении зоны НЕ участвует
+     (не меняет состояние, не считается ни «внутри», ни «вне»).
+   - Для остальных точек кандидат — find_zone_at(lon, lat). Граница смежных зон (AC-FR-8-02): если у автомобиля есть
+     текущая зона и точка находится в пределах её detection_radius_m, кандидатом остаётся текущая зона, даже если
+     find_zone_at вернул другую. Проверка — параметризованный FromSql, например
+     SELECT * FROM parking_zones WHERE id = {currentZoneId}
+       AND ST_DWithin(geometry::geography, ST_SetSRID(ST_MakePoint({lon}, {lat}), 4326)::geography, detection_radius_m)
+   - В vehicle_positions.zone_id сохраняй кандидат-зону точки.
+
+2. Подтверждение двумя точками подряд (гистерезис по точкам, без таймеров).
+   Состояние (vehicle_zone_states.current_zone_id) меняется только когда кандидат текущей точки И кандидат предыдущей
+   учитываемой точки этого автомобиля (accuracy_m IS NULL или ≤ 100, по recorded_at; из этого же пакета или из
+   vehicle_positions) совпадают и отличаются от текущей зоны. Одна точка вне зоны, следующая снова внутри — ничего
+   не происходит: нет перехода, события и уведомления (AC-FR-7-02).
+
+3. Переход при подтверждённой смене состояния (A — текущая зона, B — новая):
+   - A → B (B ≠ null, A ≠ null): transition = changed.
+   - A → вне зон: transition = exited.
+   - вне зон → B: transition = changed, если последняя учитываемая точка автомобиля с zone_id ≠ null перед этими двумя
+     точками была в зоне A ≠ B и её recorded_at не раньше чем за 300 секунд до первой из двух точек в B
+     (переход между соседними зонами через короткий участок вне зон); иначе transition = entered.
+   В ответе: previousZone — зона A (если была), currentZone — B или null.
+
+4. Для каждого перехода в одной транзакции:
+   - запись в журнал domain_events (сейчас переходы в журнал не пишутся, GET /api/v1/events их не видит):
+     event_type ZoneEntered | ZoneExited | ZoneChanged, occurred_at = recorded_at подтверждающей точки,
+     vehicle_id, zone_id = новая зона (для ZoneExited — покинутая зона A), session_id = активная сессия или null,
+     payload с fromZoneId и toZoneId;
+   - событие в outbox (PartitionKey = vehicleId) с теми же полями: ZoneExited несёт zoneId покинутой зоны,
+     ZoneChanged — fromZoneId и toZoneId;
+   - уведомление водителю, тексты из требований:
+     zone_exited  — «Вы покинули текущую парковочную зону»;
+     zone_changed — «Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»;
+     zone_entered — «Вы въехали в платную зону <displayName>».
+
+5. Активная сессия при exited или changed закрывается (close_reason zone_exit / zone_changed), сбой провайдера не
+   ломает приём точек. ВАЖНО: сейчас активная сессия загружается через AsNoTracking, поэтому изменения статуса в
+   CloseSessionAsync не сохраняются в БД — загружай её с отслеживанием изменений.
+
+6. Предупреждение об окончании оплаты из приёма точек убери: его делает фоновая задача SessionExpiryWarningJob
+   (FR-9, за 10 минут). Сейчас приём точек предупреждает за 300 секунд и пишет ExpiryWarnedAt в неотслеживаемую
+   сущность.

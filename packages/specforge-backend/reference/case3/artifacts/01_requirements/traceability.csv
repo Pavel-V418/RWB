@@ -1,0 +1,18 @@
+business_req,requirement,title,priority,origin,source_line,scenarios,stories,acceptance,api,events,entities,screens,tests,status
+BR-3,FR-1,Ведение каталога инструмента,must,customer,8,UC_001 UC_010,US-001,AC-FR-1-01 AC-FR-1-02 AC-FR-1-03,,,ENT-Tool,,,analysed
+BR-4,FR-2,Печать QR-кода для инструмента,must,customer,9,UC_001 UC_010,US-002,AC-FR-2-01,,,ENT-Tool,,,analysed
+BR-5,FR-3,Выдача инструмента сотруднику,must,customer,10,UC_003 UC_010,US-003,AC-FR-3-01 AC-FR-3-02 AC-FR-3-03,,,ENT-Tool ENT-Employee ENT-IssueRecord,,,analysed
+BR-6,FR-4,Бронирование инструмента на дату,must,customer,11,UC_002 UC_010,US-004,AC-FR-4-01 AC-FR-4-02 AC-FR-4-03,,,ENT-Tool ENT-Reservation,,,analysed
+BR-6,FR-5,Запрет выдачи забронированного инструмента,must,customer,11,UC_003 UC_010,US-005,AC-FR-5-01,,,ENT-Tool ENT-Reservation,,,analysed
+BR-7,FR-6,Фиксация возврата инструмента,must,customer,12,UC_004 UC_010,US-006,AC-FR-6-01 AC-FR-6-02 AC-FR-6-03,,,ENT-Tool ENT-ReturnRecord,,,analysed
+BR-8,FR-7,Контроль срока возврата,must,customer,13,UC_005 UC_010,US-007,AC-FR-7-01 AC-FR-7-02,,,ENT-Tool ENT-IssueRecord,,,analysed
+BR-9,FR-8,Передача событий в систему учёта ТМЦ,must,customer,14,UC_006 UC_010,US-008,AC-FR-8-01 AC-FR-8-02,,,,,,analysed
+BR-10,FR-9,История движения инструмента,must,customer,15,UC_007 UC_010,US-009,AC-FR-9-01,,,ENT-Tool ENT-MovementHistory,,,analysed
+BR-11,FR-10,Работа в мобильном приложении без связи,must,customer,16,UC_003 UC_008 UC_010,US-010,AC-FR-10-01 AC-FR-10-02,,,ENT-SyncQueue,,,analysed
+BR-19,FR-11,Загрузка справочника сотрудников из файла,must,customer,26,UC_009,US-011,AC-FR-11-01 AC-FR-11-02 AC-FR-11-03,,,ENT-Employee,,,analysed
+,FR-12,Добавление инструмента руководителем,must,derived,28,UC_001,US-012,AC-FR-12-01,,,ENT-Tool,,,analysed
+,FR-13,Бронирование сотрудником,must,derived,29,UC_002 UC_010,US-013,AC-FR-13-01,,,ENT-Tool ENT-Reservation,,,analysed
+,FR-14,Отказ в выдаче забронированного инструмента,must,derived,30,UC_003 UC_010,US-014,AC-FR-14-01,,,ENT-Tool ENT-Reservation,,,analysed
+,FR-15,Синхронизация операций после появления связи,must,derived,32,UC_008 UC_010,US-015,AC-FR-15-01,,,ENT-SyncQueue,,,analysed
+,FR-16,Показ невозвращённого инструмента при истечении срока,must,derived,33,UC_005 UC_010,US-016,AC-FR-16-01 AC-FR-16-02,,,ENT-Tool ENT-IssueRecord,,,analysed
+,FR-17,Возврат инструмента с отметкой ремонта,must,derived,34,UC_004 UC_010,US-017,AC-FR-17-01,,,ENT-Tool ENT-ReturnRecord,,,analysed

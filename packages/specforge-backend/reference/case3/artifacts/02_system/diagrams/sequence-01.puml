@@ -1,0 +1,17 @@
+@startuml
+autonumber
+title Добавление инструмента и печать QR-кода
+participant "warehouse_manager" as warehouse_manager
+participant "Web UI" as Web_UI
+participant "Backend API" as Backend_API
+participant "Database" as Database
+warehouse_manager -> Web_UI : Открывает форму добавления инструмента
+warehouse_manager -> Web_UI : Вводит данные: инвентарный номер, наименование, категория, склад, состояние
+Web_UI -> Backend_API : POST /api/v1/tools
+Backend_API -> Database : Проверяет уникальность инвентарного номера
+Database --> Backend_API : Уникальность подтверждена
+Backend_API -> Database : Сохраняет Tool, генерирует QR-код
+Database --> Backend_API : Запись сохранена
+Backend_API --> Web_UI : 201 Created: Tool с QR-кодом
+Web_UI -> warehouse_manager : Отображает QR-код для печати
+@enduml

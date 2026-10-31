@@ -1,0 +1,363 @@
+asyncapi: 3.0.0
+info:
+  title: 'Система учёта выдачи и возврата инструмента: события'
+  version: 1.0.0
+  description: 'Доставка at-least-once. Потребитель идемпотентен по eventId. Повторная обработка: 3 попытки с экспоненциальной
+    задержкой (1, 5, 25 с), затем сообщение уходит в топик <address>.dlq. Несовместимое изменение схемы выпускается новой
+    версией топика (.v2), старая версия поддерживается до миграции потребителей.'
+defaultContentType: application/json
+servers:
+  kafka:
+    host: kafka:9092
+    protocol: kafka
+    description: брокер в docker compose
+channels:
+  ToolsToolIssued:
+    address: tools.tool.issued.v1
+    description: Событие выдачи инструмента сотруднику
+    messages:
+      ToolsToolIssued:
+        $ref: '#/components/messages/ToolsToolIssued'
+    x-dlq: tools.tool.issued.v1.dlq
+  ToolsToolReturned:
+    address: tools.tool.returned.v1
+    description: Событие возврата инструмента
+    messages:
+      ToolsToolReturned:
+        $ref: '#/components/messages/ToolsToolReturned'
+    x-dlq: tools.tool.returned.v1.dlq
+  ToolsToolRetired:
+    address: tools.tool.retired.v1
+    description: Событие списания инструмента
+    messages:
+      ToolsToolRetired:
+        $ref: '#/components/messages/ToolsToolRetired'
+    x-dlq: tools.tool.retired.v1.dlq
+operations:
+  publishToolsToolIssued:
+    action: send
+    channel:
+      $ref: '#/channels/ToolsToolIssued'
+    messages:
+    - $ref: '#/channels/ToolsToolIssued/messages/ToolsToolIssued'
+    summary: Backend API публикует tools.tool.issued
+    x-producer: Backend API
+    x-consumers:
+    - TMЦ Mock Consumer
+  publishToolsToolReturned:
+    action: send
+    channel:
+      $ref: '#/channels/ToolsToolReturned'
+    messages:
+    - $ref: '#/channels/ToolsToolReturned/messages/ToolsToolReturned'
+    summary: Backend API публикует tools.tool.returned
+    x-producer: Backend API
+    x-consumers:
+    - TMЦ Mock Consumer
+  publishToolsToolRetired:
+    action: send
+    channel:
+      $ref: '#/channels/ToolsToolRetired'
+    messages:
+    - $ref: '#/channels/ToolsToolRetired/messages/ToolsToolRetired'
+    summary: Backend API публикует tools.tool.retired
+    x-producer: Backend API
+    x-consumers:
+    - TMЦ Mock Consumer
+components:
+  messages:
+    ToolsToolIssued:
+      name: ToolsToolIssued
+      title: tools.tool.issued
+      summary: Событие выдачи инструмента сотруднику
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ToolsToolIssuedPayload'
+      x-requirements:
+      - FR-8
+    ToolsToolReturned:
+      name: ToolsToolReturned
+      title: tools.tool.returned
+      summary: Событие возврата инструмента
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ToolsToolReturnedPayload'
+      x-requirements:
+      - FR-8
+    ToolsToolRetired:
+      name: ToolsToolRetired
+      title: tools.tool.retired
+      summary: Событие списания инструмента
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ToolsToolRetiredPayload'
+      x-requirements:
+      - FR-8
+  schemas:
+    ToolsToolIssuedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: tools.tool.issued
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: toolId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            toolId:
+              type: string
+              format: uuid
+            employeeId:
+              type: string
+              format: uuid
+            issueDate:
+              type: string
+              format: date-time
+            returnDeadline:
+              type: string
+              format: date-time
+            eventType:
+              type: string
+              description: 'Тип события: issued'
+              maxLength: 255
+              minLength: 1
+            timestamp:
+              type: string
+              format: date-time
+              description: Время события
+          additionalProperties: false
+          required:
+          - id
+          - toolId
+          - employeeId
+          - issueDate
+          - returnDeadline
+          - eventType
+          - timestamp
+    ToolsToolReturnedPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: tools.tool.returned
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: toolId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            toolId:
+              type: string
+              format: uuid
+            employeeId:
+              type: string
+              format: uuid
+            returnDate:
+              type: string
+              format: date-time
+            condition:
+              type: string
+              enum:
+              - working
+              - needs_repair
+              - lost
+            eventType:
+              type: string
+              description: 'Тип события: returned'
+              maxLength: 255
+              minLength: 1
+            timestamp:
+              type: string
+              format: date-time
+              description: Время события
+          additionalProperties: false
+          required:
+          - id
+          - toolId
+          - employeeId
+          - returnDate
+          - condition
+          - eventType
+          - timestamp
+    ToolsToolRetiredPayload:
+      type: object
+      required:
+      - eventId
+      - type
+      - version
+      - occurredAt
+      - source
+      - key
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: уникальный id события, ключ дедупликации
+        type:
+          type: string
+          const: tools.tool.retired
+        version:
+          type: integer
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: компонент-источник
+        correlationId:
+          type: string
+          description: сквозной идентификатор запроса
+        key:
+          type: string
+          description: 'ключ партиции: toolId'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            inventoryNumber:
+              type: string
+              maxLength: 50
+              minLength: 1
+              pattern: ^[A-Z0-9-]{3,50}$
+            name:
+              type: string
+              maxLength: 200
+              minLength: 1
+            eventType:
+              type: string
+              description: 'Тип события: retired'
+              maxLength: 255
+              minLength: 1
+            timestamp:
+              type: string
+              format: date-time
+              description: Время события
+          additionalProperties: false
+          required:
+          - id
+          - inventoryNumber
+          - name
+          - eventType
+          - timestamp
+    GeoJsonPoint:
+      type: object
+      description: GeoJSON Point, WGS 84 (EPSG:4326), порядок [долгота, широта]
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          prefixItems:
+          - type: number
+            minimum: -180
+            maximum: 180
+          - type: number
+            minimum: -90
+            maximum: 90
+    GeoJsonPolygon:
+      type: object
+      description: GeoJSON Polygon, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: Polygon
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+    GeoJsonLineString:
+      type: object
+      description: GeoJSON LineString, WGS 84 (EPSG:4326)
+      required:
+      - type
+      - coordinates
+      properties:
+        type:
+          type: string
+          const: LineString
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number

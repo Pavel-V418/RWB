@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> available
+    available --> reserved: create_reservation
+    reserved --> available: cancel_reservation
+    available --> issued: issue_tool
+    reserved --> issued: issue_tool
+    issued --> available: return_tool_working
+    issued --> repair: return_tool_needs_repair
+    issued --> lost: return_tool_lost
+    repair --> available: repair_completed
+    available --> retired: retire_tool
+    repair --> retired: retire_tool

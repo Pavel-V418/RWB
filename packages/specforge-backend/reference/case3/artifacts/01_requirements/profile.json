@@ -1,0 +1,22 @@
+{
+  "needs_web_ui": true,
+  "needs_admin_ui": true,
+  "needs_mobile_app": true,
+  "needs_geo": false,
+  "needs_async_events": true,
+  "needs_realtime_updates": false,
+  "needs_scheduled_jobs": true,
+  "needs_file_storage": true,
+  "needs_user_notifications": false,
+  "external_integrations": [
+    "Корпоративная система учёта ТМЦ",
+    "Файл справочника сотрудников"
+  ],
+  "notes": [
+    "Мобильное приложение прямо требуется для кладовщика",
+    "Web-интерфейс для руководителя склада",
+    "Kafka для передачи событий во внешнюю систему",
+    "Загрузка справочника из файла",
+    "Контроль срока возврата требует scheduled jobs"
+  ]
+}

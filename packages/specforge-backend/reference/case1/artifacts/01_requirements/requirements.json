@@ -1,0 +1,3630 @@
+{
+  "meta": {
+    "product_name": "Помощник управления платными парковками Санкт-Петербурга",
+    "summary": "Мобильный помощник водителя служебного автомобиля и административный web-интерфейс. Система по координатам определяет нахождение автомобиля в зоне платной парковки, ведёт парковочную сессию, предупреждает об окончании оплаченного периода и о смене зоны и даёт переход к официальному сервису оплаты. Реальная оплата не выполняется: внешний поставщик подключается через адаптер с mock-сервисом.",
+    "source_file": "requirements.md",
+    "pipeline": "specforge-analysis",
+    "version": "0.1.0",
+    "mode": "auto"
+  },
+  "profile": {
+    "needs_web_ui": true,
+    "needs_admin_ui": true,
+    "needs_mobile_app": true,
+    "needs_geo": true,
+    "needs_async_events": true,
+    "needs_realtime_updates": true,
+    "needs_scheduled_jobs": true,
+    "needs_file_storage": false,
+    "needs_user_notifications": true,
+    "external_integrations": [
+      "Паркоматика (mock)",
+      "Официальный сервис оплаты (deeplink)",
+      "Открытые данные о зонах (снимок)",
+      "GPS / mock-маршрут"
+    ],
+    "notes": [
+      "Мобильное приложение на Kotlin прямо требуется",
+      "PostGIS и геозоны: определение зоны по координате",
+      "Модель событий прямо требуется: въезд, выход, смена зоны, жизненный цикл сессии",
+      "Таймер: предупреждение за 10 минут до окончания",
+      "Админка отображает события — нужны обновления в реальном времени"
+    ]
+  },
+  "business": [
+    {
+      "id": "BR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "водитель может перемещаться между объектами",
+        "line": 5,
+        "exact": true
+      },
+      "line": 5,
+      "text": "Сотрудники наших технических служб ежедневно выполняют работы на нескольких объектах Санкт-Петербурга, используя служебные автомобили. В течение рабочего дня водитель может перемещаться между объектами, расположенными в пределах одной или нескольких зон платной парковки",
+      "fr": [],
+      "related": [
+        "ROLE-driver",
+        "ENT-Vehicle",
+        "ENT-Driver"
+      ]
+    },
+    {
+      "id": "BR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "Это увеличивает вероятность повторной оплаты, пропуска окончания сессии и получения штрафа",
+        "line": 7,
+        "exact": true
+      },
+      "line": 7,
+      "text": "Сейчас водитель самостоятельно контролирует необходимость оплаты, время окончания оплаченного периода и переход между парковочными зонами. Это увеличивает вероятность повторной оплаты, пропуска окончания сессии и получения штрафа",
+      "fr": [],
+      "related": [
+        "GOAL-01"
+      ]
+    },
+    {
+      "id": "BR-3",
+      "origin": "customer",
+      "source": {
+        "quote": "помогает водителю понять, требуется ли новая оплата",
+        "line": 11,
+        "exact": true
+      },
+      "line": 11,
+      "text": "Создать прототип мобильного помощника, который определяет нахождение автомобиля в зоне платной парковки, отслеживает активную парковочную сессию и помогает водителю понять, требуется ли новая оплата",
+      "fr": [],
+      "related": [
+        "GOAL-02"
+      ]
+    },
+    {
+      "id": "BR-4",
+      "origin": "customer",
+      "source": {
+        "quote": "определять местоположение автомобиля",
+        "line": 19,
+        "exact": true
+      },
+      "line": 19,
+      "text": "определять местоположение автомобиля",
+      "fr": [
+        "FR-1"
+      ],
+      "related": [
+        "ENT-VehiclePosition"
+      ]
+    },
+    {
+      "id": "BR-5",
+      "origin": "customer",
+      "source": {
+        "quote": "определять нахождение автомобиля в платной парковочной зоне",
+        "line": 20,
+        "exact": true
+      },
+      "line": 20,
+      "text": "определять нахождение автомобиля в платной парковочной зоне",
+      "fr": [
+        "FR-2"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-6",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать номер и границы зоны",
+        "line": 21,
+        "exact": true
+      },
+      "line": 21,
+      "text": "показывать номер и границы зоны",
+      "fr": [
+        "FR-3"
+      ],
+      "related": [
+        "ENT-ParkingZone"
+      ]
+    },
+    {
+      "id": "BR-7",
+      "origin": "customer",
+      "source": {
+        "quote": "отображать доступные параметры парковки",
+        "line": 22,
+        "exact": true
+      },
+      "line": 22,
+      "text": "отображать доступные параметры парковки",
+      "fr": [
+        "FR-4"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-8",
+      "origin": "customer",
+      "source": {
+        "quote": "хранить информацию об активной парковочной сессии",
+        "line": 23,
+        "exact": true
+      },
+      "line": 23,
+      "text": "хранить информацию об активной парковочной сессии",
+      "fr": [
+        "FR-5"
+      ],
+      "related": [
+        "ENT-ParkingSession"
+      ]
+    },
+    {
+      "id": "BR-9",
+      "origin": "customer",
+      "source": {
+        "quote": "отслеживать перемещение автомобиля",
+        "line": 24,
+        "exact": true
+      },
+      "line": 24,
+      "text": "отслеживать перемещение автомобиля",
+      "fr": [
+        "FR-6"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-10",
+      "origin": "customer",
+      "source": {
+        "quote": "определять выход из текущей зоны",
+        "line": 25,
+        "exact": true
+      },
+      "line": 25,
+      "text": "определять выход из текущей зоны",
+      "fr": [
+        "FR-7"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-11",
+      "origin": "customer",
+      "source": {
+        "quote": "определять переход в другую парковочную зону",
+        "line": 26,
+        "exact": true
+      },
+      "line": 26,
+      "text": "определять переход в другую парковочную зону",
+      "fr": [
+        "FR-8"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-12",
+      "origin": "customer",
+      "source": {
+        "quote": "контролировать время окончания оплаченной сессии",
+        "line": 27,
+        "exact": true
+      },
+      "line": 27,
+      "text": "контролировать время окончания оплаченной сессии",
+      "fr": [
+        "FR-9"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-13",
+      "origin": "customer",
+      "source": {
+        "quote": "предупреждать о необходимости проверки или новой оплаты",
+        "line": 28,
+        "exact": true
+      },
+      "line": 28,
+      "text": "предупреждать о необходимости проверки или новой оплаты",
+      "fr": [
+        "FR-10"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-14",
+      "origin": "customer",
+      "source": {
+        "quote": "предоставлять переход к официальному сервису оплаты",
+        "line": 29,
+        "exact": true
+      },
+      "line": 29,
+      "text": "предоставлять переход к официальному сервису оплаты",
+      "fr": [
+        "FR-11"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-15",
+      "origin": "customer",
+      "source": {
+        "quote": "отображать маршрут и историю парковочных сессий",
+        "line": 30,
+        "exact": true
+      },
+      "line": 30,
+      "text": "отображать маршрут и историю парковочных сессий",
+      "fr": [
+        "FR-12"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-16",
+      "origin": "customer",
+      "source": {
+        "quote": "Примеры уведомлений",
+        "line": 32,
+        "exact": true
+      },
+      "line": 32,
+      "text": "Примеры уведомлений:",
+      "fr": [],
+      "related": [
+        "ENT-Notification"
+      ]
+    },
+    {
+      "id": "BR-17",
+      "origin": "customer",
+      "source": {
+        "quote": "Вы въехали в зону платной парковки",
+        "line": 34,
+        "exact": true
+      },
+      "line": 34,
+      "text": "«Вы въехали в зону платной парковки»",
+      "fr": [
+        "FR-13"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-18",
+      "origin": "customer",
+      "source": {
+        "quote": "Парковка оплачена до 15:20",
+        "line": 35,
+        "exact": true
+      },
+      "line": 35,
+      "text": "«Парковка оплачена до 15:20»",
+      "fr": [
+        "FR-14"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-19",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение на Kotlin",
+        "line": 44,
+        "exact": true
+      },
+      "line": 44,
+      "text": "мобильное приложение на Kotlin",
+      "fr": [],
+      "related": [
+        "CON-01"
+      ]
+    },
+    {
+      "id": "BR-20",
+      "origin": "customer",
+      "source": {
+        "quote": "административный web-интерфейс на Angular",
+        "line": 45,
+        "exact": true
+      },
+      "line": 45,
+      "text": "административный web-интерфейс на Angular",
+      "fr": [],
+      "related": [
+        "CON-02"
+      ]
+    },
+    {
+      "id": "BR-21",
+      "origin": "customer",
+      "source": {
+        "quote": "backend на C# / ASP.NET Core",
+        "line": 46,
+        "exact": true
+      },
+      "line": 46,
+      "text": "backend на C# / ASP.NET Core",
+      "fr": [],
+      "related": [
+        "CON-03"
+      ]
+    },
+    {
+      "id": "BR-22",
+      "origin": "customer",
+      "source": {
+        "quote": "PostgreSQL/PostGIS",
+        "line": 47,
+        "exact": true
+      },
+      "line": 47,
+      "text": "PostgreSQL/PostGIS",
+      "fr": [],
+      "related": [
+        "CON-04"
+      ]
+    },
+    {
+      "id": "BR-23",
+      "origin": "customer",
+      "source": {
+        "quote": "документированный API",
+        "line": 48,
+        "exact": true
+      },
+      "line": 48,
+      "text": "документированный API",
+      "fr": [],
+      "related": [
+        "NFR-1"
+      ]
+    },
+    {
+      "id": "BR-24",
+      "origin": "customer",
+      "source": {
+        "quote": "модель событий",
+        "line": 49,
+        "exact": true
+      },
+      "line": 49,
+      "text": "модель событий",
+      "fr": [],
+      "related": [
+        "NFR-2"
+      ]
+    },
+    {
+      "id": "BR-25",
+      "origin": "customer",
+      "source": {
+        "quote": "Docker-окружение",
+        "line": 50,
+        "exact": true
+      },
+      "line": 50,
+      "text": "Docker-окружение",
+      "fr": [],
+      "related": [
+        "CON-05"
+      ]
+    },
+    {
+      "id": "BR-26",
+      "origin": "customer",
+      "source": {
+        "quote": "тестовые данные",
+        "line": 51,
+        "exact": true
+      },
+      "line": 51,
+      "text": "тестовые данные",
+      "fr": [],
+      "related": [
+        "CON-06"
+      ]
+    },
+    {
+      "id": "BR-27",
+      "origin": "customer",
+      "source": {
+        "quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю",
+        "line": 56,
+        "exact": true
+      },
+      "line": 56,
+      "text": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю. Мобильный интерфейс должен содержать карту, текущую зону, статус сессии, оставшееся время, уведомления и действие для перехода к оплате",
+      "fr": [
+        "FR-15",
+        "FR-16"
+      ],
+      "related": [
+        "GOAL-03"
+      ]
+    },
+    {
+      "id": "BR-28",
+      "origin": "customer",
+      "source": {
+        "quote": "открытые данные о парковочных зонах Санкт-Петербурга",
+        "line": 62,
+        "exact": true
+      },
+      "line": 62,
+      "text": "открытые данные о парковочных зонах Санкт-Петербурга",
+      "fr": [],
+      "related": [
+        "INT-01"
+      ]
+    },
+    {
+      "id": "BR-29",
+      "origin": "customer",
+      "source": {
+        "quote": "GPS-координаты или демонстрационный mock-маршрут",
+        "line": 63,
+        "exact": true
+      },
+      "line": 63,
+      "text": "GPS-координаты или демонстрационный mock-маршрут",
+      "fr": [],
+      "related": [
+        "INT-02"
+      ]
+    },
+    {
+      "id": "BR-30",
+      "origin": "customer",
+      "source": {
+        "quote": "официальный сервис парковок Санкт-Петербурга",
+        "line": 65,
+        "exact": true
+      },
+      "line": 65,
+      "text": "официальный сервис парковок Санкт-Петербурга",
+      "fr": [],
+      "related": [
+        "INT-03"
+      ]
+    },
+    {
+      "id": "BR-31",
+      "origin": "customer",
+      "source": {
+        "quote": "сервис и API «Паркоматика»",
+        "line": 67,
+        "exact": true
+      },
+      "line": 67,
+      "text": "сервис и API «Паркоматика»",
+      "fr": [],
+      "related": [
+        "INT-04"
+      ]
+    },
+    {
+      "id": "BR-32",
+      "origin": "customer",
+      "source": {
+        "quote": "Интеграция должна быть реализована через адаптер и mock-сервис",
+        "line": 71,
+        "exact": true
+      },
+      "line": 71,
+      "text": "Получение промышленного доступа и выполнение реальной оплаты не требуются. Интеграция должна быть реализована через адаптер и mock-сервис, чтобы внешнего поставщика можно было заменить без изменения основной бизнес-логики. Собственный платежный механизм разрабатывать не требуется",
+      "fr": [
+        "FR-17"
+      ],
+      "related": [
+        "CON-07",
+        "CON-08",
+        "CON-09"
+      ]
+    },
+    {
+      "id": "BR-33",
+      "origin": "customer",
+      "source": {
+        "quote": "служебный автомобиль движется по заданному маршруту",
+        "line": 77,
+        "exact": true
+      },
+      "line": 77,
+      "text": "служебный автомобиль движется по заданному маршруту",
+      "fr": [
+        "FR-18"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-34",
+      "origin": "customer",
+      "source": {
+        "quote": "водитель запускает или подтверждает парковочную сессию",
+        "line": 80,
+        "exact": true
+      },
+      "line": 80,
+      "text": "водитель запускает или подтверждает парковочную сессию",
+      "fr": [
+        "FR-19"
+      ],
+      "related": []
+    },
+    {
+      "id": "BR-35",
+      "origin": "customer",
+      "source": {
+        "quote": "события отображаются в административном интерфейсе и сохраняются в истории",
+        "line": 85,
+        "exact": true
+      },
+      "line": 85,
+      "text": "события отображаются в административном интерфейсе и сохраняются в истории",
+      "fr": [
+        "FR-20"
+      ],
+      "related": [
+        "ENT-ParkingEvent"
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "id": "GOAL-01",
+      "origin": "customer",
+      "source": {
+        "quote": "Это увеличивает вероятность повторной оплаты, пропуска окончания сессии и получения штрафа",
+        "line": 7,
+        "exact": true
+      },
+      "statement": "Снизить число повторных оплат, пропусков окончания сессии и штрафов за неоплаченную парковку служебных автомобилей",
+      "metric": null
+    },
+    {
+      "id": "GOAL-02",
+      "origin": "customer",
+      "source": {
+        "quote": "помогает водителю понять, требуется ли новая оплата",
+        "line": 11,
+        "exact": true
+      },
+      "statement": "Автоматически определять нахождение автомобиля в зоне платной парковки и подсказывать водителю, требуется ли новая оплата",
+      "metric": null
+    },
+    {
+      "id": "GOAL-03",
+      "origin": "customer",
+      "source": {
+        "quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии",
+        "line": 56,
+        "exact": true
+      },
+      "statement": "Дать руководителям служб прозрачность по автомобилям, парковочным сессиям, маршрутам и событиям",
+      "metric": null
+    }
+  ],
+  "roles": [
+    {
+      "id": "ROLE-driver",
+      "origin": "customer",
+      "source": {
+        "quote": "водитель может перемещаться между объектами",
+        "line": 5,
+        "exact": true
+      },
+      "key": "driver",
+      "name": "Водитель",
+      "description": "Сотрудник технической службы, управляющий служебным автомобилем; пользуется мобильным приложением"
+    },
+    {
+      "id": "ROLE-dispatcher",
+      "origin": "derived",
+      "source": {
+        "quote": "административный web-интерфейс на Angular",
+        "line": 45,
+        "exact": true
+      },
+      "key": "dispatcher",
+      "name": "Диспетчер",
+      "description": "Сотрудник, который через административный web-интерфейс просматривает автомобили, зоны, сессии, маршруты и события"
+    }
+  ],
+  "functional": [
+    {
+      "id": "FR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "определять местоположение автомобиля",
+        "line": 19,
+        "exact": true
+      },
+      "title": "Определение местоположения автомобиля",
+      "statement": "Система должна получать координаты служебного автомобиля от мобильного приложения (GPS или демонстрационный маршрут) и сохранять их с временем фиксации",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-Vehicle",
+        "ENT-VehiclePosition"
+      ],
+      "acceptance": [
+        "AC-FR-1-01",
+        "AC-FR-1-02",
+        "AC-FR-1-03"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_002"
+      ],
+      "stories": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "FR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "определять нахождение автомобиля в платной парковочной зоне",
+        "line": 20,
+        "exact": true
+      },
+      "title": "Определение нахождения в платной зоне",
+      "statement": "Система должна по последней координате определять, находится ли автомобиль внутри границ платной парковочной зоны, и какой именно",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-VehiclePosition",
+        "ENT-ParkingZone"
+      ],
+      "acceptance": [
+        "AC-FR-2-01",
+        "AC-FR-2-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_002"
+      ],
+      "stories": [
+        "US-002"
+      ]
+    },
+    {
+      "id": "FR-3",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать номер и границы зоны",
+        "line": 21,
+        "exact": true
+      },
+      "title": "Отображение номера и границ зоны",
+      "statement": "Система должна показывать номер текущей зоны и её границы на карте",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver",
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-ParkingZone"
+      ],
+      "acceptance": [
+        "AC-FR-3-01",
+        "AC-FR-3-02"
+      ],
+      "scenarios": [
+        "UC_002",
+        "UC_007"
+      ],
+      "stories": [
+        "US-003"
+      ]
+    },
+    {
+      "id": "FR-4",
+      "origin": "customer",
+      "source": {
+        "quote": "отображать доступные параметры парковки",
+        "line": 22,
+        "exact": true
+      },
+      "title": "Отображение параметров парковки",
+      "statement": "Система должна отображать параметры парковки в зоне: стоимость часа, часы платного режима и ограничения по длительности",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingZone"
+      ],
+      "acceptance": [
+        "AC-FR-4-01",
+        "AC-FR-4-02"
+      ],
+      "scenarios": [
+        "UC_002"
+      ],
+      "stories": [
+        "US-004"
+      ]
+    },
+    {
+      "id": "FR-5",
+      "origin": "customer",
+      "source": {
+        "quote": "хранить информацию об активной парковочной сессии",
+        "line": 23,
+        "exact": true
+      },
+      "title": "Хранение активной парковочной сессии",
+      "statement": "Система должна хранить активную парковочную сессию автомобиля: зону, время начала, время окончания оплаты, статус и идентификатор сессии у поставщика",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingSession"
+      ],
+      "acceptance": [
+        "AC-FR-5-01",
+        "AC-FR-5-02"
+      ],
+      "scenarios": [
+        "UC_003"
+      ],
+      "stories": [
+        "US-005"
+      ]
+    },
+    {
+      "id": "FR-6",
+      "origin": "customer",
+      "source": {
+        "quote": "отслеживать перемещение автомобиля",
+        "line": 24,
+        "exact": true
+      },
+      "title": "Отслеживание перемещения",
+      "statement": "Система должна отслеживать перемещение автомобиля по последовательности координат в течение рабочего дня",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-VehiclePosition"
+      ],
+      "acceptance": [
+        "AC-FR-6-01",
+        "AC-FR-6-02"
+      ],
+      "scenarios": [
+        "UC_005"
+      ],
+      "stories": [
+        "US-006"
+      ]
+    },
+    {
+      "id": "FR-7",
+      "origin": "customer",
+      "source": {
+        "quote": "определять выход из текущей зоны",
+        "line": 25,
+        "exact": true
+      },
+      "title": "Определение выхода из зоны",
+      "statement": "Система должна определять выход автомобиля из текущей парковочной зоны и уведомлять водителя",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingZone",
+        "ENT-ParkingEvent",
+        "ENT-Notification"
+      ],
+      "acceptance": [
+        "AC-FR-7-01",
+        "AC-FR-7-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_005"
+      ],
+      "stories": [
+        "US-007"
+      ]
+    },
+    {
+      "id": "FR-8",
+      "origin": "customer",
+      "source": {
+        "quote": "определять переход в другую парковочную зону",
+        "line": 26,
+        "exact": true
+      },
+      "title": "Определение перехода в другую зону",
+      "statement": "Система должна определять переход автомобиля из одной платной зоны в другую и уведомлять водителя о необходимости проверить оплату",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingZone",
+        "ENT-ParkingEvent",
+        "ENT-Notification"
+      ],
+      "acceptance": [
+        "AC-FR-8-01",
+        "AC-FR-8-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_005"
+      ],
+      "stories": [
+        "US-008"
+      ]
+    },
+    {
+      "id": "FR-9",
+      "origin": "customer",
+      "source": {
+        "quote": "контролировать время окончания оплаченной сессии",
+        "line": 27,
+        "exact": true
+      },
+      "title": "Контроль окончания оплаченной сессии",
+      "statement": "Система должна контролировать время окончания оплаченного периода активной сессии и за 10 минут до окончания предупреждать водителя",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingSession",
+        "ENT-Notification"
+      ],
+      "acceptance": [
+        "AC-FR-9-01",
+        "AC-FR-9-02",
+        "AC-FR-9-03"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_004"
+      ],
+      "stories": [
+        "US-009"
+      ]
+    },
+    {
+      "id": "FR-10",
+      "origin": "customer",
+      "source": {
+        "quote": "предупреждать о необходимости проверки или новой оплаты",
+        "line": 28,
+        "exact": true
+      },
+      "title": "Предупреждение о проверке или новой оплате",
+      "statement": "Система должна предупреждать водителя о необходимости проверить оплату или оплатить заново при смене зоны и при истечении оплаченного периода",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-Notification",
+        "ENT-ParkingSession"
+      ],
+      "acceptance": [
+        "AC-FR-10-01",
+        "AC-FR-10-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_004",
+        "UC_005"
+      ],
+      "stories": [
+        "US-010"
+      ]
+    },
+    {
+      "id": "FR-11",
+      "origin": "customer",
+      "source": {
+        "quote": "предоставлять переход к официальному сервису оплаты",
+        "line": 29,
+        "exact": true
+      },
+      "title": "Переход к официальному сервису оплаты",
+      "statement": "Система должна по действию водителя открывать официальный сервис или приложение оплаты парковки с переданным номером зоны",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingZone"
+      ],
+      "acceptance": [
+        "AC-FR-11-01",
+        "AC-FR-11-02",
+        "AC-FR-11-03"
+      ],
+      "scenarios": [
+        "UC_004"
+      ],
+      "stories": [
+        "US-011"
+      ]
+    },
+    {
+      "id": "FR-12",
+      "origin": "customer",
+      "source": {
+        "quote": "отображать маршрут и историю парковочных сессий",
+        "line": 30,
+        "exact": true
+      },
+      "title": "Маршрут и история парковочных сессий",
+      "statement": "Система должна отображать маршрут автомобиля за выбранный период и историю его парковочных сессий",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver",
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-VehiclePosition",
+        "ENT-ParkingSession"
+      ],
+      "acceptance": [
+        "AC-FR-12-01",
+        "AC-FR-12-02"
+      ],
+      "scenarios": [
+        "UC_006",
+        "UC_007"
+      ],
+      "stories": [
+        "US-012"
+      ]
+    },
+    {
+      "id": "FR-13",
+      "origin": "customer",
+      "source": {
+        "quote": "Вы въехали в зону платной парковки",
+        "line": 34,
+        "exact": true
+      },
+      "title": "Уведомление о въезде в платную зону",
+      "statement": "Система должна при въезде автомобиля в платную зону показывать водителю уведомление «Вы въехали в зону платной парковки» с номером зоны",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-Notification",
+        "ENT-ParkingEvent"
+      ],
+      "acceptance": [
+        "AC-FR-13-01",
+        "AC-FR-13-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_002"
+      ],
+      "stories": [
+        "US-013"
+      ]
+    },
+    {
+      "id": "FR-14",
+      "origin": "customer",
+      "source": {
+        "quote": "Парковка оплачена до 15:20",
+        "line": 35,
+        "exact": true
+      },
+      "title": "Отображение времени окончания оплаты",
+      "statement": "Система должна показывать водителю время окончания оплаченного периода в формате «Парковка оплачена до ЧЧ:ММ»",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingSession"
+      ],
+      "acceptance": [
+        "AC-FR-14-01",
+        "AC-FR-14-02",
+        "AC-FR-14-03"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_003"
+      ],
+      "stories": [
+        "US-014"
+      ]
+    },
+    {
+      "id": "FR-15",
+      "origin": "customer",
+      "source": {
+        "quote": "Web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю",
+        "line": 56,
+        "exact": true
+      },
+      "title": "Административный просмотр данных",
+      "statement": "Административный web-интерфейс должен позволять просматривать автомобили, парковочные зоны, активные сессии, маршруты, события и историю",
+      "priority": "must",
+      "actors": [
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-Vehicle",
+        "ENT-ParkingZone",
+        "ENT-ParkingSession",
+        "ENT-VehiclePosition",
+        "ENT-ParkingEvent"
+      ],
+      "acceptance": [
+        "AC-FR-15-01",
+        "AC-FR-15-02",
+        "AC-FR-15-03"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_007"
+      ],
+      "stories": [
+        "US-015"
+      ]
+    },
+    {
+      "id": "FR-16",
+      "origin": "customer",
+      "source": {
+        "quote": "Мобильный интерфейс должен содержать карту, текущую зону, статус сессии, оставшееся время",
+        "line": 56,
+        "exact": true
+      },
+      "title": "Главный экран мобильного приложения",
+      "statement": "Мобильное приложение должно показывать карту, текущую зону, статус сессии, оставшееся время, уведомления и действие перехода к оплате",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingSession",
+        "ENT-ParkingZone",
+        "ENT-Notification"
+      ],
+      "acceptance": [
+        "AC-FR-16-01",
+        "AC-FR-16-02"
+      ],
+      "scenarios": [
+        "UC_004"
+      ],
+      "stories": [
+        "US-016"
+      ]
+    },
+    {
+      "id": "FR-17",
+      "origin": "customer",
+      "source": {
+        "quote": "Интеграция должна быть реализована через адаптер и mock-сервис",
+        "line": 71,
+        "exact": true
+      },
+      "title": "Адаптер поставщика парковочных услуг",
+      "statement": "Система должна работать с поставщиком парковочных услуг через адаптер с mock-реализацией, чтобы поставщика можно было заменить без изменения бизнес-логики",
+      "priority": "must",
+      "actors": [],
+      "entities": [
+        "ENT-ParkingSession"
+      ],
+      "acceptance": [
+        "AC-FR-17-01",
+        "AC-FR-17-02",
+        "AC-FR-17-03"
+      ],
+      "scenarios": [
+        "UC_003"
+      ],
+      "stories": [
+        "US-017"
+      ]
+    },
+    {
+      "id": "FR-18",
+      "origin": "customer",
+      "source": {
+        "quote": "служебный автомобиль движется по заданному маршруту",
+        "line": 77,
+        "exact": true
+      },
+      "title": "Демонстрационный маршрут",
+      "statement": "Система должна поддерживать демонстрационный режим, в котором координаты автомобиля поступают из заданного mock-маршрута вместо реального GPS",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver",
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-VehiclePosition"
+      ],
+      "acceptance": [
+        "AC-FR-18-01",
+        "AC-FR-18-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_008"
+      ],
+      "stories": [
+        "US-018"
+      ]
+    },
+    {
+      "id": "FR-19",
+      "origin": "customer",
+      "source": {
+        "quote": "водитель запускает или подтверждает парковочную сессию",
+        "line": 80,
+        "exact": true
+      },
+      "title": "Запуск и подтверждение сессии",
+      "statement": "Система должна позволять водителю запустить новую парковочную сессию в текущей зоне или подтвердить уже оплаченную",
+      "priority": "must",
+      "actors": [
+        "ROLE-driver"
+      ],
+      "entities": [
+        "ENT-ParkingSession",
+        "ENT-Driver"
+      ],
+      "acceptance": [
+        "AC-FR-19-01",
+        "AC-FR-19-02",
+        "AC-FR-19-03",
+        "AC-FR-19-04"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_003"
+      ],
+      "stories": [
+        "US-019"
+      ]
+    },
+    {
+      "id": "FR-20",
+      "origin": "customer",
+      "source": {
+        "quote": "события отображаются в административном интерфейсе и сохраняются в истории",
+        "line": 85,
+        "exact": true
+      },
+      "title": "Журнал событий",
+      "statement": "Система должна сохранять события (въезд, выход, смена зоны, старт, предупреждение и окончание сессии) в истории и показывать их в административном интерфейсе",
+      "priority": "must",
+      "actors": [
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-ParkingEvent"
+      ],
+      "acceptance": [
+        "AC-FR-20-01",
+        "AC-FR-20-02"
+      ],
+      "scenarios": [
+        "UC_001",
+        "UC_007"
+      ],
+      "stories": [
+        "US-020"
+      ]
+    },
+    {
+      "id": "FR-21",
+      "origin": "derived",
+      "source": {
+        "quote": "открытые данные о парковочных зонах Санкт-Петербурга",
+        "line": 62,
+        "exact": true
+      },
+      "title": "Загрузка геоданных парковочных зон",
+      "statement": "Система должна загружать границы и параметры парковочных зон из набора геоданных (снимок открытых данных Санкт-Петербурга или демонстрационный набор)",
+      "priority": "must",
+      "actors": [
+        "ROLE-dispatcher"
+      ],
+      "entities": [
+        "ENT-ParkingZone"
+      ],
+      "acceptance": [
+        "AC-FR-21-01",
+        "AC-FR-21-02"
+      ],
+      "scenarios": [
+        "UC_008"
+      ],
+      "stories": [
+        "US-021"
+      ]
+    }
+  ],
+  "non_functional": [
+    {
+      "id": "NFR-1",
+      "origin": "customer",
+      "source": {
+        "quote": "документированный API",
+        "line": 48,
+        "exact": true
+      },
+      "category": "maintainability",
+      "statement": "API системы должен быть документирован (OpenAPI)",
+      "metric": null,
+      "rationale": null
+    },
+    {
+      "id": "NFR-2",
+      "origin": "customer",
+      "source": {
+        "quote": "модель событий",
+        "line": 49,
+        "exact": true
+      },
+      "category": "maintainability",
+      "statement": "Обмен событиями между компонентами описывается документированной моделью событий",
+      "metric": null,
+      "rationale": null
+    },
+    {
+      "id": "NFR-3",
+      "origin": "derived",
+      "source": null,
+      "category": "performance",
+      "statement": "Определение зоны по новой координате и публикация события выполняются быстро",
+      "metric": "p95 ≤ 1 с при 100 автомобилях, отправляющих координату раз в 10 с (предлагаемая метрика)",
+      "rationale": "Водитель должен получить уведомление о въезде до того, как припаркуется"
+    },
+    {
+      "id": "NFR-4",
+      "origin": "derived",
+      "source": null,
+      "category": "reliability",
+      "statement": "Мобильное приложение буферизует координаты при потере связи и отправляет их после восстановления; локальный таймер окончания сессии работает офлайн",
+      "metric": "буфер не менее 500 точек (предлагаемая метрика)",
+      "rationale": "В городской застройке связь пропадает, а предупреждение об окончании критично"
+    },
+    {
+      "id": "NFR-5",
+      "origin": "derived",
+      "source": null,
+      "category": "reliability",
+      "statement": "Запуск сессии идемпотентен по заголовку Idempotency-Key",
+      "metric": null,
+      "rationale": "Повтор запроса при плохой связи не должен создавать вторую сессию"
+    },
+    {
+      "id": "NFR-6",
+      "origin": "derived",
+      "source": null,
+      "category": "usability",
+      "statement": "Каждое уведомление показывается один раз на событие; вход и выход из зоны фиксируются после двух подряд точек",
+      "metric": "не более 1 уведомления на eventId; N = 2 точки (настраивается)",
+      "rationale": "Дрожание GPS на границе зоны иначе вызывает поток ложных уведомлений"
+    },
+    {
+      "id": "NFR-7",
+      "origin": "derived",
+      "source": null,
+      "category": "privacy",
+      "statement": "Треки автомобилей хранятся ограниченный срок и доступны только водителю этого автомобиля и диспетчерам",
+      "metric": "срок хранения 90 дней (предлагаемая метрика)",
+      "rationale": "Координаты сотрудника — персональные данные"
+    },
+    {
+      "id": "NFR-8",
+      "origin": "derived",
+      "source": null,
+      "category": "observability",
+      "statement": "Все компоненты пишут структурированные логи с correlationId и предоставляют health check",
+      "metric": null,
+      "rationale": "Нужно для эксплуатации и проверки развёртывания"
+    },
+    {
+      "id": "NFR-9",
+      "origin": "derived",
+      "source": null,
+      "category": "compatibility",
+      "statement": "Мобильное приложение работает на Android 8.0 и выше",
+      "metric": "minSdk 26 (предлагаемая метрика)",
+      "rationale": "Типичный парк служебных смартфонов"
+    },
+    {
+      "id": "NFR-10",
+      "origin": "derived",
+      "source": null,
+      "category": "maintainability",
+      "statement": "API версионируется в пути (/api/v1), ошибки возвращаются в едином формате application/problem+json",
+      "metric": null,
+      "rationale": "Требование документированного API и дальнейшего развития продуктовой командой"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "CON-01",
+      "origin": "customer",
+      "source": {
+        "quote": "мобильное приложение на Kotlin",
+        "line": 44,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Мобильное приложение — Kotlin (Android)"
+    },
+    {
+      "id": "CON-02",
+      "origin": "customer",
+      "source": {
+        "quote": "административный web-интерфейс на Angular",
+        "line": 45,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Административный web-интерфейс — Angular"
+    },
+    {
+      "id": "CON-03",
+      "origin": "customer",
+      "source": {
+        "quote": "backend на C# / ASP.NET Core",
+        "line": 46,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Backend — C# / ASP.NET Core"
+    },
+    {
+      "id": "CON-04",
+      "origin": "customer",
+      "source": {
+        "quote": "PostgreSQL/PostGIS",
+        "line": 47,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Хранилище — PostgreSQL с PostGIS"
+    },
+    {
+      "id": "CON-05",
+      "origin": "customer",
+      "source": {
+        "quote": "Docker-окружение",
+        "line": 50,
+        "exact": true
+      },
+      "kind": "technology",
+      "statement": "Запуск в Docker-окружении, сборка через CI/CD-пайплайн"
+    },
+    {
+      "id": "CON-06",
+      "origin": "customer",
+      "source": {
+        "quote": "тестовые данные",
+        "line": 51,
+        "exact": true
+      },
+      "kind": "data",
+      "statement": "Решение поставляется с тестовыми данными"
+    },
+    {
+      "id": "CON-07",
+      "origin": "customer",
+      "source": {
+        "quote": "Получение промышленного доступа и выполнение реальной оплаты не требуются",
+        "line": 71,
+        "exact": true
+      },
+      "kind": "scope",
+      "statement": "Промышленный доступ к внешним сервисам и реальная оплата не требуются"
+    },
+    {
+      "id": "CON-08",
+      "origin": "customer",
+      "source": {
+        "quote": "Собственный платежный механизм разрабатывать не требуется",
+        "line": 71,
+        "exact": true
+      },
+      "kind": "scope",
+      "statement": "Собственный платёжный механизм не разрабатывается"
+    },
+    {
+      "id": "CON-09",
+      "origin": "customer",
+      "source": {
+        "quote": "внешнего поставщика можно было заменить без изменения основной бизнес-логики",
+        "line": 71,
+        "exact": true
+      },
+      "kind": "integration",
+      "statement": "Внешний поставщик заменяем без изменения основной бизнес-логики"
+    }
+  ],
+  "entities": [
+    {
+      "id": "ENT-Vehicle",
+      "origin": "customer",
+      "source": {
+        "quote": "используя служебные автомобили",
+        "line": 5,
+        "exact": true
+      },
+      "name": "Vehicle",
+      "description": "Служебный автомобиль",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "plateNumber",
+          "type": "string",
+          "description": "госномер",
+          "required": true
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "description": "марка и модель",
+          "required": false
+        },
+        {
+          "name": "isActive",
+          "type": "bool",
+          "description": "в эксплуатации",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "ENT-Driver",
+      "origin": "customer",
+      "source": {
+        "quote": "водитель может перемещаться между объектами",
+        "line": 5,
+        "exact": true
+      },
+      "name": "Driver",
+      "description": "Водитель служебного автомобиля",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "fullName",
+          "type": "string",
+          "description": "ФИО",
+          "required": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "description": "закреплённый автомобиль",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ENT-ParkingZone",
+      "origin": "customer",
+      "source": {
+        "quote": "показывать номер и границы зоны",
+        "line": 21,
+        "exact": true
+      },
+      "name": "ParkingZone",
+      "description": "Зона платной парковки с границами и параметрами",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "zoneNumber",
+          "type": "string",
+          "description": "номер зоны",
+          "required": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "название или адресный ориентир",
+          "required": false
+        },
+        {
+          "name": "boundary",
+          "type": "geometry",
+          "description": "полигон границ, SRID 4326",
+          "required": true
+        },
+        {
+          "name": "hourlyRate",
+          "type": "decimal",
+          "description": "стоимость часа, руб.",
+          "required": false
+        },
+        {
+          "name": "paidHours",
+          "type": "string",
+          "description": "часы платного режима",
+          "required": false
+        },
+        {
+          "name": "maxDurationMinutes",
+          "type": "int",
+          "description": "ограничение длительности",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ENT-VehiclePosition",
+      "origin": "customer",
+      "source": {
+        "quote": "определять местоположение автомобиля",
+        "line": 19,
+        "exact": true
+      },
+      "name": "VehiclePosition",
+      "description": "Отметка местоположения автомобиля",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "description": "автомобиль",
+          "required": true
+        },
+        {
+          "name": "point",
+          "type": "geometry",
+          "description": "точка, SRID 4326",
+          "required": true
+        },
+        {
+          "name": "recordedAt",
+          "type": "datetime",
+          "description": "время фиксации на устройстве",
+          "required": true
+        },
+        {
+          "name": "accuracyM",
+          "type": "decimal",
+          "description": "точность, м",
+          "required": false
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "description": "зона, вычисленная для точки",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ENT-ParkingSession",
+      "origin": "customer",
+      "source": {
+        "quote": "хранить информацию об активной парковочной сессии",
+        "line": 23,
+        "exact": true
+      },
+      "name": "ParkingSession",
+      "description": "Парковочная сессия автомобиля в зоне",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "description": "автомобиль",
+          "required": true
+        },
+        {
+          "name": "driverId",
+          "type": "uuid",
+          "description": "водитель",
+          "required": true
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "description": "зона",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "description": "active | expiring | expired | closed",
+          "required": true
+        },
+        {
+          "name": "startedAt",
+          "type": "datetime",
+          "description": "начало",
+          "required": true
+        },
+        {
+          "name": "paidUntil",
+          "type": "datetime",
+          "description": "оплачено до",
+          "required": true
+        },
+        {
+          "name": "endedAt",
+          "type": "datetime",
+          "description": "фактическое завершение",
+          "required": false
+        },
+        {
+          "name": "providerSessionId",
+          "type": "string",
+          "description": "идентификатор у поставщика",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ENT-ParkingEvent",
+      "origin": "customer",
+      "source": {
+        "quote": "события отображаются в административном интерфейсе",
+        "line": 85,
+        "exact": true
+      },
+      "name": "ParkingEvent",
+      "description": "Событие жизненного цикла: въезд, выход, смена зоны, старт, предупреждение, окончание сессии",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "description": "zone_entered | zone_exited | zone_changed | session_started | session_expiring | session_expired | session_closed",
+          "required": true
+        },
+        {
+          "name": "vehicleId",
+          "type": "uuid",
+          "description": "автомобиль",
+          "required": true
+        },
+        {
+          "name": "zoneId",
+          "type": "uuid",
+          "description": "зона",
+          "required": false
+        },
+        {
+          "name": "sessionId",
+          "type": "uuid",
+          "description": "сессия",
+          "required": false
+        },
+        {
+          "name": "occurredAt",
+          "type": "datetime",
+          "description": "время события",
+          "required": true
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "description": "детали",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ENT-Notification",
+      "origin": "customer",
+      "source": {
+        "quote": "Примеры уведомлений",
+        "line": 32,
+        "exact": true
+      },
+      "name": "Notification",
+      "description": "Уведомление водителю",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "description": "идентификатор",
+          "required": true
+        },
+        {
+          "name": "driverId",
+          "type": "uuid",
+          "description": "получатель",
+          "required": true
+        },
+        {
+          "name": "eventId",
+          "type": "uuid",
+          "description": "событие-основание",
+          "required": false
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "текст",
+          "required": true
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "description": "время",
+          "required": true
+        },
+        {
+          "name": "readAt",
+          "type": "datetime",
+          "description": "прочитано",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "id": "INT-01",
+      "origin": "customer",
+      "source": {
+        "quote": "открытые данные о парковочных зонах Санкт-Петербурга",
+        "line": 62,
+        "exact": true
+      },
+      "name": "Открытые данные о парковочных зонах Санкт-Петербурга",
+      "purpose": "Границы, номера и параметры зон",
+      "direction": "inbound",
+      "mode": "file",
+      "availability": "mock_required"
+    },
+    {
+      "id": "INT-02",
+      "origin": "customer",
+      "source": {
+        "quote": "GPS-координаты или демонстрационный mock-маршрут",
+        "line": 63,
+        "exact": true
+      },
+      "name": "GPS устройства / демонстрационный mock-маршрут",
+      "purpose": "Координаты автомобиля",
+      "direction": "inbound",
+      "mode": "device",
+      "availability": "mock_required"
+    },
+    {
+      "id": "INT-03",
+      "origin": "customer",
+      "source": {
+        "quote": "официальный сервис парковок Санкт-Петербурга",
+        "line": 65,
+        "exact": true
+      },
+      "name": "Официальный сервис парковок Санкт-Петербурга / приложения «Парковки Санкт-Петербурга», «Парковки России»",
+      "purpose": "Оплата парковки водителем вне системы",
+      "direction": "outbound",
+      "mode": "deeplink",
+      "availability": "real"
+    },
+    {
+      "id": "INT-04",
+      "origin": "customer",
+      "source": {
+        "quote": "сервис и API «Паркоматика»",
+        "line": 67,
+        "exact": true
+      },
+      "name": "Паркоматика (API)",
+      "purpose": "Организации, автомобили, водители, зоны и парковочные сессии у поставщика",
+      "direction": "bidirectional",
+      "mode": "rest",
+      "availability": "mock_required"
+    }
+  ],
+  "security": [
+    {
+      "id": "SEC-01",
+      "origin": "derived",
+      "source": null,
+      "category": "authn",
+      "statement": "Пользователи входят по логину и паролю, доступ к API — по JWT с ограниченным сроком жизни",
+      "rationale": "Защита служебных данных",
+      "related": [
+        "FR-15",
+        "FR-16"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "origin": "derived",
+      "source": null,
+      "category": "authz",
+      "statement": "Водитель видит и меняет только данные закреплённого за ним автомобиля; диспетчер читает данные всех автомобилей",
+      "rationale": "Разграничение по ролям",
+      "related": [
+        "FR-12",
+        "FR-15",
+        "FR-19"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "origin": "derived",
+      "source": null,
+      "category": "privacy",
+      "statement": "Координаты и треки передаются только по TLS и не попадают в логи в открытом виде",
+      "rationale": "Геоданные сотрудника — персональные данные",
+      "related": [
+        "FR-1",
+        "FR-6"
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "origin": "derived",
+      "source": null,
+      "category": "audit",
+      "statement": "Запуск, подтверждение и закрытие сессий журналируются с пользователем и временем",
+      "rationale": "Разбор спорных случаев и штрафов",
+      "related": [
+        "FR-19",
+        "FR-20"
+      ]
+    },
+    {
+      "id": "SEC-05",
+      "origin": "derived",
+      "source": null,
+      "category": "input_validation",
+      "statement": "API проверяет диапазоны координат (широта −90…90, долгота −180…180), формат госномера и время фиксации не позже текущего плюс 5 минут",
+      "rationale": "Защита от некорректных и поддельных данных",
+      "related": [
+        "FR-1",
+        "FR-6"
+      ]
+    },
+    {
+      "id": "SEC-06",
+      "origin": "derived",
+      "source": null,
+      "category": "rate_limiting",
+      "statement": "Приём координат ограничен частотой на автомобиль, превышение — ответ 429",
+      "rationale": "Защита от перегрузки и злоупотреблений",
+      "related": [
+        "FR-1"
+      ]
+    },
+    {
+      "id": "SEC-07",
+      "origin": "derived",
+      "source": null,
+      "category": "secrets",
+      "statement": "Секреты и ключи поставщика передаются через переменные окружения, в репозитории только примеры",
+      "rationale": "Требование кейса не хранить секреты в репозитории",
+      "related": [
+        "FR-17"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "UC_001",
+      "origin": "derived",
+      "source": null,
+      "title": "Сквозной демонстрационный сценарий",
+      "actor": "ROLE-driver",
+      "goal": "Показать полный цикл: въезд, сессия, предупреждение, смена зоны, история",
+      "preconditions": [
+        "Загружены демо-зоны 7801 и 7802",
+        "Водитель авторизован, за ним закреплён автомобиль А123ВС178",
+        "Запущено воспроизведение mock-маршрута через зоны 7801 и 7802"
+      ],
+      "main_flow": [
+        "1. Автомобиль движется по заданному маршруту, приложение передаёт координаты в backend",
+        "2. Автомобиль въезжает в зону 7801",
+        "3. Система определяет зону 7801 и показывает уведомление «Вы въехали в зону платной парковки»",
+        "4. Водитель запускает сессию на 1 час в 14:20 или подтверждает оплаченную",
+        "5. Система показывает «Парковка оплачена до 15:20»",
+        "6. В 15:10 система показывает «До окончания парковки осталось 10 минут»",
+        "7. Автомобиль покидает зону 7801 или въезжает в зону 7802",
+        "8. Система показывает «Вы покинули текущую парковочную зону» или «Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»",
+        "9. Все события видны в административном интерфейсе и сохранены в истории"
+      ],
+      "alternative_flows": [
+        "Шаг 4: водитель не запускает сессию → система не создаёт сессию, через 5 минут после въезда повторяет напоминание один раз"
+      ],
+      "error_flows": [
+        "Шаг 1: нет связи с backend → приложение буферизует координаты и отправляет их после восстановления связи",
+        "Шаг 4: mock-сервис поставщика недоступен → сессия не создаётся, водитель видит «Сервис поставщика недоступен, повторите позже»"
+      ],
+      "postconditions": [
+        "Все события маршрута сохранены в журнале и видны в административном интерфейсе",
+        "У автомобиля нет активной сессии в покинутой зоне без уведомления водителя"
+      ],
+      "expected_result": "Водитель вовремя получил все пять типов уведомлений, диспетчер видит полную историю маршрута и сессии",
+      "requirements": [
+        "FR-18",
+        "FR-1",
+        "FR-2",
+        "FR-13",
+        "FR-19",
+        "FR-14",
+        "FR-9",
+        "FR-7",
+        "FR-8",
+        "FR-10",
+        "FR-20",
+        "FR-15"
+      ]
+    },
+    {
+      "id": "UC_002",
+      "origin": "derived",
+      "source": null,
+      "title": "Въезд в платную зону",
+      "actor": "ROLE-driver",
+      "goal": "Узнать, что автомобиль находится в платной зоне, и увидеть её параметры",
+      "preconditions": [
+        "Водитель авторизован",
+        "Приложению разрешён доступ к геолокации"
+      ],
+      "main_flow": [
+        "1. Приложение передаёт координаты автомобиля",
+        "2. Система по двум подряд точкам внутри полигона определяет зону 7801",
+        "3. Система публикует событие zone_entered",
+        "4. Приложение показывает уведомление «Вы въехали в зону платной парковки» с номером зоны",
+        "5. Водитель открывает карточку зоны и видит границы на карте, стоимость часа, часы платного режима и ограничение длительности"
+      ],
+      "alternative_flows": [
+        "Шаг 2: точка лежит на границе зоны → зона не меняется до двух подряд точек внутри"
+      ],
+      "error_flows": [
+        "Шаг 1: доступ к геолокации запрещён → приложение показывает экран с просьбой выдать разрешение",
+        "Шаг 5: у зоны нет параметров → показано «нет данных»"
+      ],
+      "postconditions": [
+        "Текущая зона автомобиля сохранена",
+        "Событие zone_entered записано в журнал"
+      ],
+      "expected_result": "Водитель знает номер зоны, её границы и условия оплаты",
+      "requirements": [
+        "FR-1",
+        "FR-2",
+        "FR-3",
+        "FR-4",
+        "FR-13"
+      ]
+    },
+    {
+      "id": "UC_003",
+      "origin": "derived",
+      "source": null,
+      "title": "Запуск или подтверждение парковочной сессии",
+      "actor": "ROLE-driver",
+      "goal": "Зафиксировать оплаченный период в зоне",
+      "preconditions": [
+        "Автомобиль находится в платной зоне",
+        "Активной сессии в этой зоне нет"
+      ],
+      "main_flow": [
+        "1. Водитель нажимает «Начать сессию» или «Подтвердить оплату»",
+        "2. Водитель выбирает длительность или указывает время «оплачено до»",
+        "3. Backend через адаптер поставщика регистрирует сессию в mock-сервисе",
+        "4. Система сохраняет сессию со статусом active и paidUntil",
+        "5. Приложение показывает «Парковка оплачена до 15:20»"
+      ],
+      "alternative_flows": [
+        "Шаг 1: повторное нажатие с тем же ключом идемпотентности → возвращается уже созданная сессия"
+      ],
+      "error_flows": [
+        "Шаг 1: автомобиль вне платной зоны → отказ «Автомобиль не в платной зоне»",
+        "Шаг 3: поставщик недоступен → 503, сессия не создаётся",
+        "Шаг 1: в зоне уже есть активная сессия → 409, показывается существующая"
+      ],
+      "postconditions": [
+        "У автомобиля одна активная сессия в зоне с заданным paidUntil",
+        "Событие session_started записано в журнал"
+      ],
+      "expected_result": "Водитель видит «Парковка оплачена до ЧЧ:ММ» и оставшееся время",
+      "requirements": [
+        "FR-19",
+        "FR-5",
+        "FR-17",
+        "FR-14"
+      ]
+    },
+    {
+      "id": "UC_004",
+      "origin": "derived",
+      "source": null,
+      "title": "Окончание оплаты и переход к оплате",
+      "actor": "ROLE-driver",
+      "goal": "Не пропустить окончание оплаченного периода и продлить оплату",
+      "preconditions": [
+        "Есть активная сессия с paidUntil 15:20"
+      ],
+      "main_flow": [
+        "1. Главный экран показывает оставшееся время",
+        "2. В 15:10 система публикует session_expiring и показывает «До окончания парковки осталось 10 минут»",
+        "3. Водитель нажимает «Оплатить»",
+        "4. Открывается официальный сервис оплаты с номером зоны",
+        "5. После оплаты водитель подтверждает новое время окончания"
+      ],
+      "alternative_flows": [
+        "Шаг 3: водитель не продлевает → в 15:20 статус expired и уведомление о необходимости новой оплаты"
+      ],
+      "error_flows": [
+        "Шаг 4: официальное приложение не установлено → открывается веб-версия сервиса в браузере",
+        "Шаг 2: устройство было офлайн → предупреждение показывает локальный таймер устройства"
+      ],
+      "postconditions": [
+        "Статус сессии отражает фактическое время оплаты: active после продления или expired"
+      ],
+      "expected_result": "Водитель получил предупреждение за 10 минут и открыл сервис оплаты с номером зоны",
+      "requirements": [
+        "FR-9",
+        "FR-10",
+        "FR-11",
+        "FR-16"
+      ]
+    },
+    {
+      "id": "UC_005",
+      "origin": "derived",
+      "source": null,
+      "title": "Выход из зоны и переход в другую зону",
+      "actor": "ROLE-driver",
+      "goal": "Понять, нужна ли новая оплата после перемещения",
+      "preconditions": [
+        "Автомобиль находится в зоне 7801"
+      ],
+      "main_flow": [
+        "1. Система отслеживает поток координат",
+        "2. Две подряд точки вне всех зон → событие zone_exited и уведомление «Вы покинули текущую парковочную зону»",
+        "3. Две подряд точки внутри зоны 7802 → событие zone_changed и уведомление «Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»"
+      ],
+      "alternative_flows": [
+        "Шаг 2: одна точка вне зоны, следующая снова внутри → изменения нет, уведомления нет"
+      ],
+      "error_flows": [
+        "Шаг 1: точность координаты хуже 100 м → точка сохраняется, но не используется для определения зоны"
+      ],
+      "postconditions": [
+        "Текущая зона автомобиля обновлена",
+        "Событие zone_exited или zone_changed записано в журнал"
+      ],
+      "expected_result": "Водитель получил уведомление о выходе или о необходимости проверить оплату в новой зоне",
+      "requirements": [
+        "FR-6",
+        "FR-7",
+        "FR-8",
+        "FR-10"
+      ]
+    },
+    {
+      "id": "UC_006",
+      "origin": "derived",
+      "source": null,
+      "title": "Просмотр истории и маршрута",
+      "actor": "ROLE-driver",
+      "goal": "Посмотреть свои поездки и сессии за период",
+      "preconditions": [
+        "Водитель авторизован"
+      ],
+      "main_flow": [
+        "1. Водитель открывает раздел «История»",
+        "2. Выбирает период (по умолчанию сегодня)",
+        "3. Система показывает список сессий и маршрут на карте"
+      ],
+      "alternative_flows": [],
+      "error_flows": [
+        "Шаг 3: за период нет данных → пустое состояние «Поездок за период нет»"
+      ],
+      "postconditions": [
+        "Данные не изменены"
+      ],
+      "expected_result": "Водитель видит свои сессии и маршрут за выбранный период",
+      "requirements": [
+        "FR-12"
+      ]
+    },
+    {
+      "id": "UC_007",
+      "origin": "derived",
+      "source": null,
+      "title": "Мониторинг в административном интерфейсе",
+      "actor": "ROLE-dispatcher",
+      "goal": "Видеть автомобили, зоны, сессии, маршруты и события",
+      "preconditions": [
+        "Диспетчер авторизован в web-интерфейсе"
+      ],
+      "main_flow": [
+        "1. Диспетчер открывает раздел «Активные сессии»",
+        "2. Новые события появляются в журнале без перезагрузки страницы",
+        "3. Диспетчер выбирает автомобиль и открывает маршрут и историю сессий за период",
+        "4. Диспетчер открывает раздел «Зоны» и видит полигоны на карте"
+      ],
+      "alternative_flows": [
+        "Шаг 3: фильтр по автомобилю и периоду"
+      ],
+      "error_flows": [
+        "Шаг 1: пользователь без роли диспетчера → экран «Нет доступа» (403)",
+        "Шаг 2: потеряно соединение для обновлений → баннер «Обновления приостановлены» и автоматическое переподключение"
+      ],
+      "postconditions": [
+        "Данные не изменены"
+      ],
+      "expected_result": "Диспетчер видит актуальные сессии, события и маршруты без перезагрузки страницы",
+      "requirements": [
+        "FR-15",
+        "FR-20",
+        "FR-3",
+        "FR-12"
+      ]
+    },
+    {
+      "id": "UC_008",
+      "origin": "derived",
+      "source": null,
+      "title": "Подготовка геоданных и демонстрационного маршрута",
+      "actor": "ROLE-dispatcher",
+      "goal": "Загрузить зоны и запустить демо-маршрут",
+      "preconditions": [
+        "Система развёрнута, есть файл зон GeoJSON и файл маршрута"
+      ],
+      "main_flow": [
+        "1. При запуске системы загружаются зоны из файла GeoJSON",
+        "2. Диспетчер запускает воспроизведение mock-маршрута для автомобиля",
+        "3. Координаты поступают в backend так же, как от реального GPS"
+      ],
+      "alternative_flows": [
+        "Шаг 2: воспроизведение с ускорением времени для демонстрации"
+      ],
+      "error_flows": [
+        "Шаг 1: невалидный полигон → зона пропускается, ошибка в журнале загрузки",
+        "Шаг 2: файл маршрута невалиден → запуск отклонён с ошибкой валидации"
+      ],
+      "postconditions": [
+        "Зоны загружены в БД, невалидные зоны перечислены в журнале загрузки",
+        "Координаты маршрута поступают в обработку"
+      ],
+      "expected_result": "Система готова к демонстрации на актуальных зонах",
+      "requirements": [
+        "FR-21",
+        "FR-18"
+      ]
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "AC-FR-1-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "positive",
+      "title": "Координата сохраняется",
+      "given": [
+        "водитель авторизован, за ним закреплён автомобиль А123ВС178"
+      ],
+      "when": [
+        "приложение отправляет координату 59.9343, 30.3351 с временем фиксации и точностью 10 м"
+      ],
+      "then": [
+        "API отвечает 202",
+        "координата сохранена с vehicleId, recordedAt и accuracyM",
+        "последняя позиция автомобиля в административном интерфейсе обновлена"
+      ]
+    },
+    {
+      "id": "AC-FR-1-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "negative",
+      "title": "Невалидная координата отклоняется",
+      "given": [
+        "водитель авторизован"
+      ],
+      "when": [
+        "приложение отправляет координату с широтой 95.0"
+      ],
+      "then": [
+        "API отвечает 400 в формате application/problem+json с ошибкой по полю latitude",
+        "координата не сохранена"
+      ]
+    },
+    {
+      "id": "AC-FR-1-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "kind": "edge",
+      "title": "Буфер координат при потере связи",
+      "given": [
+        "связь с backend потеряна",
+        "приложение накопило 5 координат"
+      ],
+      "when": [
+        "связь восстановилась"
+      ],
+      "then": [
+        "все 5 координат сохранены в порядке recordedAt",
+        "повторная отправка тех же координат не создаёт дублей"
+      ]
+    },
+    {
+      "id": "AC-FR-2-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-2",
+      "kind": "positive",
+      "title": "Определение зоны по координате",
+      "given": [
+        "загружена демо-зона 7801 с полигоном границ"
+      ],
+      "when": [
+        "поступают две подряд координаты внутри полигона зоны 7801"
+      ],
+      "then": [
+        "текущая зона автомобиля — 7801"
+      ]
+    },
+    {
+      "id": "AC-FR-2-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-2",
+      "kind": "edge",
+      "title": "Автомобиль вне платных зон",
+      "given": [
+        "загружены демо-зоны 7801 и 7802"
+      ],
+      "when": [
+        "поступает координата вне всех полигонов"
+      ],
+      "then": [
+        "текущая зона не определена",
+        "приложение показывает статус «Вне платной зоны»"
+      ]
+    },
+    {
+      "id": "AC-FR-3-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "kind": "positive",
+      "title": "Номер и границы на главном экране",
+      "given": [
+        "текущая зона автомобиля — 7801"
+      ],
+      "when": [
+        "водитель открывает главный экран"
+      ],
+      "then": [
+        "отображается номер зоны «7801»",
+        "полигон зоны 7801 нарисован на карте"
+      ]
+    },
+    {
+      "id": "AC-FR-3-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "kind": "positive",
+      "title": "Границы зоны в административном интерфейсе",
+      "given": [
+        "диспетчер авторизован"
+      ],
+      "when": [
+        "диспетчер открывает раздел «Зоны» и выбирает зону 7801"
+      ],
+      "then": [
+        "на карте показан полигон зоны 7801",
+        "в карточке показан номер зоны"
+      ]
+    },
+    {
+      "id": "AC-FR-4-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "kind": "positive",
+      "title": "Параметры зоны отображаются",
+      "given": [
+        "у зоны 7801 заданы стоимость часа, часы платного режима и ограничение длительности"
+      ],
+      "when": [
+        "водитель открывает карточку зоны 7801"
+      ],
+      "then": [
+        "отображаются стоимость часа, часы платного режима и ограничение длительности"
+      ]
+    },
+    {
+      "id": "AC-FR-4-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "kind": "edge",
+      "title": "Параметр не задан",
+      "given": [
+        "у зоны 7802 не задана стоимость часа"
+      ],
+      "when": [
+        "водитель открывает карточку зоны 7802"
+      ],
+      "then": [
+        "вместо стоимости показано «нет данных», а не 0"
+      ]
+    },
+    {
+      "id": "AC-FR-5-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-5",
+      "kind": "positive",
+      "title": "Активная сессия сохраняется",
+      "given": [
+        "водитель подтвердил сессию в зоне 7801 с оплатой до 15:20"
+      ],
+      "when": [
+        "приложение перезапущено и запрашивает активную сессию"
+      ],
+      "then": [
+        "API возвращает сессию с зоной 7801, startedAt, paidUntil 15:20 и статусом active"
+      ]
+    },
+    {
+      "id": "AC-FR-5-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-5",
+      "kind": "negative",
+      "title": "Вторая активная сессия в той же зоне запрещена",
+      "given": [
+        "у автомобиля есть активная сессия в зоне 7801"
+      ],
+      "when": [
+        "запрашивается старт ещё одной сессии в зоне 7801"
+      ],
+      "then": [
+        "API отвечает 409 в формате application/problem+json",
+        "у автомобиля по-прежнему одна активная сессия"
+      ]
+    },
+    {
+      "id": "AC-FR-6-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "kind": "positive",
+      "title": "Трек строится по координатам",
+      "given": [
+        "mock-маршрут из 20 точек"
+      ],
+      "when": [
+        "маршрут полностью воспроизведён"
+      ],
+      "then": [
+        "в треке автомобиля 20 точек, упорядоченных по recordedAt"
+      ]
+    },
+    {
+      "id": "AC-FR-6-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "kind": "negative",
+      "title": "Координата из будущего отклоняется",
+      "given": [
+        "водитель авторизован"
+      ],
+      "when": [
+        "приложение отправляет координату с recordedAt на 10 минут позже текущего времени сервера"
+      ],
+      "then": [
+        "API отвечает 400 с ошибкой по полю recordedAt",
+        "координата не попадает в трек"
+      ]
+    },
+    {
+      "id": "AC-FR-7-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "kind": "positive",
+      "title": "Выход из зоны",
+      "given": [
+        "текущая зона автомобиля — 7801"
+      ],
+      "when": [
+        "поступают две подряд координаты вне всех зон"
+      ],
+      "then": [
+        "публикуется событие zone_exited с зоной 7801",
+        "водителю показано уведомление «Вы покинули текущую парковочную зону»"
+      ]
+    },
+    {
+      "id": "AC-FR-7-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "kind": "edge",
+      "title": "Дрожание GPS на границе",
+      "given": [
+        "текущая зона автомобиля — 7801"
+      ],
+      "when": [
+        "поступает одна координата вне зоны, а следующая снова внутри зоны 7801"
+      ],
+      "then": [
+        "событие zone_exited не публикуется",
+        "уведомление о выходе не показывается"
+      ]
+    },
+    {
+      "id": "AC-FR-8-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "kind": "positive",
+      "title": "Переход в другую зону",
+      "given": [
+        "текущая зона автомобиля — 7801, есть активная сессия"
+      ],
+      "when": [
+        "поступают две подряд координаты внутри зоны 7802"
+      ],
+      "then": [
+        "публикуется событие zone_changed из 7801 в 7802",
+        "водителю показано уведомление «Вы въехали в другую парковочную зону. Проверьте необходимость новой оплаты»"
+      ]
+    },
+    {
+      "id": "AC-FR-8-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "kind": "edge",
+      "title": "Точка на общей границе смежных зон",
+      "given": [
+        "зоны 7801 и 7802 смежные, текущая зона — 7801"
+      ],
+      "when": [
+        "поступает координата на общей границе зон"
+      ],
+      "then": [
+        "текущей остаётся зона 7801",
+        "событие zone_changed не публикуется"
+      ]
+    },
+    {
+      "id": "AC-FR-9-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "kind": "positive",
+      "title": "Предупреждение за 10 минут",
+      "given": [
+        "активная сессия оплачена до 15:20"
+      ],
+      "when": [
+        "наступает 15:10"
+      ],
+      "then": [
+        "публикуется событие session_expiring",
+        "водителю показано уведомление «До окончания парковки осталось 10 минут»"
+      ]
+    },
+    {
+      "id": "AC-FR-9-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "kind": "edge",
+      "title": "Сессия короче 10 минут",
+      "given": [
+        "в 15:15 запущена сессия с оплатой до 15:20"
+      ],
+      "when": [
+        "сессия создана"
+      ],
+      "then": [
+        "предупреждение «До окончания парковки осталось 5 минут» показано один раз сразу после старта"
+      ]
+    },
+    {
+      "id": "AC-FR-9-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "kind": "edge",
+      "title": "Истечение оплаченного периода",
+      "given": [
+        "активная сессия оплачена до 15:20"
+      ],
+      "when": [
+        "наступает 15:20"
+      ],
+      "then": [
+        "статус сессии меняется на expired",
+        "публикуется событие session_expired"
+      ]
+    },
+    {
+      "id": "AC-FR-10-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "kind": "positive",
+      "title": "Напоминание о новой оплате после истечения",
+      "given": [
+        "сессия в зоне 7801 перешла в статус expired, автомобиль остаётся в зоне 7801"
+      ],
+      "when": [
+        "водитель открывает приложение"
+      ],
+      "then": [
+        "показано уведомление о необходимости новой оплаты с кнопкой «Оплатить»"
+      ]
+    },
+    {
+      "id": "AC-FR-10-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "kind": "negative",
+      "title": "Повторная доставка события не дублирует уведомление",
+      "given": [
+        "уведомление по событию session_expiring уже показано"
+      ],
+      "when": [
+        "то же событие с тем же eventId доставлено повторно"
+      ],
+      "then": [
+        "второе уведомление не создаётся"
+      ]
+    },
+    {
+      "id": "AC-FR-11-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "positive",
+      "title": "Переход к оплате",
+      "given": [
+        "текущая зона автомобиля — 7801",
+        "официальное приложение оплаты установлено"
+      ],
+      "when": [
+        "водитель нажимает «Оплатить»"
+      ],
+      "then": [
+        "открывается официальное приложение оплаты парковки с номером зоны 7801"
+      ]
+    },
+    {
+      "id": "AC-FR-11-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "edge",
+      "title": "Приложение оплаты не установлено",
+      "given": [
+        "текущая зона автомобиля — 7801",
+        "официальное приложение оплаты не установлено"
+      ],
+      "when": [
+        "водитель нажимает «Оплатить»"
+      ],
+      "then": [
+        "в браузере открывается веб-версия официального сервиса оплаты с номером зоны 7801"
+      ]
+    },
+    {
+      "id": "AC-FR-11-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "kind": "negative",
+      "title": "Оплата вне платной зоны",
+      "given": [
+        "автомобиль вне платных зон"
+      ],
+      "when": [
+        "водитель открывает главный экран"
+      ],
+      "then": [
+        "кнопка «Оплатить» недоступна"
+      ]
+    },
+    {
+      "id": "AC-FR-12-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-12",
+      "kind": "positive",
+      "title": "История за день",
+      "given": [
+        "за сегодня у автомобиля 3 завершённые сессии"
+      ],
+      "when": [
+        "водитель открывает раздел «История» за сегодня"
+      ],
+      "then": [
+        "показаны 3 сессии с зоной, началом, окончанием и статусом",
+        "маршрут за день нарисован на карте"
+      ]
+    },
+    {
+      "id": "AC-FR-12-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-12",
+      "kind": "edge",
+      "title": "Пустой период",
+      "given": [
+        "за выбранный период у автомобиля нет координат и сессий"
+      ],
+      "when": [
+        "водитель открывает историю за этот период"
+      ],
+      "then": [
+        "показано пустое состояние «Поездок за период нет»"
+      ]
+    },
+    {
+      "id": "AC-FR-13-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-13",
+      "kind": "positive",
+      "title": "Уведомление о въезде",
+      "given": [
+        "автомобиль вне платных зон"
+      ],
+      "when": [
+        "поступают две подряд координаты внутри зоны 7801"
+      ],
+      "then": [
+        "публикуется событие zone_entered с зоной 7801",
+        "водителю показано уведомление «Вы въехали в зону платной парковки» с номером 7801"
+      ]
+    },
+    {
+      "id": "AC-FR-13-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-13",
+      "kind": "negative",
+      "title": "Нет повторного уведомления внутри зоны",
+      "given": [
+        "автомобиль уже в зоне 7801, уведомление о въезде показано"
+      ],
+      "when": [
+        "поступают новые координаты внутри зоны 7801"
+      ],
+      "then": [
+        "повторное уведомление о въезде не показывается"
+      ]
+    },
+    {
+      "id": "AC-FR-14-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "kind": "positive",
+      "title": "Время окончания на экране",
+      "given": [
+        "активная сессия с paidUntil 15:20"
+      ],
+      "when": [
+        "водитель открывает главный экран"
+      ],
+      "then": [
+        "отображается текст «Парковка оплачена до 15:20»"
+      ]
+    },
+    {
+      "id": "AC-FR-14-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "kind": "positive",
+      "title": "Обновление после продления",
+      "given": [
+        "активная сессия с paidUntil 15:20"
+      ],
+      "when": [
+        "водитель подтверждает новую оплату до 16:20"
+      ],
+      "then": [
+        "paidUntil сессии равен 16:20",
+        "отображается текст «Парковка оплачена до 16:20»"
+      ]
+    },
+    {
+      "id": "AC-FR-14-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "kind": "negative",
+      "title": "Время окончания в прошлом",
+      "given": [
+        "текущее время 14:20"
+      ],
+      "when": [
+        "водитель подтверждает оплату до 14:00"
+      ],
+      "then": [
+        "API отвечает 422 с ошибкой по полю paidUntil",
+        "сессия не изменена"
+      ]
+    },
+    {
+      "id": "AC-FR-15-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "kind": "positive",
+      "title": "Разделы административного интерфейса",
+      "given": [
+        "диспетчер авторизован",
+        "в системе есть автомобили, зоны, сессии и события из демо-данных"
+      ],
+      "when": [
+        "диспетчер по очереди открывает разделы «Автомобили», «Зоны», «Активные сессии», «Маршруты», «События», «История»"
+      ],
+      "then": [
+        "каждый раздел показывает данные, полученные от backend API"
+      ]
+    },
+    {
+      "id": "AC-FR-15-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "kind": "negative",
+      "title": "Водителю закрыт доступ к админке",
+      "given": [
+        "пользователь с ролью «водитель»"
+      ],
+      "when": [
+        "он открывает административный интерфейс"
+      ],
+      "then": [
+        "API отвечает 403",
+        "показан экран «Нет доступа»"
+      ]
+    },
+    {
+      "id": "AC-FR-15-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "kind": "edge",
+      "title": "Пустой список",
+      "given": [
+        "активных сессий нет"
+      ],
+      "when": [
+        "диспетчер открывает раздел «Активные сессии»"
+      ],
+      "then": [
+        "показано пустое состояние «Активных сессий нет»"
+      ]
+    },
+    {
+      "id": "AC-FR-16-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "kind": "positive",
+      "title": "Главный экран с активной сессией",
+      "given": [
+        "активная сессия в зоне 7801 до 15:20",
+        "текущее время 14:50"
+      ],
+      "when": [
+        "водитель открывает приложение"
+      ],
+      "then": [
+        "на экране карта с позицией автомобиля, «Зона 7801», статус «Оплачено», оставшееся время «30 мин» и кнопка «Оплатить»"
+      ]
+    },
+    {
+      "id": "AC-FR-16-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "kind": "edge",
+      "title": "Нет связи с сервером",
+      "given": [
+        "связь с backend потеряна"
+      ],
+      "when": [
+        "водитель открывает приложение"
+      ],
+      "then": [
+        "показано последнее известное состояние с отметкой «Нет связи, данные на ЧЧ:ММ»"
+      ]
+    },
+    {
+      "id": "AC-FR-17-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "kind": "positive",
+      "title": "Сессия регистрируется через адаптер",
+      "given": [
+        "в конфигурации выбран поставщик mock"
+      ],
+      "when": [
+        "водитель запускает сессию"
+      ],
+      "then": [
+        "адаптер вызывает mock-сервис поставщика",
+        "у сессии сохранён providerSessionId"
+      ]
+    },
+    {
+      "id": "AC-FR-17-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "kind": "negative",
+      "title": "Поставщик недоступен",
+      "given": [
+        "mock-сервис поставщика остановлен"
+      ],
+      "when": [
+        "водитель запускает сессию"
+      ],
+      "then": [
+        "API отвечает 503 в формате application/problem+json",
+        "сессия не создаётся",
+        "водитель видит «Сервис поставщика недоступен, повторите позже»"
+      ]
+    },
+    {
+      "id": "AC-FR-17-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "kind": "edge",
+      "title": "Замена поставщика без изменения логики",
+      "given": [
+        "в конфигурации указан второй тестовый адаптер поставщика"
+      ],
+      "when": [
+        "выполняются интеграционные тесты парковочных сессий"
+      ],
+      "then": [
+        "тесты проходят без изменения кода доменного слоя"
+      ]
+    },
+    {
+      "id": "AC-FR-18-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-18",
+      "kind": "positive",
+      "title": "Воспроизведение демо-маршрута",
+      "given": [
+        "mock-маршрут проходит через зоны 7801 и 7802"
+      ],
+      "when": [
+        "запускается воспроизведение маршрута с ускорением"
+      ],
+      "then": [
+        "координаты поступают в backend в порядке маршрута",
+        "в журнале появляются события zone_entered, zone_changed и zone_exited в порядке прохождения зон"
+      ]
+    },
+    {
+      "id": "AC-FR-18-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-18",
+      "kind": "negative",
+      "title": "Невалидный файл маршрута",
+      "given": [
+        "файл маршрута содержит меньше 2 точек"
+      ],
+      "when": [
+        "запускается воспроизведение"
+      ],
+      "then": [
+        "запуск отклонён с ошибкой валидации файла маршрута"
+      ]
+    },
+    {
+      "id": "AC-FR-19-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-19",
+      "kind": "positive",
+      "title": "Запуск новой сессии",
+      "given": [
+        "автомобиль в зоне 7801, активной сессии нет",
+        "текущее время 14:20"
+      ],
+      "when": [
+        "водитель нажимает «Начать сессию» и выбирает длительность 1 час"
+      ],
+      "then": [
+        "создана сессия со статусом active и paidUntil 15:20",
+        "публикуется событие session_started"
+      ]
+    },
+    {
+      "id": "AC-FR-19-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-19",
+      "kind": "positive",
+      "title": "Подтверждение оплаченной сессии",
+      "given": [
+        "водитель оплатил парковку в зоне 7801 вне системы до 15:20"
+      ],
+      "when": [
+        "водитель нажимает «Подтвердить оплату» и указывает время 15:20"
+      ],
+      "then": [
+        "создана сессия со статусом active и paidUntil 15:20"
+      ]
+    },
+    {
+      "id": "AC-FR-19-03",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-19",
+      "kind": "negative",
+      "title": "Старт вне платной зоны",
+      "given": [
+        "автомобиль вне платных зон"
+      ],
+      "when": [
+        "водитель нажимает «Начать сессию»"
+      ],
+      "then": [
+        "API отвечает 422",
+        "показано сообщение «Автомобиль не в платной зоне»"
+      ]
+    },
+    {
+      "id": "AC-FR-19-04",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-19",
+      "kind": "edge",
+      "title": "Повтор запроса",
+      "given": [
+        "запрос на старт сессии отправлен с заголовком Idempotency-Key"
+      ],
+      "when": [
+        "тот же запрос с тем же ключом отправлен повторно"
+      ],
+      "then": [
+        "возвращается та же сессия",
+        "в БД одна сессия"
+      ]
+    },
+    {
+      "id": "AC-FR-20-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-20",
+      "kind": "positive",
+      "title": "События в журнале",
+      "given": [
+        "диспетчер открыл раздел «События»"
+      ],
+      "when": [
+        "воспроизводится демонстрационный маршрут"
+      ],
+      "then": [
+        "каждое событие сохраняется с типом, временем, автомобилем и зоной",
+        "новое событие появляется в разделе не позднее 5 секунд без перезагрузки страницы"
+      ]
+    },
+    {
+      "id": "AC-FR-20-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-20",
+      "kind": "edge",
+      "title": "Фильтр журнала",
+      "given": [
+        "в журнале есть события двух автомобилей за два дня"
+      ],
+      "when": [
+        "диспетчер фильтрует по автомобилю А123ВС178 и сегодняшней дате"
+      ],
+      "then": [
+        "показаны только события автомобиля А123ВС178 за сегодня"
+      ]
+    },
+    {
+      "id": "AC-FR-21-01",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-21",
+      "kind": "positive",
+      "title": "Загрузка зон из GeoJSON",
+      "given": [
+        "файл GeoJSON с зонами 7801 и 7802"
+      ],
+      "when": [
+        "система выполняет загрузку зон при старте"
+      ],
+      "then": [
+        "в БД 2 зоны с номерами и полигонами в SRID 4326"
+      ]
+    },
+    {
+      "id": "AC-FR-21-02",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-21",
+      "kind": "negative",
+      "title": "Невалидный полигон",
+      "given": [
+        "в файле GeoJSON у зоны 7803 самопересекающийся полигон"
+      ],
+      "when": [
+        "система выполняет загрузку зон"
+      ],
+      "then": [
+        "зона 7803 не загружена",
+        "в журнале загрузки ошибка с номером 7803",
+        "остальные зоны загружены"
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-1",
+      "role": "ROLE-driver",
+      "i_want": "чтобы приложение само передавало местоположение автомобиля",
+      "so_that": "не отмечать вручную, где я нахожусь"
+    },
+    {
+      "id": "US-002",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-2",
+      "role": "ROLE-driver",
+      "i_want": "знать, что автомобиль стоит в платной зоне",
+      "so_that": "не забыть оплатить парковку"
+    },
+    {
+      "id": "US-003",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-3",
+      "role": "ROLE-driver",
+      "i_want": "видеть номер и границы зоны на карте",
+      "so_that": "понимать, где заканчивается платная зона"
+    },
+    {
+      "id": "US-004",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-4",
+      "role": "ROLE-driver",
+      "i_want": "видеть стоимость, часы платного режима и ограничения зоны",
+      "so_that": "заранее понимать условия парковки"
+    },
+    {
+      "id": "US-005",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-5",
+      "role": "ROLE-driver",
+      "i_want": "чтобы приложение помнило мою активную сессию",
+      "so_that": "не платить повторно за тот же период"
+    },
+    {
+      "id": "US-006",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-6",
+      "role": "ROLE-driver",
+      "i_want": "чтобы система отслеживала перемещение автомобиля",
+      "so_that": "смена зоны определялась без моего участия"
+    },
+    {
+      "id": "US-007",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-7",
+      "role": "ROLE-driver",
+      "i_want": "получать уведомление о выходе из зоны",
+      "so_that": "знать, что текущая сессия больше не нужна"
+    },
+    {
+      "id": "US-008",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-8",
+      "role": "ROLE-driver",
+      "i_want": "узнавать о въезде в другую зону",
+      "so_that": "проверить, нужна ли новая оплата"
+    },
+    {
+      "id": "US-009",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-9",
+      "role": "ROLE-driver",
+      "i_want": "получать предупреждение за 10 минут до окончания оплаты",
+      "so_that": "успеть продлить парковку и избежать штрафа"
+    },
+    {
+      "id": "US-010",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-10",
+      "role": "ROLE-driver",
+      "i_want": "получать напоминание о необходимости проверить или повторить оплату",
+      "so_that": "не оставлять автомобиль без оплаты"
+    },
+    {
+      "id": "US-011",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-11",
+      "role": "ROLE-driver",
+      "i_want": "переходить к официальному сервису оплаты одной кнопкой",
+      "so_that": "оплатить без поиска зоны и приложения"
+    },
+    {
+      "id": "US-012",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-12",
+      "role": "ROLE-driver",
+      "i_want": "смотреть маршрут и историю сессий",
+      "so_that": "подтвердить, где и когда парковался"
+    },
+    {
+      "id": "US-013",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-13",
+      "role": "ROLE-driver",
+      "i_want": "получать уведомление при въезде в платную зону",
+      "so_that": "сразу решить, нужна ли оплата"
+    },
+    {
+      "id": "US-014",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-14",
+      "role": "ROLE-driver",
+      "i_want": "видеть, до какого времени оплачена парковка",
+      "so_that": "не держать время в голове"
+    },
+    {
+      "id": "US-015",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-15",
+      "role": "ROLE-dispatcher",
+      "i_want": "просматривать автомобили, зоны, сессии, маршруты и события",
+      "so_that": "контролировать парковку служебного транспорта"
+    },
+    {
+      "id": "US-016",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-16",
+      "role": "ROLE-driver",
+      "i_want": "видеть на одном экране карту, зону, статус и оставшееся время",
+      "so_that": "понимать ситуацию за один взгляд"
+    },
+    {
+      "id": "US-017",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-17",
+      "role": "ROLE-dispatcher",
+      "i_want": "чтобы поставщик парковочных услуг подключался через адаптер",
+      "so_that": "менять поставщика без переделки системы"
+    },
+    {
+      "id": "US-018",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-18",
+      "role": "ROLE-dispatcher",
+      "i_want": "запускать демонстрационный маршрут",
+      "so_that": "показать работу системы без реальной поездки"
+    },
+    {
+      "id": "US-019",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-19",
+      "role": "ROLE-driver",
+      "i_want": "запускать или подтверждать парковочную сессию",
+      "so_that": "система знала оплаченный период"
+    },
+    {
+      "id": "US-020",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-20",
+      "role": "ROLE-dispatcher",
+      "i_want": "видеть журнал событий и его историю",
+      "so_that": "разбирать спорные случаи и штрафы"
+    },
+    {
+      "id": "US-021",
+      "origin": "derived",
+      "source": null,
+      "fr_id": "FR-21",
+      "role": "ROLE-dispatcher",
+      "i_want": "загружать границы и параметры зон из геоданных",
+      "so_that": "определение зон было актуальным"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-01",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Частота передачи координат: Раз в 10 секунд в движении, раз в 60 секунд на стоянке",
+      "reason": "Как часто приложение передаёт координаты?",
+      "affected": [
+        "FR-1",
+        "FR-6"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-02",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Закрытие сессии при выезде: Не закрывать: уведомить и оставить решение водителю",
+      "reason": "Закрывать ли сессию автоматически при выходе из зоны?",
+      "affected": [
+        "FR-7"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-03",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Закрепление водителя за автомобилем: Водитель закреплён за автомобилем, сессия хранит и автомобиль, и водителя",
+      "reason": "Один водитель на автомобиль или водители меняются по сменам?",
+      "affected": [
+        "FR-19"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-04",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Доставка уведомлений: Локальные уведомления Android по событиям, полученным с сервера",
+      "reason": "Push через FCM или локальные уведомления по данным с сервера?",
+      "affected": [
+        "FR-9",
+        "FR-13"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-05",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Часовой пояс всех расчётов — Europe/Moscow, время хранится в UTC",
+      "reason": "Объекты находятся в Санкт-Петербурге",
+      "affected": [
+        "FR-9",
+        "FR-14"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-06",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Организация одна; работа с организациями в Паркоматике сводится к одной настройке адаптера",
+      "reason": "Кейс описывает одну компанию с техническими службами",
+      "affected": [
+        "FR-17"
+      ],
+      "from_question": null
+    },
+    {
+      "id": "ASM-07",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Аутентификация: Собственные учётные записи, JWT, роли водитель и диспетчер",
+      "reason": "Принято по умолчанию без ответа на Q-01. Как входят водители и диспетчеры: собственные учётные записи или корпоративный SSO?",
+      "affected": [
+        "FR-15",
+        "FR-16"
+      ],
+      "from_question": "Q-01"
+    },
+    {
+      "id": "ASM-08",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Источник времени окончания оплаты: Водитель выбирает длительность при запуске, mock-поставщик возвращает paidUntil",
+      "reason": "Принято по умолчанию без ответа на Q-02. Реальная оплата не выполняется, но система должна показывать «Парковка оплачена до 15:20». Откуда система узнаёт время окончания?",
+      "affected": [
+        "FR-5",
+        "FR-9",
+        "FR-14",
+        "FR-19"
+      ],
+      "from_question": "Q-02"
+    },
+    {
+      "id": "ASM-09",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Где определяется зона: На сервере (PostGIS), устройство только передаёт координаты",
+      "reason": "Принято по умолчанию без ответа на Q-03. Вход и выход из зоны вычисляются на сервере по потоку координат или на устройстве?",
+      "affected": [
+        "FR-2",
+        "FR-7",
+        "FR-8",
+        "FR-13"
+      ],
+      "from_question": "Q-03"
+    },
+    {
+      "id": "ASM-10",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Автоматический старт сессии: Только после подтверждения водителем; при въезде — уведомление",
+      "reason": "Принято по умолчанию без ответа на Q-04. Сессия начинается автоматически при въезде в зону или только после действия водителя?",
+      "affected": [
+        "FR-13",
+        "FR-19"
+      ],
+      "from_question": "Q-04"
+    },
+    {
+      "id": "ASM-11",
+      "origin": "assumption",
+      "source": null,
+      "statement": "Источник геоданных зон: Снимок открытых данных в seed-файле GeoJSON",
+      "reason": "Принято по умолчанию без ответа на Q-05. Использовать снимок открытых данных Санкт-Петербурга или демонстрационный набор зон?",
+      "affected": [
+        "FR-21",
+        "FR-2"
+      ],
+      "from_question": "Q-05"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q-01",
+      "origin": "derived",
+      "source": null,
+      "topic": "Аутентификация",
+      "question": "Как входят водители и диспетчеры: собственные учётные записи или корпоративный SSO?",
+      "impact": "security",
+      "severity": "high",
+      "affected": [
+        "FR-15",
+        "FR-16"
+      ],
+      "options": [
+        "Собственные учётные записи, JWT, роли водитель и диспетчер",
+        "Корпоративный SSO по OpenID Connect"
+      ],
+      "default_option": "Собственные учётные записи, JWT, роли водитель и диспетчер",
+      "answer": "Собственные учётные записи, JWT, роли водитель и диспетчер",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-02",
+      "origin": "derived",
+      "source": null,
+      "topic": "Источник времени окончания оплаты",
+      "question": "Реальная оплата не выполняется, но система должна показывать «Парковка оплачена до 15:20». Откуда система узнаёт время окончания?",
+      "impact": "architecture",
+      "severity": "high",
+      "affected": [
+        "FR-5",
+        "FR-9",
+        "FR-14",
+        "FR-19"
+      ],
+      "options": [
+        "Водитель выбирает длительность при запуске, mock-поставщик возвращает paidUntil",
+        "Водитель вручную вводит время окончания уже оплаченной парковки",
+        "Время окончания берётся только из API поставщика"
+      ],
+      "default_option": "Водитель выбирает длительность при запуске, mock-поставщик возвращает paidUntil",
+      "answer": "Водитель выбирает длительность при запуске, mock-поставщик возвращает paidUntil",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-03",
+      "origin": "derived",
+      "source": null,
+      "topic": "Где определяется зона",
+      "question": "Вход и выход из зоны вычисляются на сервере по потоку координат или на устройстве?",
+      "impact": "architecture",
+      "severity": "high",
+      "affected": [
+        "FR-2",
+        "FR-7",
+        "FR-8",
+        "FR-13"
+      ],
+      "options": [
+        "На сервере (PostGIS), устройство только передаёт координаты",
+        "На устройстве по загруженным полигонам, сервер получает события"
+      ],
+      "default_option": "На сервере (PostGIS), устройство только передаёт координаты",
+      "answer": "На сервере (PostGIS), устройство только передаёт координаты",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-04",
+      "origin": "derived",
+      "source": null,
+      "topic": "Автоматический старт сессии",
+      "question": "Сессия начинается автоматически при въезде в зону или только после действия водителя?",
+      "impact": "core_scenario",
+      "severity": "high",
+      "affected": [
+        "FR-13",
+        "FR-19"
+      ],
+      "options": [
+        "Только после подтверждения водителем; при въезде — уведомление",
+        "Автоматически при въезде с возможностью отмены"
+      ],
+      "default_option": "Только после подтверждения водителем; при въезде — уведомление",
+      "answer": "Только после подтверждения водителем; при въезде — уведомление",
+      "status": "defaulted"
+    },
+    {
+      "id": "Q-05",
+      "origin": "derived",
+      "source": null,
+      "topic": "Источник геоданных зон",
+      "question": "Использовать снимок открытых данных Санкт-Петербурга или демонстрационный набор зон?",
+      "impact": "data",
+      "severity": "high",
+      "affected": [
+        "FR-21",
+        "FR-2"
+      ],
+      "options": [
+        "Снимок открытых данных в seed-файле GeoJSON",
+        "Демонстрационный набор из нескольких зон",
+        "Загрузка из внешнего источника при каждом запуске"
+      ],
+      "default_option": "Снимок открытых данных в seed-файле GeoJSON",
+      "answer": "Снимок открытых данных в seed-файле GeoJSON",
+      "status": "defaulted"
+    }
+  ],
+  "risks": [
+    {
+      "id": "RISK-01",
+      "origin": "derived",
+      "source": null,
+      "statement": "Дрожание GPS на границе зоны вызывает ложные входы и выходы",
+      "probability": "high",
+      "impact": "high",
+      "mitigation": "Гистерезис: две подряд точки, игнорирование точек с точностью хуже 100 м"
+    },
+    {
+      "id": "RISK-02",
+      "origin": "derived",
+      "source": null,
+      "statement": "Границы зон в открытых данных неточны или устарели",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Снимок данных с датой, проверка валидности полигонов при загрузке"
+    },
+    {
+      "id": "RISK-03",
+      "origin": "derived",
+      "source": null,
+      "statement": "Android ограничивает фоновую геолокацию",
+      "probability": "high",
+      "impact": "medium",
+      "mitigation": "Foreground service с уведомлением, демо-режим с mock-маршрутом"
+    },
+    {
+      "id": "RISK-04",
+      "origin": "derived",
+      "source": null,
+      "statement": "Недоступность поставщика парковочных услуг",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Адаптер с таймаутами и понятной ошибкой, ручное подтверждение оплаты"
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Парковочная зона",
+      "definition": "Территория платной парковки с номером, границами (полигон) и параметрами оплаты"
+    },
+    {
+      "term": "Парковочная сессия",
+      "definition": "Период стоянки автомобиля в зоне от запуска или подтверждения до окончания оплаченного времени или закрытия"
+    },
+    {
+      "term": "Оплачено до (paidUntil)",
+      "definition": "Момент окончания оплаченного периода сессии"
+    },
+    {
+      "term": "Mock-маршрут",
+      "definition": "Заранее заданная последовательность координат, которую система проигрывает вместо реального GPS"
+    },
+    {
+      "term": "Паркоматика",
+      "definition": "Внешний сервис парковок; в прототипе заменён mock-сервисом за адаптером"
+    }
+  ]
+}

@@ -1,0 +1,1995 @@
+{
+  "components": [
+    {
+      "name": "Mobile App",
+      "kind": "mobile",
+      "tech": "Kotlin",
+      "responsibility": "Мобильное приложение кладовщика: сканирование QR-кодов, локальное хранение операций при отсутствии связи, синхронизация с сервером"
+    },
+    {
+      "name": "Web UI",
+      "kind": "web",
+      "tech": "Angular",
+      "responsibility": "Web-интерфейс для руководителя склада и администратора: каталог, история, список невозвращённого, загрузка справочника"
+    },
+    {
+      "name": "Backend API",
+      "kind": "backend",
+      "tech": "ASP.NET Core",
+      "responsibility": "REST API, бизнес-логика, аутентификация, авторизация, публикация событий в Kafka"
+    },
+    {
+      "name": "Worker",
+      "kind": "worker",
+      "tech": "ASP.NET Core Worker",
+      "responsibility": "Scheduled jobs: проверка сроков возврата, обновление статусов IssueRecord"
+    },
+    {
+      "name": "Database",
+      "kind": "database",
+      "tech": "PostgreSQL",
+      "responsibility": "Хранение данных: Tool, Employee, Reservation, IssueRecord, ReturnRecord, MovementHistory, SyncQueue, AuditLog, SystemSetting"
+    },
+    {
+      "name": "Kafka Broker",
+      "kind": "broker",
+      "tech": "Kafka",
+      "responsibility": "Передача событий выдачи, возврата и списания в корпоративную систему учёта ТМЦ"
+    },
+    {
+      "name": "TMЦ Mock Consumer",
+      "kind": "mock",
+      "tech": "Mock",
+      "responsibility": "Mock-потребитель событий из Kafka для интеграции с корпоративной системой учёта ТМЦ"
+    },
+    {
+      "name": "Employee CSV File",
+      "kind": "external",
+      "tech": "CSV",
+      "responsibility": "Файл справочника сотрудников и номеров пропусков для загрузки"
+    }
+  ],
+  "operations": [
+    {
+      "operation_id": "createTool",
+      "method": "post",
+      "path": "/api/v1/tools",
+      "summary": "Добавить инструмент в каталог",
+      "tag": "Tools",
+      "roles": [
+        "warehouse_manager"
+      ],
+      "fr": [
+        "FR-1",
+        "FR-2",
+        "FR-12"
+      ],
+      "query": [],
+      "request": {
+        "entity": "Tool",
+        "fields": [
+          "inventoryNumber",
+          "name",
+          "category",
+          "warehouse",
+          "status"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "Tool",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        409,
+        422
+      ],
+      "idempotent": false,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли warehouse_manager",
+        "2. Валидировать входные данные: инвентарный номер, наименование, категория, склад, состояние",
+        "3. Проверить уникальность инвентарного номера",
+        "4. Сгенерировать QR-код на основе инвентарного номера",
+        "5. Сохранить запись Tool в базу данных",
+        "6. Зафиксировать событие created в MovementHistory",
+        "7. Зафиксировать действие в AuditLog",
+        "8. Вернуть созданную запись Tool с QR-кодом"
+      ],
+      "exceptions": [
+        "Инвентарный номер уже существует → 409",
+        "Некорректные входные данные → 422"
+      ],
+      "tables": [
+        "Tool",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getTool",
+      "method": "get",
+      "path": "/api/v1/tools/{id}",
+      "summary": "Получить инструмент по ID",
+      "tag": "Tools",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper",
+        "employee"
+      ],
+      "fr": [
+        "FR-1"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "object",
+        "entity": "Tool",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Найти инструмент по ID",
+        "3. Вернуть запись Tool"
+      ],
+      "exceptions": [
+        "Инструмент не найден → 404"
+      ],
+      "tables": [
+        "Tool"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listTools",
+      "method": "get",
+      "path": "/api/v1/tools",
+      "summary": "Получить список инструментов",
+      "tag": "Tools",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper",
+        "employee"
+      ],
+      "fr": [
+        "FR-1"
+      ],
+      "query": [
+        {
+          "name": "category",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "warehouse",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "description": "",
+          "enum_values": [
+            "available",
+            "issued",
+            "reserved",
+            "repair",
+            "lost",
+            "retired"
+          ]
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "Номер страницы",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "Размер страницы",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "Tool",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Применить фильтры по категории, складу, статусу",
+        "3. Получить пагинацию",
+        "4. Вернуть список инструментов"
+      ],
+      "exceptions": [],
+      "tables": [
+        "Tool"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getToolByQrCode",
+      "method": "get",
+      "path": "/api/v1/tools/qr/{qrCode}",
+      "summary": "Получить инструмент по QR-коду",
+      "tag": "Tools",
+      "roles": [
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-3"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "object",
+        "entity": "Tool",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "idempotent": true,
+      "rate_limited": true,
+      "algorithm": [
+        "1. Проверить права роли warehouse_keeper",
+        "2. Найти инструмент по QR-коду",
+        "3. Вернуть запись Tool"
+      ],
+      "exceptions": [
+        "Инструмент с таким QR-кодом не найден → 404"
+      ],
+      "tables": [
+        "Tool"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "createReservation",
+      "method": "post",
+      "path": "/api/v1/reservations",
+      "summary": "Забронировать инструмент на дату",
+      "tag": "Reservations",
+      "roles": [
+        "employee",
+        "warehouse_manager"
+      ],
+      "fr": [
+        "FR-4",
+        "FR-13"
+      ],
+      "query": [],
+      "request": {
+        "entity": "Reservation",
+        "fields": [
+          "toolId",
+          "employeeId",
+          "date"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "Reservation",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        404,
+        409,
+        422
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли employee или warehouse_manager",
+        "2. Валидировать входные данные: toolId, employeeId, date",
+        "3. Проверить существование инструмента",
+        "4. Проверить существование сотрудника",
+        "5. Проверить доступность инструмента на указанную дату (нет активных бронирований и выдач)",
+        "6. Создать запись Reservation со статусом active",
+        "7. Обновить статус Tool на reserved",
+        "8. Зафиксировать событие reserved в MovementHistory",
+        "9. Зафиксировать действие в AuditLog",
+        "10. Вернуть созданную запись Reservation"
+      ],
+      "exceptions": [
+        "Инструмент не найден → 404",
+        "Сотрудник не найден → 404",
+        "Инструмент уже забронирован или выдан на эту дату → 409",
+        "Некорректные входные данные → 422"
+      ],
+      "tables": [
+        "Reservation",
+        "Tool",
+        "Employee",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "cancelReservation",
+      "method": "post",
+      "path": "/api/v1/reservations/{id}/cancellations",
+      "summary": "Отменить бронирование",
+      "tag": "Reservations",
+      "roles": [
+        "employee",
+        "warehouse_manager"
+      ],
+      "fr": [
+        "FR-4"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "object",
+        "entity": "Reservation",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404,
+        409
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Найти бронирование по ID",
+        "3. Проверить, что бронирование в статусе active",
+        "4. Обновить статус Reservation на cancelled",
+        "5. Обновить статус Tool на available (если нет других активных бронирований)",
+        "6. Зафиксировать событие reservation_cancelled в MovementHistory",
+        "7. Зафиксировать действие в AuditLog",
+        "8. Вернуть обновлённую запись Reservation"
+      ],
+      "exceptions": [
+        "Бронирование не найдено → 404",
+        "Бронирование уже отменено или выполнено → 409"
+      ],
+      "tables": [
+        "Reservation",
+        "Tool",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listReservations",
+      "method": "get",
+      "path": "/api/v1/reservations",
+      "summary": "Получить список бронирований",
+      "tag": "Reservations",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper",
+        "employee"
+      ],
+      "fr": [
+        "FR-4"
+      ],
+      "query": [
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "description": "",
+          "enum_values": [
+            "active",
+            "cancelled",
+            "fulfilled"
+          ]
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "Reservation",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Применить фильтры",
+        "3. Получить пагинацию",
+        "4. Вернуть список бронирований"
+      ],
+      "exceptions": [],
+      "tables": [
+        "Reservation"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "issueTool",
+      "method": "post",
+      "path": "/api/v1/issue-records",
+      "summary": "Выдать инструмент сотруднику",
+      "tag": "IssueRecords",
+      "roles": [
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-5",
+        "FR-14"
+      ],
+      "query": [],
+      "request": {
+        "entity": "IssueRecord",
+        "fields": [
+          "toolId",
+          "employeeId",
+          "issueDate",
+          "returnDeadline"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "IssueRecord",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        404,
+        409,
+        422
+      ],
+      "idempotent": false,
+      "rate_limited": true,
+      "algorithm": [
+        "1. Проверить права роли warehouse_keeper",
+        "2. Валидировать входные данные: toolId, employeeId, issueDate, returnDeadline",
+        "3. Проверить существование инструмента",
+        "4. Проверить существование сотрудника",
+        "5. Проверить, что инструмент не выдан (статус не issued)",
+        "6. Проверить, что инструмент не забронирован другим сотрудником (если есть активное бронирование, employeeId должен совпадать)",
+        "7. Создать запись IssueRecord со статусом active",
+        "8. Обновить статус Tool на issued",
+        "9. Если есть активное бронирование для этого сотрудника, обновить его статус на fulfilled",
+        "10. Зафиксировать событие issued в MovementHistory",
+        "11. Зафиксировать действие в AuditLog",
+        "12. Опубликовать событие tool.issued в Kafka",
+        "13. Вернуть созданную запись IssueRecord"
+      ],
+      "exceptions": [
+        "Инструмент не найден → 404",
+        "Сотрудник не найден → 404",
+        "Инструмент уже выдан → 409",
+        "Инструмент забронирован другим сотрудником → 409",
+        "Некорректные входные данные → 422"
+      ],
+      "tables": [
+        "IssueRecord",
+        "Tool",
+        "Employee",
+        "Reservation",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [
+        "Kafka Broker"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "listIssueRecords",
+      "method": "get",
+      "path": "/api/v1/issue-records",
+      "summary": "Получить список записей о выдаче",
+      "tag": "IssueRecords",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-7"
+      ],
+      "query": [
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "description": "",
+          "enum_values": [
+            "active",
+            "returned",
+            "overdue"
+          ]
+        },
+        {
+          "name": "overdueOnly",
+          "type": "bool",
+          "required": false,
+          "description": "Только невозвращённые с истёкшим сроком",
+          "enum_values": []
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "IssueRecord",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Применить фильтры",
+        "3. Если overdueOnly=true, отфильтровать по status=overdue или returnDeadline < now",
+        "4. Получить пагинацию",
+        "5. Вернуть список записей о выдаче"
+      ],
+      "exceptions": [],
+      "tables": [
+        "IssueRecord"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "returnTool",
+      "method": "post",
+      "path": "/api/v1/return-records",
+      "summary": "Зафиксировать возврат инструмента",
+      "tag": "ReturnRecords",
+      "roles": [
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-6",
+        "FR-17"
+      ],
+      "query": [],
+      "request": {
+        "entity": "ReturnRecord",
+        "fields": [
+          "issueRecordId",
+          "toolId",
+          "employeeId",
+          "returnDate",
+          "condition"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "ReturnRecord",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        404,
+        409,
+        422
+      ],
+      "idempotent": false,
+      "rate_limited": true,
+      "algorithm": [
+        "1. Проверить права роли warehouse_keeper",
+        "2. Валидировать входные данные: issueRecordId, toolId, employeeId, returnDate, condition",
+        "3. Проверить существование записи о выдаче",
+        "4. Проверить, что запись о выдаче в статусе active или overdue",
+        "5. Создать запись ReturnRecord",
+        "6. Обновить статус IssueRecord на returned",
+        "7. Обновить статус Tool в зависимости от condition: working → available, needs_repair → repair, lost → lost",
+        "8. Зафиксировать событие returned в MovementHistory",
+        "9. Зафиксировать действие в AuditLog",
+        "10. Опубликовать событие tool.returned в Kafka",
+        "11. Вернуть созданную запись ReturnRecord"
+      ],
+      "exceptions": [
+        "Запись о выдаче не найдена → 404",
+        "Инструмент не найден → 404",
+        "Сотрудник не найден → 404",
+        "Запись о выдаче уже возвращена → 409",
+        "Некорректные входные данные → 422"
+      ],
+      "tables": [
+        "ReturnRecord",
+        "IssueRecord",
+        "Tool",
+        "Employee",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [
+        "Kafka Broker"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "listReturnRecords",
+      "method": "get",
+      "path": "/api/v1/return-records",
+      "summary": "Получить список записей о возврате",
+      "tag": "ReturnRecords",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-6"
+      ],
+      "query": [
+        {
+          "name": "toolId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "employeeId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "condition",
+          "type": "enum",
+          "required": false,
+          "description": "",
+          "enum_values": [
+            "working",
+            "needs_repair",
+            "lost"
+          ]
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "ReturnRecord",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Применить фильтры",
+        "3. Получить пагинацию",
+        "4. Вернуть список записей о возврате"
+      ],
+      "exceptions": [],
+      "tables": [
+        "ReturnRecord"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getToolMovementHistory",
+      "method": "get",
+      "path": "/api/v1/tools/{id}/movements",
+      "summary": "Получить историю движения инструмента",
+      "tag": "MovementHistory",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-9"
+      ],
+      "query": [
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "MovementHistory",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Проверить существование инструмента",
+        "3. Получить историю движения по toolId с пагинацией",
+        "4. Вернуть список записей MovementHistory"
+      ],
+      "exceptions": [
+        "Инструмент не найден → 404"
+      ],
+      "tables": [
+        "Tool",
+        "MovementHistory"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "importEmployees",
+      "method": "post",
+      "path": "/api/v1/employee-imports",
+      "summary": "Загрузить справочник сотрудников из CSV-файла",
+      "tag": "EmployeeImports",
+      "roles": [
+        "system_admin"
+      ],
+      "fr": [
+        "FR-11"
+      ],
+      "query": [],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "file",
+            "type": "string",
+            "required": true,
+            "description": "CSV-файл с сотрудниками",
+            "max_length": null,
+            "pattern": null,
+            "minimum": null,
+            "maximum": null,
+            "enum_values": [],
+            "default": null,
+            "unique": false,
+            "ref": null,
+            "pii": false,
+            "read_only": false,
+            "internal": false,
+            "example": null
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [
+          "importedCount",
+          "skippedCount",
+          "errors"
+        ],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        422
+      ],
+      "idempotent": false,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли system_admin",
+        "2. Валидировать формат CSV-файла",
+        "3. Проверить уникальность passNumber",
+        "4. Импортировать данные в таблицу Employee",
+        "5. Зафиксировать действие в AuditLog",
+        "6. Вернуть результат импорта: количество импортированных, пропущенных, ошибки"
+      ],
+      "exceptions": [
+        "Некорректный формат файла → 422",
+        "Дубликаты passNumber → 422"
+      ],
+      "tables": [
+        "Employee",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listEmployees",
+      "method": "get",
+      "path": "/api/v1/employees",
+      "summary": "Получить список сотрудников",
+      "tag": "Employees",
+      "roles": [
+        "warehouse_manager",
+        "warehouse_keeper",
+        "system_admin"
+      ],
+      "fr": [
+        "FR-11"
+      ],
+      "query": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "passNumber",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "Employee",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Применить фильтры",
+        "3. Получить пагинацию",
+        "4. Вернуть список сотрудников"
+      ],
+      "exceptions": [],
+      "tables": [
+        "Employee"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "getEmployeeByPassNumber",
+      "method": "get",
+      "path": "/api/v1/employees/pass/{passNumber}",
+      "summary": "Получить сотрудника по номеру пропуска",
+      "tag": "Employees",
+      "roles": [
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-3"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "object",
+        "entity": "Employee",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404
+      ],
+      "idempotent": true,
+      "rate_limited": true,
+      "algorithm": [
+        "1. Проверить права роли warehouse_keeper",
+        "2. Найти сотрудника по номеру пропуска",
+        "3. Вернуть запись Employee"
+      ],
+      "exceptions": [
+        "Сотрудник с таким номером пропуска не найден → 404"
+      ],
+      "tables": [
+        "Employee"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "syncOperations",
+      "method": "post",
+      "path": "/api/v1/synchronization-operations",
+      "summary": "Синхронизировать локальные операции с сервером",
+      "tag": "SyncOperations",
+      "roles": [
+        "warehouse_keeper"
+      ],
+      "fr": [
+        "FR-10",
+        "FR-15"
+      ],
+      "query": [],
+      "request": {
+        "entity": null,
+        "fields": [],
+        "extra": [
+          {
+            "name": "operations",
+            "type": "json",
+            "required": true,
+            "description": "Массив локальных операций из SyncQueue",
+            "max_length": null,
+            "pattern": null,
+            "minimum": null,
+            "maximum": null,
+            "enum_values": [],
+            "default": null,
+            "unique": false,
+            "ref": null,
+            "pii": false,
+            "read_only": false,
+            "internal": false,
+            "example": null
+          }
+        ]
+      },
+      "response": {
+        "kind": "object",
+        "entity": null,
+        "fields": [
+          "syncedCount",
+          "rejectedCount",
+          "results"
+        ],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        422
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли warehouse_keeper",
+        "2. Валидировать массив операций",
+        "3. Для каждой операции: проверить конфликты (инструмент уже выдан)",
+        "4. Если конфликт — отклонить операцию (status=rejected)",
+        "5. Если нет конфликта — выполнить операцию (issue, return, reservation)",
+        "6. Опубликовать события в Kafka для успешных операций",
+        "7. Зафиксировать действия в AuditLog",
+        "8. Вернуть результат синхронизации: количество синхронизированных, отклонённых, детали"
+      ],
+      "exceptions": [
+        "Некорректный формат операций → 422"
+      ],
+      "tables": [
+        "SyncQueue",
+        "Tool",
+        "Employee",
+        "IssueRecord",
+        "ReturnRecord",
+        "Reservation",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [
+        "Kafka Broker"
+      ],
+      "caching": null
+    },
+    {
+      "operation_id": "getSystemSettings",
+      "method": "get",
+      "path": "/api/v1/system-settings",
+      "summary": "Получить настройки системы",
+      "tag": "SystemSettings",
+      "roles": [
+        "system_admin",
+        "warehouse_manager"
+      ],
+      "fr": [
+        "FR-7"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "list",
+        "entity": "SystemSetting",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли",
+        "2. Получить все настройки системы",
+        "3. Вернуть список настроек"
+      ],
+      "exceptions": [],
+      "tables": [
+        "SystemSetting"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "updateSystemSetting",
+      "method": "patch",
+      "path": "/api/v1/system-settings/{key}",
+      "summary": "Обновить настройку системы",
+      "tag": "SystemSettings",
+      "roles": [
+        "system_admin"
+      ],
+      "fr": [
+        "FR-7"
+      ],
+      "query": [],
+      "request": {
+        "entity": "SystemSetting",
+        "fields": [
+          "value"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "SystemSetting",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404,
+        422
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли system_admin",
+        "2. Найти настройку по key",
+        "3. Валидировать значение",
+        "4. Обновить значение",
+        "5. Зафиксировать действие в AuditLog",
+        "6. Вернуть обновлённую настройку"
+      ],
+      "exceptions": [
+        "Настройка не найдена → 404",
+        "Некорректное значение → 422"
+      ],
+      "tables": [
+        "SystemSetting",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listAuditLogs",
+      "method": "get",
+      "path": "/api/v1/audit-logs",
+      "summary": "Получить журнал аудита",
+      "tag": "AuditLogs",
+      "roles": [
+        "system_admin"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-12",
+        "FR-13"
+      ],
+      "query": [
+        {
+          "name": "userId",
+          "type": "uuid",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "from",
+          "type": "datetime",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "to",
+          "type": "datetime",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "AuditLog",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли system_admin",
+        "2. Применить фильтры",
+        "3. Получить пагинацию",
+        "4. Вернуть список записей аудита"
+      ],
+      "exceptions": [],
+      "tables": [
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "createUser",
+      "method": "post",
+      "path": "/api/v1/users",
+      "summary": "Создать пользователя системы",
+      "tag": "Users",
+      "roles": [
+        "system_admin"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-12",
+        "FR-13"
+      ],
+      "query": [],
+      "request": {
+        "entity": "User",
+        "fields": [
+          "username",
+          "passwordHash",
+          "role",
+          "employeeId",
+          "isActive"
+        ],
+        "extra": []
+      },
+      "response": {
+        "kind": "object",
+        "entity": "User",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 201,
+      "errors": [
+        409,
+        422
+      ],
+      "idempotent": false,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли system_admin",
+        "2. Валидировать входные данные",
+        "3. Проверить уникальность username",
+        "4. Создать запись User",
+        "5. Зафиксировать действие в AuditLog",
+        "6. Вернуть созданную запись User"
+      ],
+      "exceptions": [
+        "Пользователь с таким username существует → 409",
+        "Некорректные входные данные → 422"
+      ],
+      "tables": [
+        "User",
+        "AuditLog"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "listUsers",
+      "method": "get",
+      "path": "/api/v1/users",
+      "summary": "Получить список пользователей",
+      "tag": "Users",
+      "roles": [
+        "system_admin"
+      ],
+      "fr": [
+        "FR-3",
+        "FR-4",
+        "FR-6",
+        "FR-11",
+        "FR-12",
+        "FR-13"
+      ],
+      "query": [
+        {
+          "name": "role",
+          "type": "enum",
+          "required": false,
+          "description": "",
+          "enum_values": [
+            "warehouse_keeper",
+            "warehouse_manager",
+            "employee",
+            "system_admin"
+          ]
+        },
+        {
+          "name": "isActive",
+          "type": "bool",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        },
+        {
+          "name": "pageSize",
+          "type": "int",
+          "required": false,
+          "description": "",
+          "enum_values": []
+        }
+      ],
+      "request": null,
+      "response": {
+        "kind": "page",
+        "entity": "User",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли system_admin",
+        "2. Применить фильтры",
+        "3. Получить пагинацию",
+        "4. Вернуть список пользователей"
+      ],
+      "exceptions": [],
+      "tables": [
+        "User"
+      ],
+      "external": [],
+      "caching": null
+    },
+    {
+      "operation_id": "retireTool",
+      "method": "post",
+      "path": "/api/v1/tools/{id}/retirements",
+      "summary": "Списать инструмент",
+      "tag": "Tools",
+      "roles": [
+        "warehouse_manager"
+      ],
+      "fr": [
+        "FR-8"
+      ],
+      "query": [],
+      "request": null,
+      "response": {
+        "kind": "object",
+        "entity": "Tool",
+        "fields": [],
+        "extra": []
+      },
+      "success_status": 200,
+      "errors": [
+        404,
+        409
+      ],
+      "idempotent": true,
+      "rate_limited": false,
+      "algorithm": [
+        "1. Проверить права роли warehouse_manager",
+        "2. Найти инструмент по ID",
+        "3. Проверить, что инструмент не выдан",
+        "4. Обновить статус Tool на retired",
+        "5. Зафиксировать событие retired в MovementHistory",
+        "6. Зафиксировать действие в AuditLog",
+        "7. Опубликовать событие tool.retired в Kafka",
+        "8. Вернуть обновлённую запись Tool"
+      ],
+      "exceptions": [
+        "Инструмент не найден → 404",
+        "Инструмент уже выдан → 409"
+      ],
+      "tables": [
+        "Tool",
+        "MovementHistory",
+        "AuditLog"
+      ],
+      "external": [
+        "Kafka Broker"
+      ],
+      "caching": null
+    }
+  ],
+  "events": [
+    {
+      "name": "tools.tool.issued",
+      "version": 1,
+      "description": "Событие выдачи инструмента сотруднику",
+      "producer": "Backend API",
+      "consumers": [
+        "TMЦ Mock Consumer"
+      ],
+      "key": "toolId",
+      "entity": "IssueRecord",
+      "fields": [
+        "id",
+        "toolId",
+        "employeeId",
+        "issueDate",
+        "returnDeadline"
+      ],
+      "extra": [
+        {
+          "name": "eventType",
+          "type": "string",
+          "required": true,
+          "description": "Тип события: issued",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "required": true,
+          "description": "Время события",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "fr": [
+        "FR-8"
+      ]
+    },
+    {
+      "name": "tools.tool.returned",
+      "version": 1,
+      "description": "Событие возврата инструмента",
+      "producer": "Backend API",
+      "consumers": [
+        "TMЦ Mock Consumer"
+      ],
+      "key": "toolId",
+      "entity": "ReturnRecord",
+      "fields": [
+        "id",
+        "toolId",
+        "employeeId",
+        "returnDate",
+        "condition"
+      ],
+      "extra": [
+        {
+          "name": "eventType",
+          "type": "string",
+          "required": true,
+          "description": "Тип события: returned",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "required": true,
+          "description": "Время события",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "fr": [
+        "FR-8"
+      ]
+    },
+    {
+      "name": "tools.tool.retired",
+      "version": 1,
+      "description": "Событие списания инструмента",
+      "producer": "Backend API",
+      "consumers": [
+        "TMЦ Mock Consumer"
+      ],
+      "key": "toolId",
+      "entity": "Tool",
+      "fields": [
+        "id",
+        "inventoryNumber",
+        "name"
+      ],
+      "extra": [
+        {
+          "name": "eventType",
+          "type": "string",
+          "required": true,
+          "description": "Тип события: retired",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime",
+          "required": true,
+          "description": "Время события",
+          "max_length": null,
+          "pattern": null,
+          "minimum": null,
+          "maximum": null,
+          "enum_values": [],
+          "default": null,
+          "unique": false,
+          "ref": null,
+          "pii": false,
+          "read_only": false,
+          "internal": false,
+          "example": null
+        }
+      ],
+      "fr": [
+        "FR-8"
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "title": "Добавление инструмента и печать QR-кода",
+      "scenario": "UC_001",
+      "steps": [
+        {
+          "source": "warehouse_manager",
+          "target": "Web UI",
+          "message": "Открывает форму добавления инструмента",
+          "reply": false
+        },
+        {
+          "source": "warehouse_manager",
+          "target": "Web UI",
+          "message": "Вводит данные: инвентарный номер, наименование, категория, склад, состояние",
+          "reply": false
+        },
+        {
+          "source": "Web UI",
+          "target": "Backend API",
+          "message": "POST /api/v1/tools",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Проверяет уникальность инвентарного номера",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Уникальность подтверждена",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Сохраняет Tool, генерирует QR-код",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Запись сохранена",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Web UI",
+          "message": "201 Created: Tool с QR-кодом",
+          "reply": true
+        },
+        {
+          "source": "Web UI",
+          "target": "warehouse_manager",
+          "message": "Отображает QR-код для печати",
+          "reply": false
+        }
+      ]
+    },
+    {
+      "title": "Выдача инструмента сотруднику",
+      "scenario": "UC_003",
+      "steps": [
+        {
+          "source": "warehouse_keeper",
+          "target": "Mobile App",
+          "message": "Сканирует QR-код инструмента",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "GET /api/v1/tools/qr/{qrCode}",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Ищет Tool по QR-коду",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Находит Tool",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "200 OK: Tool",
+          "reply": true
+        },
+        {
+          "source": "warehouse_keeper",
+          "target": "Mobile App",
+          "message": "Сканирует пропуск сотрудника",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "GET /api/v1/employees/pass/{passNumber}",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Ищет Employee по passNumber",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Находит Employee",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "200 OK: Employee",
+          "reply": true
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "POST /api/v1/issue-records",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Проверяет доступность инструмента и бронирования",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Инструмент доступен",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Создаёт IssueRecord, обновляет Tool",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Записи сохранены",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Kafka Broker",
+          "message": "Публикует tools.tool.issued",
+          "reply": false
+        },
+        {
+          "source": "Kafka Broker",
+          "target": "Backend API",
+          "message": "Событие опубликовано",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "201 Created: IssueRecord",
+          "reply": true
+        }
+      ]
+    },
+    {
+      "title": "Возврат инструмента с оценкой состояния",
+      "scenario": "UC_004",
+      "steps": [
+        {
+          "source": "warehouse_keeper",
+          "target": "Mobile App",
+          "message": "Сканирует QR-код возвращаемого инструмента",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "GET /api/v1/tools/qr/{qrCode}",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Ищет Tool и активную IssueRecord",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Находит Tool и IssueRecord",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "200 OK: Tool, IssueRecord",
+          "reply": true
+        },
+        {
+          "source": "warehouse_keeper",
+          "target": "Mobile App",
+          "message": "Выбирает состояние: исправен, требует ремонта, утерян",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "POST /api/v1/return-records",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Создаёт ReturnRecord, обновляет IssueRecord и Tool",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Записи сохранены",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Kafka Broker",
+          "message": "Публикует tools.tool.returned",
+          "reply": false
+        },
+        {
+          "source": "Kafka Broker",
+          "target": "Backend API",
+          "message": "Событие опубликовано",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "201 Created: ReturnRecord",
+          "reply": true
+        }
+      ]
+    },
+    {
+      "title": "Синхронизация операций после появления связи",
+      "scenario": "UC_008",
+      "steps": [
+        {
+          "source": "Mobile App",
+          "target": "Mobile App",
+          "message": "Обнаруживает восстановление связи",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Mobile App",
+          "message": "Читает операции из локального SyncQueue",
+          "reply": false
+        },
+        {
+          "source": "Mobile App",
+          "target": "Backend API",
+          "message": "POST /api/v1/sync-operations",
+          "reply": false
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Проверяет конфликты для каждой операции",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Конфликты проверены",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Database",
+          "message": "Выполняет операции (issue, return, reservation)",
+          "reply": false
+        },
+        {
+          "source": "Database",
+          "target": "Backend API",
+          "message": "Операции выполнены",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Kafka Broker",
+          "message": "Публикует события для успешных операций",
+          "reply": false
+        },
+        {
+          "source": "Kafka Broker",
+          "target": "Backend API",
+          "message": "События опубликованы",
+          "reply": true
+        },
+        {
+          "source": "Backend API",
+          "target": "Mobile App",
+          "message": "200 OK: результат синхронизации",
+          "reply": true
+        },
+        {
+          "source": "Mobile App",
+          "target": "Mobile App",
+          "message": "Очищает SyncQueue для синхронизированных операций",
+          "reply": false
+        }
+      ]
+    }
+  ],
+  "no_api": [
+    {
+      "fr": "FR-10",
+      "reason": "Локальное хранение операций при отсутствии связи выполняется на устройстве (Mobile App), синхронизация — через syncOperations"
+    },
+    {
+      "fr": "FR-15",
+      "reason": "Синхронизация операций после появления связи выполняется через syncOperations"
+    },
+    {
+      "fr": "FR-7",
+      "reason": "Scheduled job проверки сроков возврата выполняется Worker, не через REST API"
+    },
+    {
+      "fr": "FR-16",
+      "reason": "Показ списка невозвращённого при истечении срока — через listIssueRecords с фильтром overdueOnly"
+    }
+  ]
+}

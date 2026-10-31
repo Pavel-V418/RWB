@@ -1,0 +1,32 @@
+# Kotlin-клиент для Android (участник 5): Retrofit2 + coroutines + kotlinx.serialization.
+# packageName передаёт gen-clients.sh: <appId>.core.network.generated
+generatorName: kotlin
+library: jvm-retrofit2
+additionalProperties:
+  groupId: com.specforge
+  artifactId: parking-api-client
+  artifactVersion: 1.0.0
+  serializationLibrary: kotlinx_serialization
+  useCoroutines: true
+  useResponseAsReturnType: true
+  dateLibrary: java8
+  enumPropertyNaming: UPPERCASE
+  generateOneOfAnyOfWrappers: true
+  omitGradleWrapper: true
+  useSettingsGradle: true
+  hideGenerationTimestamp: true
+# coordinates в GeoJSON имеют переменную вложенность — отдаём геометрию как JsonElement
+# (MapLibre Android принимает её строкой: GeoJsonSource(id, geometry.toString())).
+schemaMappings:
+  GeoJsonGeometry: kotlinx.serialization.json.JsonElement
+# number без format генератор делает BigDecimal, для которого у kotlinx.serialization нет сериализатора
+# (найдено на живом выходе агента-архитектора: координаты GeoJSON — type: number).
+typeMappings:
+  number: kotlin.Double
+  BigDecimal: kotlin.Double
+  # свободные объекты (type: object без properties) и {} — Map<String, Any> и Any kotlinx не сериализует
+  object: JsonObject
+  AnyType: JsonElement
+importMappings:
+  JsonObject: kotlinx.serialization.json.JsonObject
+  JsonElement: kotlinx.serialization.json.JsonElement

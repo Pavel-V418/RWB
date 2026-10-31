@@ -1,0 +1,26 @@
+# Методы API
+
+Каждый метод описан по шаблону API организаторов.
+
+- [cancelReservation](cancelReservation.md)
+- [createReservation](createReservation.md)
+- [createTool](createTool.md)
+- [createUser](createUser.md)
+- [getEmployeeByPassNumber](getEmployeeByPassNumber.md)
+- [getSystemSettings](getSystemSettings.md)
+- [getTool](getTool.md)
+- [getToolByQrCode](getToolByQrCode.md)
+- [getToolMovementHistory](getToolMovementHistory.md)
+- [importEmployees](importEmployees.md)
+- [issueTool](issueTool.md)
+- [listAuditLogs](listAuditLogs.md)
+- [listEmployees](listEmployees.md)
+- [listIssueRecords](listIssueRecords.md)
+- [listReservations](listReservations.md)
+- [listReturnRecords](listReturnRecords.md)
+- [listTools](listTools.md)
+- [listUsers](listUsers.md)
+- [retireTool](retireTool.md)
+- [returnTool](returnTool.md)
+- [syncOperations](syncOperations.md)
+- [updateSystemSetting](updateSystemSetting.md)

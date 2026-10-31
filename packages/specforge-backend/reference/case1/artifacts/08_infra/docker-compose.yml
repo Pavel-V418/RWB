@@ -1,0 +1,109 @@
+# Стенд: PostGIS + Kafka + backend (+ админка по профилю web).
+# Лимиты памяти рассчитаны на VM с ~4 ГБ RAM: весь стенд ≤ ~1.2 ГБ (переопределяются *_MEM в .env).
+# Собирается generators/gen-infra.sh в artifacts/08_infra; запуск: docker compose up -d --build --wait
+name: specforge-case1
+
+services:
+  postgres:
+    # imresamu/postgis — мультиархитектурный (arm64 и amd64); на x86-сервере подходит и postgis/postgis:17-3.5
+    image: ${POSTGIS_IMAGE:-imresamu/postgis:17-3.5}
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте в .env (gen-infra.sh создаёт его сам)}
+    volumes:
+      # db-init: схема каркаса, доменный DDL и сиды — применяются один раз, при пустом томе
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRES_MEM:-384m}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:4.1.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # По умолчанию JVM Kafka берёт ~1 ГБ heap; для стенда хватает 256 МБ
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx256m -Xms256m}
+    deploy:
+      resources:
+        limits:
+          memory: ${KAFKA_MEM:-512m}
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
+
+  backend:
+    # Имя сервиса и порт ждёт nginx админки: BACKEND_URL=http://backend:8080
+    build:
+      context: ../04_backend
+      args:
+        APP_VERSION: ${APP_VERSION:-0.0.0-local}
+    image: ${API_IMAGE:-specforge/backend:local}
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=app;Username=app;Password=${POSTGRES_PASSWORD}
+      Kafka__Enabled: "true"
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__TopicPrefix: ${KAFKA_TOPIC_PREFIX:-}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?задайте в .env (gen-infra.sh создаёт его сам)}
+      OpenApi__Enabled: ${OPENAPI_ENABLED:-true}
+      TIME_SCALE: ${TIME_SCALE:-1}
+      Cors__AllowedOrigins__0: ${WEB_ORIGIN:-http://localhost:4200}
+      # Workstation GC: заметно меньше памяти, чем серверный, для одного экземпляра на стенде достаточно
+      DOTNET_gcServer: "0"
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKEND_MEM:-384m}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    # Перезапуск после POST /api/v1/system/restarts и при падении
+    restart: unless-stopped
+
+  web:
+    profiles: ["web"]
+    build:
+      context: ${WEB_CONTEXT:-../05_web}
+      dockerfile: ${WEB_DOCKERFILE:-Dockerfile}
+    image: ${WEB_IMAGE:-specforge/web:local}
+    environment:
+      BACKEND_URL: http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-4200}:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

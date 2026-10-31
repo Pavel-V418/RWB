@@ -12,12 +12,15 @@ from specforge_analysis.schemas import Requirements
 from agents._team.bridge import AnalysisLLM, WebLLM
 from agents._team.web import platforms, write_team_inputs
 from agents.analyst.agent import AGENT as ANALYST
+from agents.backend_coder.agent import BackendCoder
+from agents.devops.agent import DevOps
 from agents.frontend_coder.agent import AGENT as FRONTEND
 from agents.frontend_coder.agent import FrontendCoder
 from agents.system_architect.agent import AGENT as ARCHITECT
 from agents.tech_writer.agent import AGENT as WRITER
 from agents.ux_designer.agent import AGENT as UX
-from specforge.core.contracts import StageStatus
+from specforge.core.agent_api import AgentContext
+from specforge.core.contracts import StageResult, StageStatus
 from specforge.llm import ChatMessage, FakeLLM, LLMConfig
 from specforge.llm.types import LLMRequest
 from specforge.orchestrator.cache import stage_key
@@ -50,11 +53,31 @@ class NoBuildFrontend(FrontendCoder):
     )
 
 
+class NoDotnetBackend(BackendCoder):
+    """Без dotnet и Docker (в тестах их нет): этап отдаёт метку; настоящий шлюз — внутри части."""
+
+    def run(self, ctx: AgentContext) -> StageResult:
+        (ctx.output_dir / "README.md").write_text("backend\n", encoding="utf-8")
+        return self.result(StageStatus.passed, started=0.0, artifacts=self.collect_artifacts(ctx))
+
+
+class NoDockerDevOps(DevOps):
+    """Без Docker: стенд не поднимается, этап отдаёт метку."""
+
+    def run(self, ctx: AgentContext) -> StageResult:
+        (ctx.output_dir / "README-run.md").write_text("stand\n", encoding="utf-8")
+        return self.result(StageStatus.passed, started=0.0, artifacts=self.collect_artifacts(ctx))
+
+
 def test_team_pipeline_end_to_end(tmp_path: Path) -> None:
     h = Harness(tmp_path)
     h.requirements = CASE1
     llm = FakeLLM([golden_answer] * 80)
-    state = h.run([ANALYST, ARCHITECT, UX, NoBuildFrontend(), WRITER], llm=llm, use_cache=False)
+    state = h.run(
+        [ANALYST, ARCHITECT, UX, NoBuildFrontend(), NoDotnetBackend(), NoDockerDevOps(), WRITER],
+        llm=llm,
+        use_cache=False,
+    )
 
     results = state["stage_results"]
     statuses = {name: results[name].status for name in results}

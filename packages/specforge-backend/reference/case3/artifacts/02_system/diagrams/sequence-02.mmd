@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    participant warehouse_keeper as warehouse_keeper
+    participant Mobile_App as Mobile App
+    participant Backend_API as Backend API
+    participant Database as Database
+    participant Kafka_Broker as Kafka Broker
+    warehouse_keeper->>Mobile_App: Сканирует QR-код инструмента
+    Mobile_App->>Backend_API: GET /api/v1/tools/qr/{qrCode}
+    Backend_API->>Database: Ищет Tool по QR-коду
+    Database-->>Backend_API: Находит Tool
+    Backend_API-->>Mobile_App: 200 OK: Tool
+    warehouse_keeper->>Mobile_App: Сканирует пропуск сотрудника
+    Mobile_App->>Backend_API: GET /api/v1/employees/pass/{passNumber}
+    Backend_API->>Database: Ищет Employee по passNumber
+    Database-->>Backend_API: Находит Employee
+    Backend_API-->>Mobile_App: 200 OK: Employee
+    Mobile_App->>Backend_API: POST /api/v1/issue-records
+    Backend_API->>Database: Проверяет доступность инструмента и бронирования
+    Database-->>Backend_API: Инструмент доступен
+    Backend_API->>Database: Создаёт IssueRecord, обновляет Tool
+    Database-->>Backend_API: Записи сохранены
+    Backend_API->>Kafka_Broker: Публикует tools.tool.issued
+    Kafka_Broker-->>Backend_API: Событие опубликовано
+    Backend_API-->>Mobile_App: 201 Created: IssueRecord

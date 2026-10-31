@@ -1,0 +1,37 @@
+site_name: "Система учёта выдачи и возврата инструмента"
+docs_dir: docs
+theme:
+  name: material
+  language: ru
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - "О продукте": index.md
+  - "Руководство пользователя": user-guide.md
+  - "Запуск": run.md
+  - "Архитектура": architecture.md
+  - "Журнал решений (ADR)":
+    - "Список": adr/index.md
+    - "ADR-001. Выбор стека технологий для клиентских приложений": adr/ADR-001.md
+    - "ADR-002. Механизм передачи событий во внешнюю систему": adr/ADR-002.md
+    - "ADR-003. Обработка работы без сети в мобильном приложении": adr/ADR-003.md
+    - "ADR-004. Определение срока возврата инструмента": adr/ADR-004.md
+    - "ADR-005. Формат загрузки справочника сотрудников": adr/ADR-005.md
+  - "API": api.md
+  - "Методы API": api-methods/index.md
+  - "Паспорта сервисов": services/index.md
+  - "Модель данных": data-model.md
+  - "Требования": requirements.md
+  - "Системный анализ": system-analysis.md
+  - "Трассируемость": traceability.md
+  - "Отчёт о тестировании": test-report.md
+  - "Отчёт о безопасности": security-report.md
+  - "Известные ограничения": limitations.md
+  - "Руководство разработчика": dev-guide.md
+  - "Эффективность конвейера": efficiency.md

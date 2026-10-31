@@ -1,0 +1,5 @@
+@startuml
+[*] --> pending
+pending --> synced : sync_success
+pending --> rejected : sync_conflict
+@enduml

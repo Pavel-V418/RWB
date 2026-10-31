@@ -1,0 +1,85 @@
+erDiagram
+    User {
+        uuid id PK
+        string username UK
+        string passwordHash
+        enum role
+        uuid employeeId FK
+        bool isActive
+    }
+    Employee {
+        uuid id PK
+        string name
+        string passNumber UK
+    }
+    Tool {
+        uuid id PK
+        string inventoryNumber UK
+        string name
+        string category
+        string warehouse
+        enum status
+        string qrCode
+    }
+    Reservation {
+        uuid id PK
+        uuid toolId FK
+        uuid employeeId FK
+        date date
+        enum status
+    }
+    IssueRecord {
+        uuid id PK
+        uuid toolId FK
+        uuid employeeId FK
+        timestamptz issueDate
+        timestamptz returnDeadline
+        enum status
+    }
+    ReturnRecord {
+        uuid id PK
+        uuid issueRecordId FK
+        uuid toolId FK
+        uuid employeeId FK
+        timestamptz returnDate
+        enum condition
+    }
+    MovementHistory {
+        uuid id PK
+        uuid toolId FK
+        enum eventType
+        timestamptz timestamp
+        uuid userId FK
+        jsonb payload
+    }
+    SyncQueue {
+        uuid id PK
+        enum operationType
+        jsonb payload
+        enum status
+    }
+    AuditLog {
+        uuid id PK
+        uuid userId FK
+        string action
+        string entityType
+        uuid entityId
+        timestamptz timestamp
+        jsonb details
+    }
+    SystemSetting {
+        uuid id PK
+        string key UK
+        string value
+    }
+    Employee |o--o{ User : "employeeId"
+    Tool ||--o{ Reservation : "toolId"
+    Employee ||--o{ Reservation : "employeeId"
+    Tool ||--o{ IssueRecord : "toolId"
+    Employee ||--o{ IssueRecord : "employeeId"
+    IssueRecord ||--o{ ReturnRecord : "issueRecordId"
+    Tool ||--o{ ReturnRecord : "toolId"
+    Employee ||--o{ ReturnRecord : "employeeId"
+    Tool ||--o{ MovementHistory : "toolId"
+    User |o--o{ MovementHistory : "userId"
+    User |o--o{ AuditLog : "userId"

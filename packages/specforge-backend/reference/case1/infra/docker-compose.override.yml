@@ -1,0 +1,24 @@
+# Дополнение стенда кейса 1: мок «Паркоматики» и адрес провайдера для backend.
+# gen-infra.sh копирует файл в 08_infra; docker compose подхватывает его автоматически.
+services:
+  parkomatika-mock:
+    build:
+      context: mocks/parkomatika
+    image: specforge/parkomatika-mock:local
+    environment:
+      FAIL_RATE: ${MOCK_FAIL_RATE:-0}
+      LATENCY_MS: ${MOCK_LATENCY_MS:-0}
+    ports:
+      - "127.0.0.1:${MOCK_PORT:-8090}:8090"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    restart: unless-stopped
+
+  backend:
+    environment:
+      Providers__Parkomatika__BaseUrl: http://parkomatika-mock:8090/
+    depends_on:
+      parkomatika-mock:
+        condition: service_healthy

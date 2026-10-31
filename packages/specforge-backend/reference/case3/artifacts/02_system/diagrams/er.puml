@@ -1,0 +1,118 @@
+@startuml
+hide circle
+skinparam linetype ortho
+entity "users" as User {
+  * id : uuid <<PK>>
+  --
+  * username : string <<UK>>
+  * password_hash : string
+  * role : enum
+    employee_id : uuid <<FK>>
+  * is_active : bool
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "employees" as Employee {
+  * id : uuid <<PK>>
+  --
+  * name : string
+  * pass_number : string <<UK>>
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "tools" as Tool {
+  * id : uuid <<PK>>
+  --
+  * inventory_number : string <<UK>>
+  * name : string
+  * category : string
+  * warehouse : string
+  * status : enum
+  * qr_code : string
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "reservations" as Reservation {
+  * id : uuid <<PK>>
+  --
+  * tool_id : uuid <<FK>>
+  * employee_id : uuid <<FK>>
+  * date : date
+  * status : enum
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "issue_records" as IssueRecord {
+  * id : uuid <<PK>>
+  --
+  * tool_id : uuid <<FK>>
+  * employee_id : uuid <<FK>>
+  * issue_date : timestamptz
+  * return_deadline : timestamptz
+  * status : enum
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "return_records" as ReturnRecord {
+  * id : uuid <<PK>>
+  --
+  * issue_record_id : uuid <<FK>>
+  * tool_id : uuid <<FK>>
+  * employee_id : uuid <<FK>>
+  * return_date : timestamptz
+  * condition : enum
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "movement_histories" as MovementHistory {
+  * id : uuid <<PK>>
+  --
+  * tool_id : uuid <<FK>>
+  * event_type : enum
+  * timestamp : timestamptz
+    user_id : uuid <<FK>>
+    payload : jsonb
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "sync_queues" as SyncQueue {
+  * id : uuid <<PK>>
+  --
+  * operation_type : enum
+  * payload : jsonb
+  * status : enum
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "audit_logs" as AuditLog {
+  * id : uuid <<PK>>
+  --
+    user_id : uuid <<FK>>
+  * action : string
+  * entity_type : string
+    entity_id : uuid
+  * timestamp : timestamptz
+    details : jsonb
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+entity "system_settings" as SystemSetting {
+  * id : uuid <<PK>>
+  --
+  * key : string <<UK>>
+  * value : string
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+Employee |o--o{ User : employee_id
+Tool ||--o{ Reservation : tool_id
+Employee ||--o{ Reservation : employee_id
+Tool ||--o{ IssueRecord : tool_id
+Employee ||--o{ IssueRecord : employee_id
+IssueRecord ||--o{ ReturnRecord : issue_record_id
+Tool ||--o{ ReturnRecord : tool_id
+Employee ||--o{ ReturnRecord : employee_id
+Tool ||--o{ MovementHistory : tool_id
+User |o--o{ MovementHistory : user_id
+User |o--o{ AuditLog : user_id
+@enduml

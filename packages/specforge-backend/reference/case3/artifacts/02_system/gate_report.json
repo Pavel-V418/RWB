@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "W_FK_MISSING",
+      "severity": "warning",
+      "message": "поле похоже на внешний ключ, но ref не задан",
+      "target": "AuditLog.entityId"
+    },
+    {
+      "code": "W_NOT_IDEMPOTENT",
+      "severity": "warning",
+      "message": "создание ресурса без Idempotency-Key",
+      "target": "createTool"
+    },
+    {
+      "code": "W_NOT_IDEMPOTENT",
+      "severity": "warning",
+      "message": "создание ресурса без Idempotency-Key",
+      "target": "issueTool"
+    },
+    {
+      "code": "W_NOT_IDEMPOTENT",
+      "severity": "warning",
+      "message": "создание ресурса без Idempotency-Key",
+      "target": "returnTool"
+    },
+    {
+      "code": "W_NOT_IDEMPOTENT",
+      "severity": "warning",
+      "message": "создание ресурса без Idempotency-Key",
+      "target": "importEmployees"
+    },
+    {
+      "code": "W_NOT_IDEMPOTENT",
+      "severity": "warning",
+      "message": "создание ресурса без Idempotency-Key",
+      "target": "createUser"
+    },
+    {
+      "code": "W_ENTITY_NO_API",
+      "severity": "warning",
+      "message": "сущность не видна ни в API, ни в событиях",
+      "target": "SyncQueue"
+    },
+    {
+      "code": "W_PATH_RENAMED",
+      "severity": "warning",
+      "message": "/api/v1/sync-operations -> /api/v1/synchronization-operations",
+      "target": "syncOperations"
+    }
+  ],
+  "ddl_check": null,
+  "coverage": {
+    "functional": 17,
+    "fr_with_api_or_event": 16,
+    "fr_no_api_justified": 1,
+    "operations": 22,
+    "events": 3,
+    "entities": 10,
+    "sequences": 4
+  },
+  "metrics": {
+    "llm_calls": 3,
+    "input_tokens": 16491,
+    "output_tokens": 19604,
+    "retries": 0,
+    "cached_calls": 0,
+    "duration_s": 337.91
+  }
+}

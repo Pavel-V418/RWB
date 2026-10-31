@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "errors": [],
+  "tokens": 22759,
+  "attempts": 0,
+  "tags": {},
+  "tests": {
+    "Vehicles": {
+      "status": "passed",
+      "tests": 8,
+      "failed": [],
+      "attempts": 2
+    },
+    "Tracking": {
+      "status": "passed",
+      "tests": 8,
+      "failed": [],
+      "attempts": 3
+    },
+    "Events": {
+      "status": "passed",
+      "tests": 7,
+      "failed": [],
+      "attempts": 2
+    },
+    "Notifications": {
+      "status": "passed",
+      "tests": 8,
+      "failed": [],
+      "attempts": 3
+    },
+    "Sessions": {
+      "status": "passed",
+      "tests": 7,
+      "failed": [],
+      "attempts": 2
+    }
+  }
+}

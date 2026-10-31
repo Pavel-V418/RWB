@@ -29,6 +29,7 @@ dependencies = [
     # части команды (packages/): агенты платформы в agents/ — адаптеры к ним
     "specforge-analysis",
     "specforge-web",
+    "specforge-backend",
 ]
 
 [tool.uv.workspace]
@@ -37,6 +38,7 @@ members = ["packages/*"]
 [tool.uv.sources]
 specforge-analysis = { workspace = true }
 specforge-web = { workspace = true }
+specforge-backend = { workspace = true }
 
 [project.scripts]
 specforge = "specforge.cli:app"
@@ -86,7 +88,10 @@ plugins = ["pydantic.mypy"]
 
 # части команды (packages/) — без py.typed, у них свои правила; адаптеры в agents/ типизированы
 [[tool.mypy.overrides]]
-module = ["specforge_analysis", "specforge_analysis.*", "specforge_web", "specforge_web.*"]
+module = [
+    "specforge_analysis", "specforge_analysis.*", "specforge_web", "specforge_web.*",
+    "specforge_backend", "specforge_backend.*",
+]
 ignore_missing_imports = true
 follow_imports = "skip"
 
@@ -100,6 +105,7 @@ testpaths = [
     "tests",
     "packages/specforge-analysis/tests",
     "packages/specforge-web/specforge_web/tests",
+    "packages/specforge-backend/tests",
 ]
 # importlib: у пакетов команды свои tests/ с совпадающими именами модулей
 addopts = "-ra --import-mode=importlib"

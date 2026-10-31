@@ -1,0 +1,6 @@
+E2E-прогон стенда с TIME_SCALE=120 (python reference/case1/e2e/demo_scenario.py --timers): истечение сессии работает,
+а предупреждение за 10 минут — нет. Задача session-expiry-warning падает каждый проход:
+DbUpdateException → 23514: new row for relation "notifications" violates check constraint "notifications_kind_check".
+Вид уведомления должен быть из ограничения БД / enum контракта NotificationKind: для предупреждения — "session_expiring"
+(ContractEnums.ToValue(NotificationKind.SessionExpiring)), для истечения — "session_expired". Тип события предупреждения
+— как в enum контракта EventType: "SessionExpiringSoon" (не придумывай новых строк, бери значения из enum'ов).
